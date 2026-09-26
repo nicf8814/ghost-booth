@@ -1,0 +1,283 @@
+/* Haunted-booth visual personality: dark, theatrical, huge touch targets,
+   designed to be read from several feet away (CLAUDE.md sections 32, 63). */
+
+.booth-shell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at 50% 20%, #1a0d24 0%, #050308 70%);
+  overflow: hidden;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  text-align: center;
+  padding: 40px;
+}
+
+/* ---- Attract ---- */
+.attract-screen {
+  cursor: pointer;
+}
+
+.attract-glow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 50% 40%, rgba(170, 60, 255, 0.25), transparent 60%);
+  animation: pulse-glow 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.attract-title {
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 24px #ff7a1a, 0 0 60px rgba(255, 122, 26, 0.5);
+  max-width: 90%;
+  animation: fade-in 0.5s ease;
+  z-index: 1;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Buttons ---- */
+.big-button {
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  font-weight: 800;
+  padding: 24px 56px;
+  border-radius: 20px;
+  border: 4px solid #ff7a1a;
+  background: linear-gradient(180deg, #ff9433, #d8580a);
+  color: #150500;
+  box-shadow: 0 8px 0 #7a2c00, 0 20px 40px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+.big-button:active {
+  transform: translateY(4px);
+  box-shadow: 0 4px 0 #7a2c00, 0 10px 20px rgba(0, 0, 0, 0.5);
+}
+
+.big-button.secondary {
+  background: linear-gradient(180deg, #4a4a5a, #26262f);
+  border-color: #6b6b80;
+  color: #fff;
+  box-shadow: 0 8px 0 #14141a, 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.big-button.pulse {
+  animation: pulse-scale 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.boo-button {
+  font-size: clamp(2rem, 5vw, 4rem);
+}
+
+/* ---- Camera ---- */
+.camera-screen {
+  padding: 0;
+}
+
+.camera-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-overlay-message {
+  position: relative;
+  z-index: 1;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 16px 32px;
+  border-radius: 12px;
+}
+
+.camera-controls {
+  position: absolute;
+  bottom: 48px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* ---- Countdown ---- */
+.countdown-number {
+  font-size: clamp(8rem, 30vw, 20rem);
+  font-weight: 900;
+  animation: countdown-pop 0.4s ease;
+  text-shadow: 0 0 40px #ff2b2b;
+}
+
+@keyframes countdown-pop {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ---- Processing ---- */
+.spinner {
+  width: 80px;
+  height: 80px;
+  border: 8px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #ff7a1a;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.processing-message {
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  font-weight: 700;
+  max-width: 80%;
+}
+
+/* ---- Result ---- */
+.result-photo-frame {
+  width: min(70vw, 60vh);
+  aspect-ratio: 2 / 3;
+  border: 6px solid #ff7a1a;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.result-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.result-photo-placeholder {
+  color: #666;
+  font-weight: 700;
+}
+
+.result-controls {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ---- Printing / error ---- */
+.printing-screen.error h2 {
+  color: #ff4444;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.error-screen h2 {
+  color: #ff4444;
+}
+
+/* ---- Booth logo / operator entry point ---- */
+.booth-logo {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  z-index: 10;
+  opacity: 0.5;
+}
+
+/* ---- Operator panel ---- */
+.operator-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(10, 8, 14, 0.97);
+  color: #fff;
+  overflow-y: auto;
+  text-align: left;
+  padding: 24px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.operator-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.operator-close {
+  font-size: 2rem;
+  background: none;
+  border: none;
+  color: #fff;
+  line-height: 1;
+}
+
+.operator-panel-body section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.operator-panel-body label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 10px 0;
+  font-size: 0.95rem;
+}
+
+.operator-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.operator-tool-grid button {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #1e1e26;
+  color: #fff;
+}
+
+.operator-debug-info {
+  margin-top: 12px;
+  font-family: monospace;
+  color: #9ca3af;
+}
