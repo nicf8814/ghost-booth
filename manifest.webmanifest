@@ -1,0 +1,17 @@
+{
+  "name": "Ghost Booth",
+  "short_name": "Ghost Booth",
+  "description": "Haunted Halloween photo booth",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#05050a",
+  "theme_color": "#05050a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
