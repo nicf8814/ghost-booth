@@ -25,29 +25,6 @@ interface ResultScreenProps {
   ghostOn: boolean;
   onToggleGhost: () => void;
   ghostAvailable: boolean;
-  /** Whether the decorative border (operator's "Frame" setting) is drawn
-   * around whichever photo is currently showing. Only rendered when the
-   * operator has a frame configured and Poster Mode isn't currently
-   * applied to this photo (Poster Mode has its own border/vignette and
-   * no separate frame). */
-  frameOn: boolean;
-  onToggleFrame: () => void;
-  frameAvailable: boolean;
-  /** Whether the operator's configured Halloween overlays (CLAUDE.md
-   * section 24 -- cobwebs, bats, etc) are drawn on whichever photo is
-   * currently showing. Only rendered when the operator has at least one
-   * overlay configured and Poster Mode isn't currently applied. */
-  overlaysOn: boolean;
-  onToggleOverlays: () => void;
-  overlaysAvailable: boolean;
-  /** Whether "Poster Mode" (effects/PosterEffect.ts) is applied to
-   * whichever photo is currently showing, replacing the regular
-   * caption+frame+overlay treatment with a horror-poster color grade.
-   * Only rendered when the operator has Poster Mode enabled for this
-   * event. */
-  posterOn: boolean;
-  onTogglePoster: () => void;
-  posterAvailable: boolean;
   /** Whether a caption (CLAUDE.md section 25) is drawn on whichever photo
    * is currently showing, poster-graded or not. Only rendered when the
    * operator's Caption Mode isn't "off". Unlike the other toggles, every
@@ -57,18 +34,15 @@ interface ResultScreenProps {
   captionOn: boolean;
   onToggleCaption: () => void;
   captionAvailable: boolean;
-  /** Whether a Horror Filter (effects/HorrorFilters.ts -- VHS, noir, blood
-   * moon, vintage) color grade is applied to whichever photo is currently
-   * showing. Only rendered when the operator has at least one filter
-   * configured and Poster Mode isn't currently applied (both are
-   * whole-photo grades; stacking them would look muddy). Which filter is
-   * used is decided per-photo at capture time, not guest-selectable -- this
-   * is a plain on/off toggle like Frame/Overlays. */
-  filterOn: boolean;
-  onToggleFilter: () => void;
-  filterAvailable: boolean;
-  /** One-tap revert: turns every toggle above off at once, back to the
-   * plain candid capture. */
+  /** Opens the CustomizePanel (App.tsx), where the guest picks the specific
+   * frame, which overlays, the poster tint, and the filter for this photo. */
+  onOpenCustomize: () => void;
+  /** Whether the guest has picked any non-default frame/overlay/poster/
+   * filter for the current photo -- shown as a filled dot on the CUSTOMIZE
+   * button so it's obvious something was chosen without opening the panel. */
+  customizeActive: boolean;
+  /** One-tap revert: turns every toggle above off/back to defaults at once,
+   * back to the plain candid capture. */
   onShowOriginal: () => void;
 }
 
@@ -90,21 +64,11 @@ export function ResultScreen({
   ghostOn,
   onToggleGhost,
   ghostAvailable,
-  frameOn,
-  onToggleFrame,
-  frameAvailable,
-  overlaysOn,
-  onToggleOverlays,
-  overlaysAvailable,
-  posterOn,
-  onTogglePoster,
-  posterAvailable,
   captionOn,
   onToggleCaption,
   captionAvailable,
-  filterOn,
-  onToggleFilter,
-  filterAvailable,
+  onOpenCustomize,
+  customizeActive,
   onShowOriginal,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
@@ -191,57 +155,15 @@ export function ResultScreen({
           </button>
         )}
 
-        {frameAvailable && (
-          <button
-            type="button"
-            className={`icon-button ${frameOn ? "icon-button-active" : ""}`}
-            onClick={onToggleFrame}
-            aria-pressed={frameOn}
-            aria-label="Toggle photo frame"
-          >
-            <span className="icon-button-glyph" aria-hidden="true">🖼️</span>
-            <span className="icon-button-label">FRAME</span>
-          </button>
-        )}
-
-        {overlaysAvailable && (
-          <button
-            type="button"
-            className={`icon-button ${overlaysOn ? "icon-button-active" : ""}`}
-            onClick={onToggleOverlays}
-            aria-pressed={overlaysOn}
-            aria-label="Toggle Halloween overlays"
-          >
-            <span className="icon-button-glyph" aria-hidden="true">🕸️</span>
-            <span className="icon-button-label">OVERLAYS</span>
-          </button>
-        )}
-
-        {posterAvailable && (
-          <button
-            type="button"
-            className={`icon-button ${posterOn ? "icon-button-active" : ""}`}
-            onClick={onTogglePoster}
-            aria-pressed={posterOn}
-            aria-label="Toggle poster mode"
-          >
-            <span className="icon-button-glyph" aria-hidden="true">🎬</span>
-            <span className="icon-button-label">POSTER</span>
-          </button>
-        )}
-
-        {filterAvailable && (
-          <button
-            type="button"
-            className={`icon-button ${filterOn ? "icon-button-active" : ""}`}
-            onClick={onToggleFilter}
-            aria-pressed={filterOn}
-            aria-label="Toggle horror filter"
-          >
-            <span className="icon-button-glyph" aria-hidden="true">🎞️</span>
-            <span className="icon-button-label">FILTER</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className={`icon-button ${customizeActive ? "icon-button-active" : ""}`}
+          onClick={onOpenCustomize}
+          aria-label="Customize frame, overlays, poster, and filter"
+        >
+          <span className="icon-button-glyph" aria-hidden="true">🎨</span>
+          <span className="icon-button-label">CUSTOMIZE</span>
+        </button>
 
         {captionAvailable && (
           <button

@@ -1,10 +1,19 @@
 // The non-React "business logic" behind a single photo: turning a freshly
 // captured master bitmap into caricatured/ghost variants plus a per-photo
 // "recipe" (CLAUDE.md section 27's vision -> caricature -> ghost stages,
-// plus the decisions -- caption/frame/overlays/poster tint -- section 20
-// says to make once per photo from the seeded rng), and turning the
-// guest's current toggle selection into the one composed bitmap that
-// actually gets shown/printed (section 28's composition stage).
+// plus the caption/overlay-seed choices section 20 says to make once per
+// photo from the seeded rng), and turning the guest's current selection of
+// which specific frame/overlays/poster-tint/filter to apply into the one
+// composed bitmap that actually gets shown/printed (section 28's
+// composition stage).
+//
+// Frame/Overlays/Poster/Filter are guest-driven pickers, not just on/off
+// toggles: the guest chooses the specific frame, which individual overlays,
+// which poster tint, and which filter they want, from whatever the operator
+// has made available for the event (CapturePipelineSettings below). Only
+// the caption and "My Cameo" ghost stay as simple availability-gated
+// booleans -- picking a specific caption line or a specific cameo image
+// isn't something the guest controls.
 //
 // Pulled out of App.tsx, which used to have all of this inline in
 // handleCountdownComplete/applyPhotoSelection -- CLAUDE.md section 55 says
@@ -23,12 +32,12 @@ import type { CaricatureEngine } from "../effects/EffectEngine";
 import type { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
 import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
-import type { FrameKey } from "../effects/Frames";
+import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
 import { applyPosterEffect, POSTER_TINTS, type PosterTint } from "../effects/PosterEffect";
 import { applyHorrorFilter, type FilterKey } from "../effects/HorrorFilters";
 import type { CompositionEngine } from "../rendering/CompositionEngine";
 import { drawCaptionOnBitmap } from "../rendering/CompositionEngine";
-import { createSeed, pick, seededRandom } from "../utils/random";
+import { createSeed, seededRandom } from "../utils/random";
 import type { CaptionMode, CaricaturePreset, OwnerCameoMode } from "./Settings";
 
 /** The subset of a photo's operator settings this pipeline's analysis stage needs. */
@@ -44,24 +53,35 @@ export interface CapturePipelineSettings {
   filters: FilterKey[];
 }
 
-/** Decided once per photo from the seeded rng (CLAUDE.md section 20) and reused across every later toggle recompose, so flipping Frame/Overlays/Poster on and off never reshuffles which caption/overlay-layout/tint the photo uses. */
+/** Decided once per photo from the seeded rng (CLAUDE.md section 20) and reused across every later recompose, so re-picking frame/overlays/poster/filter never reshuffles which caption or overlay layout the photo uses. */
 export interface PhotoRecipe {
   caption?: string;
-  frame: FrameKey;
-  overlays: OverlayKey[];
   overlaySeed: string;
-  posterTint: PosterTint;
-  filterKey: FilterKey;
 }
 
-/** Which of the recipe-dependent guest toggles should even be shown/on by default for a fresh photo, given what the operator has configured. */
-export interface ToggleAvailability {
+/**
+ * What the guest can choose from for this photo, given what the operator
+ * configured for the event. Frame options are always the full fixed set
+ * (frames are free procedural decoration, not operator-curated content like
+ * overlays/filters are); overlay/filter options are whichever subset the
+ * operator enabled; poster tints are the full fixed set when Poster Mode is
+ * on at all, empty otherwise.
+ */
+export interface PhotoOptions {
   ghost: boolean;
-  frame: boolean;
-  overlays: boolean;
-  poster: boolean;
   caption: boolean;
-  filter: boolean;
+  frameOptions: FrameKey[];
+  overlayOptions: OverlayKey[];
+  posterTints: PosterTint[];
+  filterOptions: FilterKey[];
+}
+
+/** The guest's starting selection for a fresh photo -- frame/overlays default to the operator's configured defaults (on), poster/filter default off so the guest opts into those more dramatic whole-photo treatments deliberately. */
+export interface DefaultSelection {
+  frameKey: FrameKey;
+  overlayKeys: OverlayKey[];
+  posterTint: PosterTint | null;
+  filterKey: FilterKey | null;
 }
 
 export interface AnalyzedPhoto {
@@ -71,7 +91,8 @@ export interface AnalyzedPhoto {
   originalGhost: ImageBitmap | null;
   caricaturedGhost: ImageBitmap | null;
   recipe: PhotoRecipe;
-  availability: ToggleAvailability;
+  options: PhotoOptions;
+  defaults: DefaultSelection;
 }
 
 export interface AnalyzePhotoDeps {
@@ -82,12 +103,12 @@ export interface AnalyzePhotoDeps {
 
 /**
  * Runs face detection, per-face caricature warping, "My Cameo" ghost
- * compositing, and picks this photo's caption/frame/overlay-seed/poster
- * tint -- everything that only needs to happen once, right after capture,
- * regardless of which toggles the guest ends up flipping afterward. Never
- * throws on a detection/warp/cameo failure in a way that would lose the
- * photo (CLAUDE.md section 49): a face detector that returns no faces or a
- * cameo engine with nothing loaded both degrade to sensible fallbacks
+ * compositing, and picks this photo's caption and overlay-placement seed --
+ * everything that only needs to happen once, right after capture, regardless
+ * of which frame/overlays/poster/filter the guest ends up picking afterward.
+ * Never throws on a detection/warp/cameo failure in a way that would lose
+ * the photo (CLAUDE.md section 49): a face detector that returns no faces or
+ * a cameo engine with nothing loaded both degrade to sensible fallbacks
  * already, at the engine level, not here.
  */
 export async function analyzeAndWarpPhoto(
@@ -103,9 +124,9 @@ export async function analyzeAndWarpPhoto(
   const faces = await deps.faceDetector.detect(detectionCopy);
 
   // A fresh per-photo seed drives every choice below (preset selection,
-  // deformation strength, cameo pick, caption, poster tint) so a given
-  // photo's result can be reproduced for debugging by logging the seed
-  // (CLAUDE.md section 20).
+  // deformation strength, cameo pick, caption) so a given photo's result
+  // can be reproduced for debugging by logging the seed (CLAUDE.md
+  // section 20).
   const seed = createSeed();
   const rng = seededRandom(seed);
   const config = scaleTowardNeutral(resolvePreset(settings.preset, rng), settings.caricatureStrength);
@@ -140,15 +161,7 @@ export async function analyzeAndWarpPhoto(
   const caption = pickCaption(settings.captionMode, settings.fixedCaption, rng);
   const recipe: PhotoRecipe = {
     caption,
-    frame: settings.frame,
-    overlays: settings.overlays,
     overlaySeed: createSeed(),
-    posterTint: pick(POSTER_TINTS, rng),
-    // Picked once per photo, same as posterTint above, so toggling the
-    // Filter button on/off doesn't reshuffle which look this photo got.
-    // Falls back to "vhs" when the operator hasn't enabled any filters --
-    // unused in that case since availability.filter is false below.
-    filterKey: settings.filters.length > 0 ? pick(settings.filters, rng) : "vhs",
   };
 
   return {
@@ -158,13 +171,19 @@ export async function analyzeAndWarpPhoto(
     originalGhost,
     caricaturedGhost,
     recipe,
-    availability: {
+    options: {
       ghost: ghostAvailable,
-      frame: settings.frame !== "none",
-      overlays: settings.overlays.length > 0,
-      poster: settings.posterMode,
       caption: settings.captionMode !== "off",
-      filter: settings.filters.length > 0,
+      frameOptions: FRAME_KEYS,
+      overlayOptions: settings.overlays,
+      posterTints: settings.posterMode ? POSTER_TINTS : [],
+      filterOptions: settings.filters,
+    },
+    defaults: {
+      frameKey: settings.frame,
+      overlayKeys: settings.overlays,
+      posterTint: null,
+      filterKey: null,
     },
   };
 }
@@ -177,15 +196,15 @@ export interface PhotoBaseBitmaps {
   caricaturedGhost: ImageBitmap | null;
 }
 
-/** The guest's current combination of result-screen toggles. */
+/** The guest's current picks for the photo currently showing. */
 export interface PhotoSelection {
   goofy: boolean;
   ghost: boolean;
-  framed: boolean;
-  overlaid: boolean;
-  postered: boolean;
   captioned: boolean;
-  filtered: boolean;
+  frameKey: FrameKey;
+  overlayKeys: OverlayKey[];
+  posterTint: PosterTint | null;
+  filterKey: FilterKey | null;
 }
 
 export interface ComposeSelectionDeps {
@@ -193,20 +212,17 @@ export interface ComposeSelectionDeps {
 }
 
 /**
- * Composes the currently-selected combination of guest toggles into the
- * one bitmap that should be shown/printed. Poster Mode, when on, replaces
- * the regular frame+overlay composition entirely (its own vignette would
- * clash with a frame border); otherwise frame/overlays are drawn (or not)
- * on top of the base bitmap. The caption toggle is independent of that
- * choice and, when on, is drawn on top of either path -- compose()'s own
- * caption layer for the regular treatment, or drawCaptionOnBitmap for the
- * poster-graded one, since Poster Mode itself is pure color grade/gradient
- * with no text of its own. The Filter toggle, when on, grades the source
- * bitmap (effects/HorrorFilters.ts) before it reaches the regular
- * frame/overlay/caption composition -- skipped whenever Poster Mode is also
- * on, since Poster is already a full grade of its own and stacking two
- * would look muddy (the same mutual-exclusivity App.tsx already applies to
- * Frame/Overlays while Poster is live). Returns null only when the base
+ * Composes the guest's current picks into the one bitmap that should be
+ * shown/printed. A non-null posterTint replaces the regular
+ * frame+overlay+filter composition entirely (its own vignette would clash
+ * with a frame border, and stacking a color grade on top of a filter's own
+ * color grade would look muddy) -- otherwise the chosen filter (if any)
+ * grades the source first, then frame/overlays (if any) are drawn on top of
+ * that via the regular composition. The caption toggle is independent of
+ * that choice and, when on, is drawn on top of either path -- compose()'s
+ * own caption layer for the regular treatment, or drawCaptionOnBitmap for
+ * the poster-graded one, since Poster Mode itself is pure color
+ * grade/gradient with no text of its own. Returns null only when the base
  * bitmaps aren't ready yet (no photo captured), which callers should treat
  * as "nothing to display", not an error.
  */
@@ -224,22 +240,24 @@ export async function composeSelectedBitmap(
   const source = (selection.ghost && ghostVariant) || plainVariant;
   if (!source) return null;
 
+  const postered = selection.posterTint !== null;
+
   const filteredSource =
-    selection.filtered && !selection.postered
-      ? await applyHorrorFilter(source, { key: recipe.filterKey })
+    selection.filterKey && !postered
+      ? await applyHorrorFilter(source, { key: selection.filterKey })
       : source;
 
-  let bitmap = selection.postered
-    ? await applyPosterEffect(source, { tint: recipe.posterTint })
+  let bitmap = postered
+    ? await applyPosterEffect(source, { tint: selection.posterTint as PosterTint })
     : await deps.compositionEngine.compose({
         foreground: filteredSource,
         caption: selection.captioned ? recipe.caption : undefined,
-        frame: selection.framed ? recipe.frame : "none",
-        overlays: selection.overlaid ? recipe.overlays : [],
+        frame: selection.frameKey,
+        overlays: selection.overlayKeys,
         overlaySeed: recipe.overlaySeed,
       });
 
-  if (selection.postered && selection.captioned && recipe.caption) {
+  if (postered && selection.captioned && recipe.caption) {
     bitmap = await drawCaptionOnBitmap(bitmap, recipe.caption);
   }
 

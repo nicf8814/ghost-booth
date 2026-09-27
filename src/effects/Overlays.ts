@@ -43,6 +43,26 @@ export const OVERLAY_KEYS: OverlayKey[] = [
   "vignette",
 ];
 
+/** Human-readable labels for the operator panel's checkbox grid and the guest-facing customize panel. */
+export const OVERLAY_LABELS: Record<OverlayKey, string> = {
+  bloodSplatter: "Blood Splatter",
+  cobwebs: "Cobwebs",
+  spiders: "Spiders",
+  bats: "Bats",
+  skulls: "Skulls",
+  eyeballs: "Eyeballs",
+  horns: "Horns",
+  vampireFangs: "Vampire Fangs",
+  graveyard: "Graveyard",
+  moon: "Moon",
+  candles: "Candles",
+  fog: "Fog",
+  crackedGlass: "Cracked Glass",
+  scratches: "Scratches",
+  filmGrain: "Film Grain",
+  vignette: "Vignette",
+};
+
 /** Draws every requested overlay, in a fixed order so layering is stable regardless of the order the operator picked them in. */
 export function drawOverlays(
   ctx: OffscreenCanvasRenderingContext2D,

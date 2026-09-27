@@ -10,6 +10,12 @@ export type FrameKey = "none" | "classic" | "filmStrip";
 
 export const FRAME_KEYS: FrameKey[] = ["none", "classic", "filmStrip"];
 
+export const FRAME_LABELS: Record<FrameKey, string> = {
+  none: "No Frame",
+  classic: "Classic",
+  filmStrip: "Film Strip",
+};
+
 const ACCENT_ORANGE = "#ff7a1a";
 const DARK = "#150500";
 

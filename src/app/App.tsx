@@ -7,6 +7,7 @@ import { ProcessingScreen } from "../components/ProcessingScreen";
 import { ResultScreen } from "../components/ResultScreen";
 import { PrintingScreen } from "../components/PrintingScreen";
 import { OperatorPanel } from "../components/OperatorPanel";
+import { CustomizePanel } from "../components/CustomizePanel";
 import { GetUserMediaCameraManager } from "../camera/CameraManager";
 import { captureMasterFrame } from "../camera/CaptureService";
 import { imageBitmapToBlob } from "../utils/image";
@@ -23,14 +24,19 @@ import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
 import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
-import { pickCaption } from "../effects/HalloweenEffects";
+import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
+import type { FrameKey } from "../effects/Frames";
+import type { PosterTint } from "../effects/PosterEffect";
+import type { FilterKey } from "../effects/HorrorFilters";
 import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import {
   analyzeAndWarpPhoto,
   composeSelectedBitmap,
   type PhotoBaseBitmaps,
+  type PhotoOptions,
   type PhotoRecipe,
+  type PhotoSelection,
 } from "./CapturePipeline";
 import "./app.css";
 
@@ -82,44 +88,62 @@ const ownerCameoEngine = new OwnerCameoEngine(
 // https://<user>.github.io/ghost-booth/ rather than a domain root.
 const faceDetector = new WorkerFaceDetector(new URL("models/", document.baseURI).href);
 
+const EMPTY_PHOTO_OPTIONS: PhotoOptions = {
+  ghost: false,
+  caption: false,
+  frameOptions: [],
+  overlayOptions: [],
+  posterTints: [],
+  filterOptions: [],
+};
+
 export default function App() {
   const [state, dispatch] = useAppReducer();
   const [operatorPanelOpen, setOperatorPanelOpen] = useState(false);
+  const [customizePanelOpen, setCustomizePanelOpen] = useState(false);
   const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<"printing" | "success" | "failed">("printing");
   const [faces, setFaces] = useState<FaceModel[]>([]);
-  // Guest-facing toggles for the current photo. Each is independent of
-  // the others (any combination is valid) and, unlike the old design,
-  // none of these are baked into a precomputed bitmap variant -- see
-  // applyPhotoSelection below for why. Defaults are set fresh on every
-  // capture in handleCountdownComplete.
+  // Guest-facing picks for the current photo. Goofy/Ghost/Caption stay
+  // simple booleans (CLAUDE.md section 25's captions and "My Cameo" aren't
+  // guest-selectable beyond on/off); Frame/Overlays/Poster/Filter are now
+  // explicit choices the guest makes in CustomizePanel, not just on/off --
+  // see CapturePipeline.ts's PhotoSelection for why. None of these are
+  // baked into a precomputed bitmap variant -- see applyPhotoSelection
+  // below for why. Defaults are set fresh on every capture in
+  // handleCountdownComplete, from analyzeAndWarpPhoto's `defaults`.
   const [goofyFilterOn, setGoofyFilterOn] = useState(true);
   const [ghostOn, setGhostOn] = useState(false);
-  const [frameOn, setFrameOn] = useState(false);
-  const [overlaysOn, setOverlaysOn] = useState(false);
-  const [posterOn, setPosterOn] = useState(false);
   const [captionOn, setCaptionOn] = useState(false);
-  const [filterOn, setFilterOn] = useState(false);
+  const [frameKey, setFrameKey] = useState<FrameKey>("none");
+  const [overlayKeys, setOverlayKeys] = useState<OverlayKey[]>([]);
+  const [posterTint, setPosterTint] = useState<PosterTint | null>(null);
+  const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
+  // What the guest can currently choose from (CapturePipeline.ts's
+  // PhotoOptions) -- drives which sections CustomizePanel shows, and
+  // whether the result screen's CUSTOMIZE/CAPTION/SPOOKY buttons render at
+  // all. Recomputed every capture; empty (nothing to offer) before the
+  // first photo.
+  const [photoOptions, setPhotoOptions] = useState<PhotoOptions>(EMPTY_PHOTO_OPTIONS);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
   // The four "base" bitmaps for the current photo -- goofy x ghost, and
-  // nothing else. Frame/overlays/caption/poster are no longer baked into
-  // precomputed pairs (the old design's originalFramedBitmapRef etc.):
-  // with five independent guest toggles now instead of three, caching
-  // every combination up front (2^5 = 32 variants) doesn't scale, so
-  // applyPhotoSelection below composes the current toggle state on
-  // demand instead. A compose() call is one cheap canvas draw, well
-  // within toggle-tap latency, so this doesn't cost noticeably more per
-  // tap than the old swap-a-cached-bitmap approach did.
+  // nothing else. Frame/overlays/caption/poster/filter are no longer baked
+  // into precomputed pairs: with an open-ended combination of guest picks
+  // now instead of a handful of booleans, caching every combination up
+  // front doesn't scale, so applyPhotoSelection below composes the current
+  // selection on demand instead. A compose() call is one cheap canvas
+  // draw, well within toggle-tap latency, so this doesn't cost noticeably
+  // more per tap than the old swap-a-cached-bitmap approach did.
   const originalBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedBitmapRef = useRef<ImageBitmap | null>(null);
   const originalGhostBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedGhostBitmapRef = useRef<ImageBitmap | null>(null);
-  // The per-photo "recipe" (caption/frame/overlays/poster tint) decided
-  // once at capture time from the seeded rng (CLAUDE.md section 20), so
-  // toggling frame/overlays/poster on and off doesn't reshuffle which
-  // caption or overlay layout the photo uses.
+  // The per-photo "recipe" (caption, overlay-placement seed) decided once
+  // at capture time from the seeded rng (CLAUDE.md section 20), so
+  // re-picking frame/overlays/poster/filter never reshuffles which caption
+  // or overlay layout the photo uses.
   const photoRecipeRef = useRef<PhotoRecipe | null>(null);
   const settingsLoadedRef = useRef(false);
 
@@ -181,106 +205,100 @@ export default function App() {
     dispatch({ kind: "booth", event: { type: "START_COUNTDOWN" } });
   }, [dispatch]);
 
-  // Composes the currently-selected combination of guest toggles into the
-  // photo shown/printed, and swaps resultImageUrl to it. Poster Mode, when
-  // on, replaces the regular frame+overlay composition entirely (same
-  // mutually-exclusive-treatment rationale PosterEffect.ts has always
-  // documented -- its own vignette would clash with a frame border);
-  // otherwise frame/overlays are drawn (or not) on top of the base bitmap.
-  // The caption toggle is independent of that choice and, when on, is
-  // drawn on top of either path (compose()'s own caption layer for the
-  // regular treatment, or drawCaptionOnBitmap for the poster-graded one,
-  // since Poster Mode itself is now pure color grade/gradient with no text
-  // of its own).
-  const applyPhotoSelection = useCallback(
-    async (
-      goofy: boolean,
-      ghost: boolean,
-      framed: boolean,
-      overlaid: boolean,
-      postered: boolean,
-      captioned: boolean,
-      filtered: boolean,
-    ) => {
-      const recipe = photoRecipeRef.current;
-      const original = originalBitmapRef.current;
-      const caricatured = caricaturedBitmapRef.current;
-      if (!recipe || !original || !caricatured) return;
-      const base: PhotoBaseBitmaps = {
-        original,
-        caricatured,
-        originalGhost: originalGhostBitmapRef.current,
-        caricaturedGhost: caricaturedGhostBitmapRef.current,
-      };
+  // Composes the guest's current picks into the photo shown/printed, and
+  // swaps resultImageUrl to it. A non-null posterTint replaces the regular
+  // frame+overlay+filter composition entirely (same mutually-exclusive-
+  // treatment rationale PosterEffect.ts has always documented -- its own
+  // vignette would clash with a frame border); otherwise the chosen filter
+  // (if any) grades the source first, then frame/overlays (if any) are
+  // drawn on top of that. The caption toggle is independent of that choice
+  // and, when on, is drawn on top of either path.
+  const applyPhotoSelection = useCallback(async (selection: PhotoSelection) => {
+    const recipe = photoRecipeRef.current;
+    const original = originalBitmapRef.current;
+    const caricatured = caricaturedBitmapRef.current;
+    if (!recipe || !original || !caricatured) return;
+    const base: PhotoBaseBitmaps = {
+      original,
+      caricatured,
+      originalGhost: originalGhostBitmapRef.current,
+      caricaturedGhost: caricaturedGhostBitmapRef.current,
+    };
 
-      const bitmap = await composeSelectedBitmap(
-        base,
-        recipe,
-        { goofy, ghost, framed, overlaid, postered, captioned, filtered },
-        { compositionEngine },
-      );
-      if (!bitmap) return;
+    const bitmap = await composeSelectedBitmap(base, recipe, selection, { compositionEngine });
+    if (!bitmap) return;
 
-      masterBitmapRef.current = bitmap;
-      const blob = await imageBitmapToBlob(bitmap);
-      const url = URL.createObjectURL(blob);
-      setResultImageUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
-    },
-    [],
+    masterBitmapRef.current = bitmap;
+    const blob = await imageBitmapToBlob(bitmap);
+    const url = URL.createObjectURL(blob);
+    setResultImageUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+  }, []);
+
+  const currentSelection = useCallback(
+    (overrides: Partial<PhotoSelection> = {}): PhotoSelection => ({
+      goofy: goofyFilterOn,
+      ghost: ghostOn,
+      captioned: captionOn,
+      frameKey,
+      overlayKeys,
+      posterTint,
+      filterKey,
+      ...overrides,
+    }),
+    [goofyFilterOn, ghostOn, captionOn, frameKey, overlayKeys, posterTint, filterKey],
   );
 
   const handleToggleGoofyFilter = useCallback(() => {
     const next = !goofyFilterOn;
     setGoofyFilterOn(next);
-    void applyPhotoSelection(next, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
+    void applyPhotoSelection(currentSelection({ goofy: next }));
+  }, [goofyFilterOn, currentSelection, applyPhotoSelection]);
 
   const handleToggleGhost = useCallback(() => {
     const next = !ghostOn;
     setGhostOn(next);
-    void applyPhotoSelection(goofyFilterOn, next, frameOn, overlaysOn, posterOn, captionOn, filterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
+    void applyPhotoSelection(currentSelection({ ghost: next }));
+  }, [ghostOn, currentSelection, applyPhotoSelection]);
 
-  const handleToggleFrame = useCallback(() => {
-    const next = !frameOn;
-    setFrameOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, next, overlaysOn, posterOn, captionOn, filterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
+  const handleSelectFrame = useCallback((key: FrameKey) => {
+    setFrameKey(key);
+    void applyPhotoSelection(currentSelection({ frameKey: key }));
+  }, [currentSelection, applyPhotoSelection]);
 
-  const handleToggleOverlays = useCallback(() => {
-    const next = !overlaysOn;
-    setOverlaysOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, next, posterOn, captionOn, filterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
+  const handleToggleOverlayKey = useCallback((key: OverlayKey) => {
+    setOverlayKeys((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      void applyPhotoSelection(currentSelection({ overlayKeys: next }));
+      return next;
+    });
+  }, [currentSelection, applyPhotoSelection]);
 
-  const handleTogglePoster = useCallback(() => {
-    const next = !posterOn;
-    setPosterOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, next, captionOn, filterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
+  const handleSelectPoster = useCallback((tint: PosterTint | null) => {
+    setPosterTint(tint);
+    void applyPhotoSelection(currentSelection({ posterTint: tint }));
+  }, [currentSelection, applyPhotoSelection]);
 
-  const handleToggleFilter = useCallback(() => {
-    const next = !filterOn;
-    setFilterOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, next);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
+  const handleSelectFilter = useCallback((key: FilterKey | null) => {
+    setFilterKey(key);
+    void applyPhotoSelection(currentSelection({ filterKey: key }));
+  }, [currentSelection, applyPhotoSelection]);
 
-  // Caption toggle: unlike the other toggles, every tap -- whether it's
-  // turning the caption on or switching it back off -- also rerolls which
-  // line is queued, so a guest who keeps tapping cycles through different
-  // captions rather than seeing the same one reappear every time they turn
-  // it back on. Only rerolls in "random" caption mode; a "fixed" caption
-  // is still just shown/hidden (there's nothing to randomize between).
-  // Uses a fresh seeded rng (createSeed()/seededRandom(), same PRNG as
-  // every other random choice in the app -- CLAUDE.md section 20) rather
-  // than a bare Math.random(), so this is the only place in the effects
-  // pipeline consistently going through one randomness source; a new seed
-  // each tap still means each reroll is effectively unpredictable, this
-  // interaction just isn't meant to be reproduced for debugging the way a
-  // captured photo's own recipe is.
+  // Caption toggle: unlike the picker categories above, every tap --
+  // whether it's turning the caption on or switching it back off -- also
+  // rerolls which line is queued, so a guest who keeps tapping cycles
+  // through different captions rather than seeing the same one reappear
+  // every time they turn it back on. Only rerolls in "random" caption
+  // mode; a "fixed" caption is still just shown/hidden (there's nothing to
+  // randomize between). Uses a fresh seeded rng (createSeed()/
+  // seededRandom(), same PRNG as every other random choice in the app --
+  // CLAUDE.md section 20) rather than a bare Math.random(), so this is the
+  // only place in the effects pipeline consistently going through one
+  // randomness source; a new seed each tap still means each reroll is
+  // effectively unpredictable, this interaction just isn't meant to be
+  // reproduced for debugging the way a captured photo's own recipe is.
   const handleToggleCaption = useCallback(() => {
     const next = !captionOn;
     setCaptionOn(next);
@@ -288,22 +306,31 @@ export default function App() {
       const caption = pickCaption("random", "", seededRandom(createSeed()));
       photoRecipeRef.current = { ...photoRecipeRef.current, caption };
     }
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, next, filterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, state.settings.captionMode, applyPhotoSelection]);
+    void applyPhotoSelection(currentSelection({ captioned: next }));
+  }, [captionOn, state.settings.captionMode, currentSelection, applyPhotoSelection]);
 
-  // One-tap revert to the plain candid: turns every guest toggle off in a
-  // single action (CLAUDE.md section 36's result screen always needs a
-  // clean way back to "just the photo," and beta testing needs to be able
-  // to check every feature against a known-off baseline quickly).
+  // One-tap revert to the plain candid: turns every guest pick off/back to
+  // "nothing applied" in a single action (CLAUDE.md section 36's result
+  // screen always needs a clean way back to "just the photo," and beta
+  // testing needs to be able to check every feature against a known-off
+  // baseline quickly).
   const handleShowOriginal = useCallback(() => {
     setGoofyFilterOn(false);
     setGhostOn(false);
-    setFrameOn(false);
-    setOverlaysOn(false);
-    setPosterOn(false);
     setCaptionOn(false);
-    setFilterOn(false);
-    void applyPhotoSelection(false, false, false, false, false, false, false);
+    setFrameKey("none");
+    setOverlayKeys([]);
+    setPosterTint(null);
+    setFilterKey(null);
+    void applyPhotoSelection({
+      goofy: false,
+      ghost: false,
+      captioned: false,
+      frameKey: "none",
+      overlayKeys: [],
+      posterTint: null,
+      filterKey: null,
+    });
   }, [applyPhotoSelection]);
 
   const handleCountdownComplete = useCallback(async () => {
@@ -319,12 +346,12 @@ export default function App() {
       dispatch({ kind: "booth", event: { type: "FRAME_CAPTURED" } });
 
       // Vision analysis, caricature warp, "My Cameo" ghost compositing, and
-      // this photo's caption/frame/overlay-seed/poster-tint recipe --
-      // CapturePipeline.ts's analyzeAndWarpPhoto (see that file for why
-      // this is a plain function and not inline here). Never throws in a
-      // way that loses the photo (CLAUDE.md section 49): 0 detected faces
-      // just means the loop inside it does nothing, which is the
-      // spec's "no face detected -> plain Halloween photo" fallback.
+      // this photo's caption/overlay-seed recipe -- CapturePipeline.ts's
+      // analyzeAndWarpPhoto (see that file for why this is a plain
+      // function and not inline here). Never throws in a way that loses
+      // the photo (CLAUDE.md section 49): 0 detected faces just means the
+      // loop inside it does nothing, which is the spec's "no face
+      // detected -> plain Halloween photo" fallback.
       const analyzed = await analyzeAndWarpPhoto(
         master,
         { faceDetector, caricatureEngine, ownerCameoEngine },
@@ -347,29 +374,31 @@ export default function App() {
       caricaturedBitmapRef.current = analyzed.caricatured;
       originalGhostBitmapRef.current = analyzed.originalGhost;
       caricaturedGhostBitmapRef.current = analyzed.caricaturedGhost;
+      setPhotoOptions(analyzed.options);
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
-      // default) and every other toggle on exactly when the operator has
-      // that feature enabled/configured for this event (the guest can
-      // flip any of them off independently, or tap Original to reset all
-      // of them at once).
-      const { availability } = analyzed;
+      // default), Ghost on exactly when the operator has that feature
+      // enabled, and Frame/Overlays at the operator's configured defaults
+      // -- Poster/Filter default off so the guest deliberately opts into
+      // those more dramatic whole-photo treatments via CUSTOMIZE rather
+      // than finding them already applied.
+      const { defaults, options } = analyzed;
       setGoofyFilterOn(true);
-      setGhostOn(availability.ghost);
-      setFrameOn(availability.frame);
-      setOverlaysOn(availability.overlays);
-      setPosterOn(availability.poster);
-      setCaptionOn(availability.caption);
-      setFilterOn(availability.filter);
-      await applyPhotoSelection(
-        true,
-        availability.ghost,
-        availability.frame,
-        availability.overlays,
-        availability.poster,
-        availability.caption,
-        availability.filter,
-      );
+      setGhostOn(options.ghost);
+      setCaptionOn(options.caption);
+      setFrameKey(defaults.frameKey);
+      setOverlayKeys(defaults.overlayKeys);
+      setPosterTint(defaults.posterTint);
+      setFilterKey(defaults.filterKey);
+      await applyPhotoSelection({
+        goofy: true,
+        ghost: options.ghost,
+        captioned: options.caption,
+        frameKey: defaults.frameKey,
+        overlayKeys: defaults.overlayKeys,
+        posterTint: defaults.posterTint,
+        filterKey: defaults.filterKey,
+      });
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
       dispatch({
@@ -414,35 +443,37 @@ export default function App() {
     }
   }, [dispatch, state.settings.copies, state.settings.printLayout]);
 
-  const handleRetake = useCallback(() => {
+  const resetGuestPicks = useCallback(() => {
     setFaces([]);
     setGoofyFilterOn(true);
     setGhostOn(false);
-    setFrameOn(false);
-    setOverlaysOn(false);
-    setPosterOn(false);
     setCaptionOn(false);
-    setFilterOn(false);
+    setFrameKey("none");
+    setOverlayKeys([]);
+    setPosterTint(null);
+    setFilterKey(null);
+    setPhotoOptions(EMPTY_PHOTO_OPTIONS);
+    setCustomizePanelOpen(false);
+  }, []);
+
+  const handleRetake = useCallback(() => {
+    resetGuestPicks();
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
-  }, [dispatch]);
+  }, [dispatch, resetGuestPicks]);
 
   const handleDone = useCallback(() => {
-    setFaces([]);
-    setGoofyFilterOn(true);
-    setGhostOn(false);
-    setFrameOn(false);
-    setOverlaysOn(false);
-    setPosterOn(false);
-    setCaptionOn(false);
-    setFilterOn(false);
+    resetGuestPicks();
     dispatch({ kind: "booth", event: { type: "DONE" } });
-  }, [dispatch]);
+  }, [dispatch, resetGuestPicks]);
 
   const handleRetry = useCallback(() => {
     dispatch({ kind: "booth", event: { type: "RETRY" } });
   }, [dispatch]);
 
   const contextValue = useMemo(() => state, [state]);
+
+  const customizeActive =
+    frameKey !== "none" || overlayKeys.length > 0 || posterTint !== null || filterKey !== null;
 
   return (
     <AppStateContext.Provider value={contextValue}>
@@ -473,23 +504,10 @@ export default function App() {
             debugMode: state.settings.debugMode,
             goofyFilterOn,
             ghostOn,
-            ghostAvailable: state.settings.ownerCameoMode !== "off",
-            frameOn,
-            // Frame/Overlays have no visible effect while Poster Mode is
-            // currently applied (it replaces that treatment entirely, see
-            // applyPhotoSelection) -- hidden rather than shown-but-inert
-            // whenever posterOn is the *live* toggle state, not just the
-            // operator's posterMode setting, so the guest/tester sees them
-            // reappear the instant they flip Poster back off.
-            frameAvailable: state.settings.frame !== "none" && !posterOn,
-            overlaysOn,
-            overlaysAvailable: state.settings.overlays.length > 0 && !posterOn,
-            posterOn,
-            posterAvailable: state.settings.posterMode,
+            ghostAvailable: photoOptions.ghost,
             captionOn,
-            captionAvailable: state.settings.captionMode !== "off",
-            filterOn,
-            filterAvailable: state.settings.filters.length > 0 && !posterOn,
+            captionAvailable: photoOptions.caption,
+            customizeActive,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -501,13 +519,28 @@ export default function App() {
             onRetry: handleRetry,
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onToggleGhost: handleToggleGhost,
-            onToggleFrame: handleToggleFrame,
-            onToggleOverlays: handleToggleOverlays,
-            onTogglePoster: handleTogglePoster,
             onToggleCaption: handleToggleCaption,
-            onToggleFilter: handleToggleFilter,
+            onOpenCustomize: () => setCustomizePanelOpen(true),
             onShowOriginal: handleShowOriginal,
           })}
+
+          {customizePanelOpen && (
+            <CustomizePanel
+              onClose={() => setCustomizePanelOpen(false)}
+              frameOptions={photoOptions.frameOptions}
+              frameKey={frameKey}
+              onSelectFrame={handleSelectFrame}
+              overlayOptions={photoOptions.overlayOptions}
+              overlayKeys={overlayKeys}
+              onToggleOverlay={handleToggleOverlayKey}
+              posterTints={photoOptions.posterTints}
+              posterTint={posterTint}
+              onSelectPoster={handleSelectPoster}
+              filterOptions={photoOptions.filterOptions}
+              filterKey={filterKey}
+              onSelectFilter={handleSelectFilter}
+            />
+          )}
 
           {operatorPanelOpen && (
             <OperatorPanel
@@ -544,16 +577,9 @@ interface RenderScreenArgs {
   goofyFilterOn: boolean;
   ghostOn: boolean;
   ghostAvailable: boolean;
-  frameOn: boolean;
-  frameAvailable: boolean;
-  overlaysOn: boolean;
-  overlaysAvailable: boolean;
-  posterOn: boolean;
-  posterAvailable: boolean;
   captionOn: boolean;
   captionAvailable: boolean;
-  filterOn: boolean;
-  filterAvailable: boolean;
+  customizeActive: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -565,11 +591,8 @@ interface RenderScreenArgs {
   onRetry: () => void;
   onToggleGoofyFilter: () => void;
   onToggleGhost: () => void;
-  onToggleFrame: () => void;
-  onToggleOverlays: () => void;
-  onTogglePoster: () => void;
   onToggleCaption: () => void;
-  onToggleFilter: () => void;
+  onOpenCustomize: () => void;
   onShowOriginal: () => void;
 }
 
@@ -616,21 +639,11 @@ function renderScreen(args: RenderScreenArgs) {
           ghostOn={args.ghostOn}
           onToggleGhost={args.onToggleGhost}
           ghostAvailable={args.ghostAvailable}
-          frameOn={args.frameOn}
-          onToggleFrame={args.onToggleFrame}
-          frameAvailable={args.frameAvailable}
-          overlaysOn={args.overlaysOn}
-          onToggleOverlays={args.onToggleOverlays}
-          overlaysAvailable={args.overlaysAvailable}
-          posterOn={args.posterOn}
-          onTogglePoster={args.onTogglePoster}
-          posterAvailable={args.posterAvailable}
           captionOn={args.captionOn}
           onToggleCaption={args.onToggleCaption}
           captionAvailable={args.captionAvailable}
-          filterOn={args.filterOn}
-          onToggleFilter={args.onToggleFilter}
-          filterAvailable={args.filterAvailable}
+          onOpenCustomize={args.onOpenCustomize}
+          customizeActive={args.customizeActive}
           onShowOriginal={args.onShowOriginal}
         />
       );

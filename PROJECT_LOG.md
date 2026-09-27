@@ -215,6 +215,59 @@ Phases complete (per `CLAUDE.md`'s numbering):
     a live per-guest ghost effect (already tried/reverted, see below)
     and new caption/horror-text presets (`CAPTIONS` already covers
     this from earlier work -- CLAUDE.md section 25).
+- **Guest-facing Frame/Overlays/Poster/Filter picker — done.** Replaced
+  the four on/off toggle buttons (FRAME/OVERLAYS/POSTER/FILTER) on
+  `ResultScreen` with a single CUSTOMIZE button that opens a new
+  `CustomizePanel.tsx`, where the guest picks the *specific* value in
+  each category rather than the operator/rng having already decided
+  it:
+  - **Frame** — single-select among all three `FrameKey`s (always
+    fully available; frames are free procedural decoration, no
+    operator curation needed).
+  - **Overlays** — multi-select checkboxes among whatever
+    `settings.overlays` the operator enabled for the event.
+  - **Filter** — single-select (or "Off") among whatever
+    `settings.filters` the operator enabled.
+  - **Poster** — single-select (or "Off") among all three tints,
+    shown only when the operator's `posterMode` is on.
+  Frame/Overlays/Filter sections gray out (CSS
+  `.customize-section-disabled`, not hidden) whenever a poster tint is
+  picked, since Poster is a full-photo color grade that replaces the
+  regular frame/overlay/filter composition path
+  (`composeSelectedBitmap` in `CapturePipeline.ts`) rather than
+  stacking with it -- same mutual-exclusivity rule as before, now
+  surfaced visually instead of by hiding a toggle.
+
+  Reworked `CapturePipeline.ts`'s public shapes to carry this:
+  `PhotoRecipe` shrank to just `caption` and `overlaySeed` (frame/
+  overlays/posterTint/filterKey are no longer decided at analysis
+  time); a new `PhotoOptions` (what's available: `frameOptions`,
+  `overlayOptions`, `posterTints`, `filterOptions`, plus `ghost`/
+  `caption` availability) and `DefaultSelection` (what's preselected:
+  frame/overlays default to the operator's configured values; poster/
+  filter default to *off*, a deliberate change from the old "on
+  whenever available" behavior, since these are the two dramatic
+  whole-photo treatments the guest should opt into on purpose) replace
+  the old `ToggleAvailability`. `PhotoSelection` changed from seven
+  booleans (`framed`/`overlaid`/`postered`/`filtered`/...) to typed
+  picks: `frameKey: FrameKey`, `overlayKeys: OverlayKey[]`,
+  `posterTint: PosterTint | null`, `filterKey: FilterKey | null`
+  (plus `goofy`/`ghost`/`captioned`, unchanged). Added a
+  `*_LABELS` record next to each key type (`Frames.ts`,
+  `PosterEffect.ts`, and a new `Overlays.ts` holding `OVERLAY_KEYS`/
+  `OVERLAY_LABELS`, split out of `HalloweenEffects.ts` so both
+  `OperatorPanel` and `CustomizePanel` can import the label map
+  without duplicating it) for the panel's chip button text.
+  `App.tsx` gained `frameKey`/`overlayKeys`/`posterTint`/`filterKey`/
+  `photoOptions`/`customizePanelOpen` state and per-category handlers
+  that each call `applyPhotoSelection` with the full current
+  selection; retake/done/show-original all reset guest picks back to
+  `EMPTY_PHOTO_OPTIONS`/defaults.
+
+  Verified: `tests/CapturePipeline.test.ts` rewritten for the new
+  shapes (options/defaults instead of availability, typed `PhotoSelection`
+  instead of booleans) -- full suite still 172 tests, all green;
+  `tsc -b`, `oxlint`, `npm run build` all clean.
 
 ## Architecture as built
 

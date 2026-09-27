@@ -6,6 +6,7 @@ import {
   type CapturePipelineSettings,
   type PhotoBaseBitmaps,
   type PhotoRecipe,
+  type PhotoSelection,
 } from "../src/app/CapturePipeline";
 import type { FaceModel } from "../src/vision/VisionTypes";
 import { CAPTIONS } from "../src/effects/HalloweenEffects";
@@ -92,6 +93,19 @@ const baseSettings: CapturePipelineSettings = {
   filters: ["vhs", "noir"],
 };
 
+function baseSelection(overrides: Partial<PhotoSelection> = {}): PhotoSelection {
+  return {
+    goofy: false,
+    ghost: false,
+    captioned: false,
+    frameKey: "none",
+    overlayKeys: [],
+    posterTint: null,
+    filterKey: null,
+    ...overrides,
+  };
+}
+
 describe("analyzeAndWarpPhoto", () => {
   it("warps every detected face in sequence and returns the final bitmap as `caricatured`", async () => {
     const master = fakeBitmap("master");
@@ -143,13 +157,13 @@ describe("analyzeAndWarpPhoto", () => {
     const off = await analyzeAndWarpPhoto(master, deps, { ...baseSettings, ownerCameoMode: "off" });
     expect(off.originalGhost).toBeNull();
     expect(off.caricaturedGhost).toBeNull();
-    expect(off.availability.ghost).toBe(false);
+    expect(off.options.ghost).toBe(false);
     expect(deps.ownerCameoEngine.composite).not.toHaveBeenCalled();
 
     const on = await analyzeAndWarpPhoto(master, deps, { ...baseSettings, ownerCameoMode: "always" });
     expect(on.originalGhost).not.toBeNull();
     expect(on.caricaturedGhost).not.toBeNull();
-    expect(on.availability.ghost).toBe(true);
+    expect(on.options.ghost).toBe(true);
     expect(deps.ownerCameoEngine.composite).toHaveBeenCalledTimes(2);
   });
 
@@ -173,7 +187,7 @@ describe("analyzeAndWarpPhoto", () => {
     expect(rngA()).toBe(rngB());
   });
 
-  it("builds a recipe respecting the operator's caption mode, frame, overlays, and picks a valid poster tint", async () => {
+  it("builds a recipe respecting the operator's caption mode, and exposes the available frame/overlay/poster/filter options and defaults", async () => {
     const master = fakeBitmap("master");
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
@@ -184,14 +198,20 @@ describe("analyzeAndWarpPhoto", () => {
     const result = await analyzeAndWarpPhoto(master, deps, baseSettings);
 
     expect(CAPTIONS).toContain(result.recipe.caption);
-    expect(result.recipe.frame).toBe("classic");
-    expect(result.recipe.overlays).toEqual(["bats", "cobwebs"]);
-    expect(["crimson", "teal", "moonlight"]).toContain(result.recipe.posterTint);
-    expect(["vhs", "noir"]).toContain(result.recipe.filterKey);
     expect(result.recipe.overlaySeed).toEqual(expect.any(String));
+
+    expect(result.options.frameOptions).toEqual(["none", "classic", "filmStrip"]);
+    expect(result.options.overlayOptions).toEqual(["bats", "cobwebs"]);
+    expect(result.options.posterTints).toEqual(["crimson", "teal", "moonlight"]);
+    expect(result.options.filterOptions).toEqual(["vhs", "noir"]);
+
+    expect(result.defaults.frameKey).toBe("classic");
+    expect(result.defaults.overlayKeys).toEqual(["bats", "cobwebs"]);
+    expect(result.defaults.posterTint).toBeNull();
+    expect(result.defaults.filterKey).toBeNull();
   });
 
-  it("omits the caption when captionMode is off, and availability reflects operator config", async () => {
+  it("omits the caption when captionMode is off, and options reflect operator config", async () => {
     const master = fakeBitmap("master");
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
@@ -209,13 +229,13 @@ describe("analyzeAndWarpPhoto", () => {
     });
 
     expect(result.recipe.caption).toBeUndefined();
-    expect(result.availability).toEqual({
+    expect(result.options).toEqual({
       ghost: false,
-      frame: false,
-      overlays: false,
-      poster: false,
       caption: false,
-      filter: false,
+      frameOptions: ["none", "classic", "filmStrip"],
+      overlayOptions: [],
+      posterTints: [],
+      filterOptions: [],
     });
   });
 
@@ -241,11 +261,7 @@ describe("analyzeAndWarpPhoto", () => {
 describe("composeSelectedBitmap", () => {
   const recipe: PhotoRecipe = {
     caption: "HAUNTED AND THIRSTY.",
-    frame: "classic",
-    overlays: ["bats"],
     overlaySeed: "seed-123",
-    posterTint: "crimson",
-    filterKey: "vhs",
   };
 
   function base(): PhotoBaseBitmaps {
@@ -261,20 +277,10 @@ describe("composeSelectedBitmap", () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const b = base();
 
-    await composeSelectedBitmap(
-      b,
-      recipe,
-      { goofy: true, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
-      { compositionEngine: { compose } },
-    );
+    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: true }), { compositionEngine: { compose } });
     expect(compose.mock.calls[0][0].foreground).toBe(b.caricatured);
 
-    await composeSelectedBitmap(
-      b,
-      recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
-      { compositionEngine: { compose } },
-    );
+    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: false }), { compositionEngine: { compose } });
     expect(compose.mock.calls[1][0].foreground).toBe(b.original);
   });
 
@@ -284,24 +290,21 @@ describe("composeSelectedBitmap", () => {
     b.originalGhost = null;
     b.caricaturedGhost = null;
 
-    await composeSelectedBitmap(
-      b,
-      recipe,
-      { goofy: false, ghost: true, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
-      { compositionEngine: { compose } },
-    );
+    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: false, ghost: true }), {
+      compositionEngine: { compose },
+    });
 
     expect(compose.mock.calls[0][0].foreground).toBe(b.original);
   });
 
-  it("passes frame/overlays/caption through to compose() only when their toggle is on", async () => {
+  it("passes frame/overlays/caption through to compose() with the picked keys", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const b = base();
 
     await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: false, ghost: false, framed: true, overlaid: true, postered: false, captioned: true, filtered: false },
+      baseSelection({ frameKey: "classic", overlayKeys: ["bats"], captioned: true }),
       { compositionEngine: { compose } },
     );
     expect(compose.mock.calls[0][0]).toMatchObject({
@@ -310,12 +313,7 @@ describe("composeSelectedBitmap", () => {
       caption: "HAUNTED AND THIRSTY.",
     });
 
-    await composeSelectedBitmap(
-      b,
-      recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
-      { compositionEngine: { compose } },
-    );
+    await composeSelectedBitmap(b, recipe, baseSelection(), { compositionEngine: { compose } });
     expect(compose.mock.calls[1][0]).toMatchObject({
       frame: "none",
       overlays: [],
@@ -323,14 +321,14 @@ describe("composeSelectedBitmap", () => {
     });
   });
 
-  it("uses Poster Mode instead of compose() when postered is on, and never calls compose()", async () => {
+  it("uses Poster Mode instead of compose() when a posterTint is picked, and never calls compose()", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const b = base();
 
     const bitmap = await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: false, ghost: false, framed: true, overlaid: true, postered: true, captioned: false, filtered: false },
+      baseSelection({ frameKey: "classic", overlayKeys: ["bats"], posterTint: "crimson" }),
       { compositionEngine: { compose } },
     );
 
@@ -338,36 +336,30 @@ describe("composeSelectedBitmap", () => {
     expect(bitmap).not.toBeNull();
   });
 
-  it("grades the source through the horror filter before compose() when filtered is on", async () => {
+  it("grades the source through the horror filter before compose() when a filterKey is picked", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const b = base();
 
-    await composeSelectedBitmap(
-      b,
-      recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: true },
-      { compositionEngine: { compose } },
-    );
+    await composeSelectedBitmap(b, recipe, baseSelection({ filterKey: "vhs" }), {
+      compositionEngine: { compose },
+    });
 
     // applyHorrorFilter runs through the faked OffscreenCanvas and always
     // resolves to "canvas-output" -- confirms compose() received the
-    // graded bitmap, not the original source, when the filter toggle is on.
+    // graded bitmap, not the original source, when a filter is picked.
     expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
   });
 
-  it("skips the horror filter when Poster Mode is also on (both are whole-photo grades)", async () => {
+  it("skips the horror filter when a posterTint is also picked (both are whole-photo grades)", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const b = base();
 
-    await composeSelectedBitmap(
-      b,
-      recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: true, captioned: false, filtered: true },
-      { compositionEngine: { compose } },
-    );
+    await composeSelectedBitmap(b, recipe, baseSelection({ posterTint: "crimson", filterKey: "vhs" }), {
+      compositionEngine: { compose },
+    });
 
     // Poster Mode replaces compose() entirely, so it should still never be
-    // called even though `filtered` is also true.
+    // called even though a filterKey is also picked.
     expect(compose).not.toHaveBeenCalled();
   });
 
@@ -376,7 +368,7 @@ describe("composeSelectedBitmap", () => {
     const bitmap = await composeSelectedBitmap(
       { original: null as unknown as ImageBitmap, caricatured: null as unknown as ImageBitmap, originalGhost: null, caricaturedGhost: null },
       recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
+      baseSelection(),
       { compositionEngine: { compose } },
     );
     expect(bitmap).toBeNull();

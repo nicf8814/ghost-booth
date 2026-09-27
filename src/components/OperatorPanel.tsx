@@ -1,7 +1,7 @@
 import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind } from "../app/Settings";
 import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
 import { CAPTIONS, type OverlayKey } from "../effects/HalloweenEffects";
-import { OVERLAY_KEYS } from "../effects/Overlays";
+import { OVERLAY_KEYS, OVERLAY_LABELS } from "../effects/Overlays";
 import { FILTER_KEYS, FILTER_LABELS, type FilterKey } from "../effects/HorrorFilters";
 import { PRINT_LAYOUTS, PRINT_LAYOUT_LABELS, type PrintLayout } from "../printing/PrintLayout";
 
@@ -41,25 +41,6 @@ const PRINTER_ADAPTERS: { value: PrinterAdapterKind; label: string }[] = [
   { value: "browserPrint", label: "Browser/System Print Dialog" },
   { value: "airPrint", label: "AirPrint (via system print dialog)" },
 ];
-
-const OVERLAY_LABELS: Record<OverlayKey, string> = {
-  bloodSplatter: "Blood Splatter",
-  cobwebs: "Cobwebs",
-  spiders: "Spiders",
-  bats: "Bats",
-  skulls: "Skulls",
-  eyeballs: "Eyeballs",
-  horns: "Horns",
-  vampireFangs: "Vampire Fangs",
-  graveyard: "Graveyard",
-  moon: "Moon",
-  candles: "Candles",
-  fog: "Fog",
-  crackedGlass: "Cracked Glass",
-  scratches: "Scratches",
-  filmGrain: "Film Grain",
-  vignette: "Vignette",
-};
 
 function toggleOverlay(current: OverlayKey[], key: OverlayKey, checked: boolean): OverlayKey[] {
   return checked ? [...current, key] : current.filter((k) => k !== key);

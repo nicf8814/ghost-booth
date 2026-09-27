@@ -38,6 +38,12 @@ const TINTS: Record<PosterTint, { multiply: string; vignette: string }> = {
 
 export const POSTER_TINTS: PosterTint[] = ["crimson", "teal", "moonlight"];
 
+export const POSTER_TINT_LABELS: Record<PosterTint, string> = {
+  crimson: "Crimson",
+  teal: "Teal",
+  moonlight: "Moonlight",
+};
+
 /**
  * Grades `source` into a poster-style image and returns a new ImageBitmap.
  * Never throws (CLAUDE.md section 49) -- falls back to the ungraded photo
