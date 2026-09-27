@@ -7,7 +7,6 @@ import { ProcessingScreen } from "../components/ProcessingScreen";
 import { ResultScreen } from "../components/ResultScreen";
 import { PrintingScreen } from "../components/PrintingScreen";
 import { OperatorPanel } from "../components/OperatorPanel";
-import { HoldToActivate } from "../components/UI/HoldToActivate";
 import { GetUserMediaCameraManager } from "../camera/CameraManager";
 import { captureMasterFrame } from "../camera/CaptureService";
 import { imageBitmapToBlob } from "../utils/image";
@@ -194,9 +193,20 @@ export default function App() {
     <AppStateContext.Provider value={contextValue}>
       <AppDispatchContext.Provider value={dispatch}>
         <div className="booth-shell">
-          <HoldToActivate className="booth-logo" onActivate={() => setOperatorPanelOpen(true)}>
+          {/* CLAUDE.md section 47 specifies a 5-second press-and-hold to
+              reach operator settings, so guests don't stumble into it. The
+              hold gesture (HoldToActivate, pointer events) isn't
+              registering reliably in iPhone Safari, so this is a plain tap
+              for now until that's root-caused; swap back to
+              <HoldToActivate> once it works everywhere. */}
+          <button
+            type="button"
+            className="booth-logo"
+            aria-label="Open operator settings"
+            onClick={() => setOperatorPanelOpen(true)}
+          >
             👻
-          </HoldToActivate>
+          </button>
 
           {renderScreen({
             boothState: state.booth.state,
