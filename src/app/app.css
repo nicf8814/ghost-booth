@@ -168,6 +168,27 @@
   padding: 24px 20px;
 }
 
+.result-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.result-title {
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #ff7a1a;
+  text-shadow: 0 0 16px rgba(255, 122, 26, 0.5);
+}
+
+.result-subtitle {
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+}
+
 .result-photo-frame {
   /* Sized to fit the viewport, not to a fixed aspect ratio -- the composed
      photo (see effects/Frames.ts) already has its own baked-in frame at its
@@ -206,52 +227,78 @@
   padding: 40px;
 }
 
-.result-toggles {
+/* Circular icon-button row (Print/Retake/Goofy/Spookify) -- borrows the
+   reference layout's compact circular controls with a small label under
+   each, instead of a stack of full-width rectangular buttons. Kept large
+   enough to stay an easy touch target up close (this screen is reviewed
+   hand-held/close-up, unlike the full-screen kiosk camera view). */
+.result-icon-row {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
 }
 
-.result-toggle {
-  /* Smaller, pill-style secondary controls -- these are optional
-     refinements (goofy filter / spookify), not the primary action, so they
-     shouldn't compete visually with Print. */
-  font-size: 0.95rem;
-  font-weight: 700;
-  padding: 10px 20px;
-  border-radius: 999px;
-  border-width: 2px;
-  box-shadow: 0 3px 0 #7a2c00, 0 6px 14px rgba(0, 0, 0, 0.4);
+.icon-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #fff;
+  z-index: 1;
 }
 
-.result-toggle.secondary {
-  box-shadow: 0 3px 0 #14141a, 0 6px 14px rgba(0, 0, 0, 0.4);
-}
-
-.result-toggle:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 #7a2c00, 0 3px 8px rgba(0, 0, 0, 0.4);
-}
-
-.result-controls {
+.icon-button-glyph {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
   justify-content: center;
+  width: 60px;
+  height: 60px;
+  font-size: 1.6rem;
+  border-radius: 50%;
+  border: 3px solid #ff7a1a;
+  background: linear-gradient(180deg, #3a2030, #1a0d18);
+  box-shadow: 0 4px 0 #7a2c00, 0 10px 20px rgba(0, 0, 0, 0.4);
 }
 
-/* Print stays the clear primary action; Retake reads as the secondary,
-   smaller option next to it instead of matching it button-for-button. */
-.result-controls .big-button:not(.secondary) {
-  font-size: clamp(1.3rem, 2.6vw, 2rem);
-  padding: 18px 48px;
+.icon-button-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
-.result-controls .big-button.secondary {
-  font-size: clamp(1rem, 2vw, 1.4rem);
-  padding: 14px 32px;
+.icon-button:active .icon-button-glyph {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #7a2c00, 0 5px 10px rgba(0, 0, 0, 0.4);
+}
+
+/* Print is the primary action -- bigger circle, filled orange instead of
+   outlined, same visual role the oversized "PRINT" button used to carry. */
+.icon-button-primary .icon-button-glyph {
+  width: 84px;
+  height: 84px;
+  font-size: 2.1rem;
+  background: linear-gradient(180deg, #ff9433, #d8580a);
+  border-color: #ffb15c;
+  color: #150500;
+}
+
+/* Goofy/Spookify toggles fill orange when on, matching the old on/off
+   button convention, but as a circle instead of a pill. */
+.icon-button-active .icon-button-glyph {
+  background: linear-gradient(180deg, #ff9433, #d8580a);
+  border-color: #ffb15c;
+}
+
+.result-footer {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
 }
 
 /* ---- Debug landmark overlay (operator debug mode only) ---- */

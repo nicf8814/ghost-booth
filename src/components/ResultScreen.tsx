@@ -54,6 +54,11 @@ export function ResultScreen({
 
   return (
     <div className="screen result-screen">
+      <div className="result-header">
+        <span className="result-title">GHOST BOOTH</span>
+        <span className="result-subtitle">You&apos;ve been spookified</span>
+      </div>
+
       <div className="result-photo-frame">
         {imageUrl ? (
           <>
@@ -77,36 +82,54 @@ export function ResultScreen({
           {faces.length === 0 ? "0 faces detected" : `${faces.length} face${faces.length > 1 ? "s" : ""} detected`}
         </p>
       )}
-      <div className="result-toggles">
+
+      <div className="result-icon-row">
         <button
           type="button"
-          className={`big-button result-toggle ${goofyFilterOn ? "" : "secondary"}`}
+          className="icon-button"
+          onClick={onRetake}
+          aria-label="Retake photo"
+        >
+          <span className="icon-button-glyph" aria-hidden="true">↺</span>
+          <span className="icon-button-label">RETAKE</span>
+        </button>
+
+        <button
+          type="button"
+          className="icon-button icon-button-primary"
+          onClick={onPrint}
+          aria-label="Print photo"
+        >
+          <span className="icon-button-glyph" aria-hidden="true">🖨️</span>
+          <span className="icon-button-label">PRINT</span>
+        </button>
+
+        <button
+          type="button"
+          className={`icon-button ${goofyFilterOn ? "icon-button-active" : ""}`}
           onClick={onToggleGoofyFilter}
           aria-pressed={goofyFilterOn}
+          aria-label="Toggle goofy filter"
         >
-          {goofyFilterOn ? "🎃 GOOFY FILTER: ON" : "🙂 GOOFY FILTER: OFF"}
+          <span className="icon-button-glyph" aria-hidden="true">🎃</span>
+          <span className="icon-button-label">GOOFY</span>
         </button>
 
         {ghostAvailable && (
           <button
             type="button"
-            className={`big-button result-toggle ${ghostOn ? "" : "secondary"}`}
+            className={`icon-button ${ghostOn ? "icon-button-active" : ""}`}
             onClick={onToggleGhost}
             aria-pressed={ghostOn}
+            aria-label="Toggle spookify ghost cameo"
           >
-            {ghostOn ? "👻 SPOOKIFY: ON" : "👻 SPOOKIFY: OFF"}
+            <span className="icon-button-glyph" aria-hidden="true">👻</span>
+            <span className="icon-button-label">SPOOKY</span>
           </button>
         )}
       </div>
 
-      <div className="result-controls">
-        <button className="big-button" onClick={onPrint}>
-          PRINT
-        </button>
-        <button className="big-button secondary" onClick={onRetake}>
-          RETAKE
-        </button>
-      </div>
+      <p className="result-footer">🎃 HAPPY HALLOWEEN 🎃</p>
     </div>
   );
 }
