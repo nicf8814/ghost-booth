@@ -20,7 +20,6 @@
 export type PosterTint = "crimson" | "teal" | "moonlight";
 
 export interface PosterConfig {
-  title: string;
   tagline?: string;
   tint: PosterTint;
 }
@@ -82,7 +81,6 @@ export async function applyPosterEffect(source: ImageBitmap, config: PosterConfi
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  drawPosterTitle(ctx, canvas.width, canvas.height, config.title || "GHOST BOOTH");
   if (config.tagline) {
     drawPosterTagline(ctx, canvas.width, canvas.height, config.tagline);
   }
@@ -90,28 +88,7 @@ export async function applyPosterEffect(source: ImageBitmap, config: PosterConfi
   return canvas.transferToImageBitmap();
 }
 
-/** Bold, condensed, blood-red caps near the top third -- the title-lockup zone. */
-function drawPosterTitle(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, title: string): void {
-  const fontSize = Math.round(width * 0.11);
-  ctx.save();
-  ctx.font = `900 ${fontSize}px Impact, "Arial Black", sans-serif`;
-  ctx.textAlign = "center";
-  const x = width / 2;
-  const y = height * 0.22;
-
-  // Faint dark-red glow behind the title, echoing the distressed/bled-ink
-  // look of the reference title treatments without needing a custom font.
-  ctx.shadowColor = "rgba(120, 0, 0, 0.8)";
-  ctx.shadowBlur = fontSize * 0.3;
-  ctx.fillStyle = "#c41414";
-  ctx.strokeStyle = "#150500";
-  ctx.lineWidth = Math.max(2, fontSize * 0.09);
-  ctx.strokeText(title, x, y);
-  ctx.fillText(title, x, y);
-  ctx.restore();
-}
-
-/** Small, letter-spaced caps sitting in its own zone, away from the title. */
+/** Small, letter-spaced caps sitting in its own zone -- the only text now that the title lockup was dropped. */
 function drawPosterTagline(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, tagline: string): void {
   const fontSize = Math.round(width * 0.032);
   ctx.save();

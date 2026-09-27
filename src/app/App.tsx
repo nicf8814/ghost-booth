@@ -256,7 +256,6 @@ export default function App() {
       const finish = state.settings.posterMode
         ? (bitmap: ImageBitmap) =>
             applyPosterEffect(bitmap, {
-              title: "GHOST BOOTH",
               tagline: caption,
               tint: POSTER_TINTS[Math.floor(rng() * POSTER_TINTS.length)],
             })
