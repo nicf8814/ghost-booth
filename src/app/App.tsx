@@ -23,12 +23,15 @@ import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
 import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
-import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
-import { CAPTIONS, pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
-import type { FrameKey } from "../effects/Frames";
-import { applyPosterEffect, POSTER_TINTS, type PosterTint } from "../effects/PosterEffect";
-import { Canvas2DCompositionEngine, drawCaptionOnBitmap } from "../rendering/CompositionEngine";
+import { pickCaption } from "../effects/HalloweenEffects";
+import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
+import {
+  analyzeAndWarpPhoto,
+  composeSelectedBitmap,
+  type PhotoBaseBitmaps,
+  type PhotoRecipe,
+} from "./CapturePipeline";
 import "./app.css";
 
 const printerManager = new PrinterManager(new MockPrinterAdapter({ failRate: 0 }));
@@ -116,13 +119,7 @@ export default function App() {
   // once at capture time from the seeded rng (CLAUDE.md section 20), so
   // toggling frame/overlays/poster on and off doesn't reshuffle which
   // caption or overlay layout the photo uses.
-  const photoRecipeRef = useRef<{
-    caption?: string;
-    frame: FrameKey;
-    overlays: OverlayKey[];
-    overlaySeed: string;
-    posterTint: PosterTint;
-  } | null>(null);
+  const photoRecipeRef = useRef<PhotoRecipe | null>(null);
   const settingsLoadedRef = useRef(false);
 
   // Load persisted operator settings once on startup.
@@ -203,29 +200,24 @@ export default function App() {
       postered: boolean,
       captioned: boolean,
     ) => {
-      const ghostVariant = goofy ? caricaturedGhostBitmapRef.current : originalGhostBitmapRef.current;
-      const plainVariant = goofy ? caricaturedBitmapRef.current : originalBitmapRef.current;
-      // Falls back to the non-ghost variant if ghost was requested but
-      // isn't available for this photo (cameo disabled), so a stray
-      // ghostOn=true can never show a missing photo.
-      const source = (ghost && ghostVariant) || plainVariant;
       const recipe = photoRecipeRef.current;
-      if (!source || !recipe) return;
+      const original = originalBitmapRef.current;
+      const caricatured = caricaturedBitmapRef.current;
+      if (!recipe || !original || !caricatured) return;
+      const base: PhotoBaseBitmaps = {
+        original,
+        caricatured,
+        originalGhost: originalGhostBitmapRef.current,
+        caricaturedGhost: caricaturedGhostBitmapRef.current,
+      };
 
-      let bitmap = postered
-        ? await applyPosterEffect(source, { tint: recipe.posterTint })
-        : await compositionEngine.compose({
-            foreground: source,
-            ghosts: [],
-            caption: captioned ? recipe.caption : undefined,
-            frame: framed ? recipe.frame : "none",
-            overlays: overlaid ? recipe.overlays : [],
-            overlaySeed: recipe.overlaySeed,
-          });
-
-      if (postered && captioned && recipe.caption) {
-        bitmap = await drawCaptionOnBitmap(bitmap, recipe.caption);
-      }
+      const bitmap = await composeSelectedBitmap(
+        base,
+        recipe,
+        { goofy, ghost, framed, overlaid, postered, captioned },
+        { compositionEngine },
+      );
+      if (!bitmap) return;
 
       masterBitmapRef.current = bitmap;
       const blob = await imageBitmapToBlob(bitmap);
@@ -274,12 +266,19 @@ export default function App() {
   // captions rather than seeing the same one reappear every time they turn
   // it back on. Only rerolls in "random" caption mode; a "fixed" caption
   // is still just shown/hidden (there's nothing to randomize between).
+  // Uses a fresh seeded rng (createSeed()/seededRandom(), same PRNG as
+  // every other random choice in the app -- CLAUDE.md section 20) rather
+  // than a bare Math.random(), so this is the only place in the effects
+  // pipeline consistently going through one randomness source; a new seed
+  // each tap still means each reroll is effectively unpredictable, this
+  // interaction just isn't meant to be reproduced for debugging the way a
+  // captured photo's own recipe is.
   const handleToggleCaption = useCallback(() => {
     const next = !captionOn;
     setCaptionOn(next);
     if (photoRecipeRef.current && state.settings.captionMode === "random") {
-      const idx = Math.floor(Math.random() * CAPTIONS.length);
-      photoRecipeRef.current = { ...photoRecipeRef.current, caption: CAPTIONS[idx] };
+      const caption = pickCaption("random", "", seededRandom(createSeed()));
+      photoRecipeRef.current = { ...photoRecipeRef.current, caption };
     }
     void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, next);
   }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, state.settings.captionMode, applyPhotoSelection]);
@@ -310,93 +309,55 @@ export default function App() {
       masterBitmapRef.current = master;
       dispatch({ kind: "booth", event: { type: "FRAME_CAPTURED" } });
 
-      // Vision analysis (Phase 3) runs during "processing". detect() never
-      // throws (CLAUDE.md section 49) — 0 faces just means the rest of the
-      // pipeline falls back to a plain Halloween photo. detect() takes
-      // ownership of the bitmap it's given (transferred into the worker),
-      // so we hand it a clone and keep `master` intact for the result
-      // photo and printing.
-      const detectionCopy = await createImageBitmap(master);
-      const detectedFaces = await faceDetector.detect(detectionCopy);
-      setFaces(detectedFaces);
-
-      // Caricature warp (Phase 4): nose enlargement only so far (section
-      // 59's incremental build order). A fresh per-photo seed drives the
-      // "Random"/WTF preset (section 20) so a given photo's result can be
-      // reproduced for debugging by logging the seed. Each detected face is
-      // warped in turn against the same working bitmap — faces don't
-      // overlap in a normal group photo, so sequential per-face warps on
-      // one bitmap are equivalent to warping them independently.
-      const seed = createSeed();
-      const rng = seededRandom(seed);
-      const config = scaleTowardNeutral(
-        resolvePreset(state.settings.preset, rng),
-        state.settings.caricatureStrength,
+      // Vision analysis, caricature warp, "My Cameo" ghost compositing, and
+      // this photo's caption/frame/overlay-seed/poster-tint recipe --
+      // CapturePipeline.ts's analyzeAndWarpPhoto (see that file for why
+      // this is a plain function and not inline here). Never throws in a
+      // way that loses the photo (CLAUDE.md section 49): 0 detected faces
+      // just means the loop inside it does nothing, which is the
+      // spec's "no face detected -> plain Halloween photo" fallback.
+      const analyzed = await analyzeAndWarpPhoto(
+        master,
+        { faceDetector, caricatureEngine, ownerCameoEngine },
+        {
+          preset: state.settings.preset,
+          caricatureStrength: state.settings.caricatureStrength,
+          ownerCameoMode: state.settings.ownerCameoMode,
+          captionMode: state.settings.captionMode,
+          fixedCaption: state.settings.fixedCaption,
+          frame: state.settings.frame,
+          overlays: state.settings.overlays,
+          posterMode: state.settings.posterMode,
+        },
       );
-      let working: ImageBitmap = master;
-      for (const face of detectedFaces) {
-        const warped = await caricatureEngine.warp(working, face, config);
-        if (warped !== working) {
-          working = warped;
-        }
-      }
 
-      // Ghost layer for the "Spookify" toggle: "My Cameo" (the booth
-      // owner's own fixed cutout(s), effects/OwnerCameoEngine.ts). Only
-      // computed when enabled -- composite() doesn't mutate its input, so
-      // `master`/`working` stay valid for the non-ghost variants below.
-      // When there are several cameo images (CAMEO_ASSET_FILENAMES above),
-      // one is picked per photo from the same seeded rng as the caricature
-      // preset -- picked once and reused for both variants below so the
-      // candid and goofy versions of one photo show the same "ghost"
-      // rather than two different ones.
-      const ghostAvailable = state.settings.ownerCameoMode !== "off";
-      let ghostOriginal: ImageBitmap | null = null;
-      let ghostCaricatured: ImageBitmap | null = null;
-      if (ghostAvailable) {
-        const cameoPick = rng();
-        const pickRng = () => cameoPick;
-        ghostOriginal = await ownerCameoEngine.composite(master, {}, pickRng);
-        ghostCaricatured = await ownerCameoEngine.composite(working, {}, pickRng);
-      }
-
-      // Everything past this point (caption, frame, overlays, poster
-      // tint) is decided once per photo from the same seeded rng
-      // (CLAUDE.md section 20) and stashed in photoRecipeRef rather than
-      // baked into precomputed bitmaps -- applyPhotoSelection composes
-      // the guest's current toggle state against these four base bitmaps
-      // on demand (see its own comment for why).
-      const caption = pickCaption(state.settings.captionMode, state.settings.fixedCaption, rng);
-      photoRecipeRef.current = {
-        caption,
-        frame: state.settings.frame,
-        overlays: state.settings.overlays,
-        overlaySeed: createSeed(),
-        posterTint: POSTER_TINTS[Math.floor(rng() * POSTER_TINTS.length)],
-      };
-
-      originalBitmapRef.current = master;
-      caricaturedBitmapRef.current = working;
-      originalGhostBitmapRef.current = ghostOriginal;
-      caricaturedGhostBitmapRef.current = ghostCaricatured;
-
-      const frameAvailable = state.settings.frame !== "none";
-      const overlaysAvailable = state.settings.overlays.length > 0;
-      const posterAvailable = state.settings.posterMode;
-      const captionAvailable = state.settings.captionMode !== "off";
+      setFaces(analyzed.faces);
+      photoRecipeRef.current = analyzed.recipe;
+      originalBitmapRef.current = analyzed.original;
+      caricaturedBitmapRef.current = analyzed.caricatured;
+      originalGhostBitmapRef.current = analyzed.originalGhost;
+      caricaturedGhostBitmapRef.current = analyzed.caricaturedGhost;
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
       // default) and every other toggle on exactly when the operator has
       // that feature enabled/configured for this event (the guest can
       // flip any of them off independently, or tap Original to reset all
       // of them at once).
+      const { availability } = analyzed;
       setGoofyFilterOn(true);
-      setGhostOn(ghostAvailable);
-      setFrameOn(frameAvailable);
-      setOverlaysOn(overlaysAvailable);
-      setPosterOn(posterAvailable);
-      setCaptionOn(captionAvailable);
-      await applyPhotoSelection(true, ghostAvailable, frameAvailable, overlaysAvailable, posterAvailable, captionAvailable);
+      setGhostOn(availability.ghost);
+      setFrameOn(availability.frame);
+      setOverlaysOn(availability.overlays);
+      setPosterOn(availability.poster);
+      setCaptionOn(availability.caption);
+      await applyPhotoSelection(
+        true,
+        availability.ghost,
+        availability.frame,
+        availability.overlays,
+        availability.poster,
+        availability.caption,
+      );
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
       dispatch({

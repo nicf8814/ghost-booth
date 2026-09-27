@@ -391,6 +391,93 @@ Claude-Session: https://claude.ai/code/session_01GpLRxRzKKwayo1BhjetDEa
 - Auto-detection/unattended start (Phase 10) not started — booth currently
   requires a tap to begin.
 
+## Codebase review + P2-P4 cleanup round
+
+Ran a self-review of the codebase (inefficiencies in tools/code, not new
+features) and presented a 10-item, priority-ordered punch list before
+touching anything, per the user's explicit request. The user approved
+executing P2-P4 and explicitly deferred P1 (reliability items) to "later,
+before we go live." Before starting, a safety checkpoint of the
+known-good state was pushed as a branch, `checkpoint-before-p2-p4-cleanup`
+— **note for future rounds: pushing an annotated tag to this remote fails
+with an HTTP 403 (`RPC failed; HTTP 403 curl 22`); pushing a branch instead
+works fine, so use a branch for any future checkpoint.**
+
+P1 (deferred, not done this round): `ImageBitmap.close()` is never called
+anywhere in the capture pipeline (a real risk for a multi-hour unattended
+event given how aggressively iPad Safari reclaims memory); the
+`photoRetentionMinutes` operator setting is a no-op (the IndexedDB purge
+logic in `storage/PhotoStore.ts` exists but nothing calls it); no offline
+PWA service worker yet (`CLAUDE.md` section 45's "must keep working without
+network after install" requirement isn't met).
+
+**P2 — WebGL2 renderer performance.** `rendering/WebGLRenderer.ts`'s
+`WebGL2MeshWarpRenderer` used to recreate its `OffscreenCanvas`, recompile
+both shaders, and relink the program on every single `warp()` call — real
+overhead for a multi-face group photo (up to 6 `warp()` calls per spec
+section 10). Rewrote it to lazily set up the context/program/VAO/
+uv-buffer/index-buffer/texture object exactly once per renderer instance
+(a new private `ensureContext()`), reusing all of it across calls and only
+re-uploading what actually varies per call (the warped vertex positions
+into `posBuffer`, and the source image into the texture). The backing
+canvas resizes in place if a later call's image is a different size,
+without recreating the WebGL2 context. Added a `dispose()` method to
+release the cached GL objects. Verified with a new `tests/WebGLRenderer.test.ts`
+(a hand-written fake `OffscreenCanvas`/WebGL2 context counting every GL
+call) — this caught a real bug while writing the test: `dispose()`
+initially only deleted 4 of the 6 objects it should have (the uv and index
+buffers were local variables inside `ensureContext()`, not stored as
+instance fields, so they were silently leaked); promoted them to instance
+fields and fixed it.
+
+**P3 — business logic out of `App.tsx` (`CLAUDE.md` section 55).** The
+detect → warp → "My Cameo" ghost → recipe (caption/frame/overlays/poster
+tint) pipeline, and the "recompose the currently selected combination of
+toggles into one bitmap" logic, used to live inline in `App.tsx`'s
+`handleCountdownComplete`/`applyPhotoSelection`, reachable only by driving
+the whole app through a browser. Extracted both into a new
+`src/app/CapturePipeline.ts` (`analyzeAndWarpPhoto` and
+`composeSelectedBitmap`), taking plain data plus `Pick<Interface, "method">`
+-typed dependencies so they can be unit tested directly — no DOM, camera,
+React, or WebGL required. `App.tsx` now only holds the refs/state/dispatch
+glue around calling them. Added `tests/CapturePipeline.test.ts` (12 tests)
+covering sequential per-face warping, ghost availability gating, the
+same-cameo-pick-reused-for-both-variants behavior, recipe building, and
+composition toggle logic.
+
+Also added unit tests for previously-untested modules, in priority order
+(all safety-clamp/randomization/layering/rng-consumption behavior, not
+pixel output): `tests/Presets.test.ts` (25 tests — `clampToSafeLimits`,
+`scaleTowardNeutral`, `resolvePreset`, `randomWtfConfig`'s safety limits and
+seeded reproducibility), `tests/CompositionEngine.test.ts` (10 tests —
+layer order, caption/frame/overlay conditionals, missing-2D-context
+fallback), `tests/HalloweenEffects.test.ts` (8 tests — `pickCaption`'s
+off/random/fixed modes), `tests/PosterEffect.test.ts` (8 tests — tint/
+vignette application, graceful degradation), `tests/OwnerCameoEngine.test.ts`
+(8 tests — asset caching, 404 skip, rng-based cameo selection, geometry),
+and for the printing layer, `tests/PrinterManager.test.ts` (8 tests — copy
+looping, mid-batch failure propagation), `tests/MockPrinterAdapter.test.ts`
+(8 tests — simulated delay/failure), and
+`tests/ShareSheetPrinterAdapter.test.ts` (10 tests — Web Share API
+capability checks, AbortError-is-not-a-failure handling). Full suite: 170
+tests across 15 files, all green; `tsc -b`, `oxlint`, and `npm run build`
+all clean.
+
+**P4 — cleanup.** Removed dead files with zero import references anywhere
+in `src/` (confirmed via grep before deleting): `vision/FaceLandmarks.ts`,
+`vision/PersonSegmentation.ts`, `app/routes.ts`. Removed dead
+`CompositionConfig` fields (`background`, `ghosts`, `brandingText`) that no
+caller ever populated — "My Cameo" ghosts are composited directly onto the
+foreground before it reaches `CompositionEngine`, not through a `ghosts`
+list. Rewrote `README.md`, which still described Phase 1-4 as the current
+state; it now stays intentionally high-level and defers to this log for
+detail. Fixed an `oxlint` `react(set-state-in-effect)` warning in
+`Countdown.tsx` by deriving `showBoo` from render state instead of a
+synchronous `setState` call inside `useEffect`. Made the caption-reroll
+toggle (`App.tsx`'s `handleToggleCaption`) use the app's seeded-PRNG
+convention (`pickCaption` + `seededRandom(createSeed())`) instead of raw
+`Math.random()`, consistent with `CLAUDE.md` section 20.
+
 ## Ghost effect (Phase 6/7) — tried, reverted
 
 A live per-guest ghost (person segmentation + duplicated/blurred/offset
