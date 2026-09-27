@@ -3,9 +3,10 @@
 A full-screen, unattended Halloween photobooth web app for iPad Safari. See `CLAUDE.md` for
 the full product spec and phased build plan this project follows.
 
-## Status: Phase 1 + Phase 2 complete (beta)
+## Status: Phase 1 + 2 + 3 complete (beta)
 
-Phase 1 ("Shell") and Phase 2 ("Camera") from `CLAUDE.md` are implemented and working:
+Phase 1 ("Shell"), Phase 2 ("Camera"), and Phase 3 ("Vision") from `CLAUDE.md` are
+implemented and working:
 
 - Vite + React + TypeScript project, with the directory structure the spec calls for.
 - A single authoritative `BoothState` state machine (`src/state/BoothStateMachine.ts`),
@@ -33,12 +34,23 @@ Phase 1 ("Shell") and Phase 2 ("Camera") from `CLAUDE.md` are implemented and wo
   `SettingsStore`, `PhotoStore`) layers, so later phases plug in without changing the app
   shell.
 - Idle timeout back to attract mode, settings persisted to IndexedDB.
+- **Face detection / landmarks** (Phase 3): a `WorkerFaceDetector` runs
+  `@vladmandic/face-api` (TinyFaceDetector + FaceLandmark68Net, tfjs CPU backend) entirely
+  inside a dedicated Web Worker, off the main UI thread. Detected faces are mapped from
+  face-api's 68-point landmark scheme into the spec's normalized (0.0–1.0) `FaceModel`
+  (`src/vision/Face68LandmarkIndices.ts`, unit tested). Model weights are bundled in
+  `public/models/` so detection works fully offline. A dev/operator debug overlay
+  (`DebugLandmarkOverlay.tsx`, toggled via the operator panel's Debug Mode setting) draws
+  bounding boxes, face contour, lips, nose contour, and eye/eyebrow/nose/mouth points on the
+  result photo, so detection can be verified before the caricature engine is built on top of
+  it. Detection never throws — a failed/slow model load or a photo with no visible face just
+  falls back to 0 faces (CLAUDE.md section 49's "no face detected → plain Halloween photo"),
+  it does not error out the booth.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 
-- **Face detection / landmarks** (Phase 3) — `FaceDetector` currently returns no faces, so
-  every photo takes the graceful "no face detected → plain Halloween photo" path.
-- **Caricature mesh warp** (Phases 4–5) — `CaricatureEngine` is a pass-through stub.
+- **Caricature mesh warp** (Phases 4–5) — `CaricatureEngine` is a pass-through stub. The
+  now-available face landmarks are the input this phase will consume.
 - **Person segmentation & ghost effect** (Phases 6–7) — `PersonSegmenter`/`GhostEngine` are
   stubs; no ghosts are composited yet.
 - **Full composition** (Phase 8) — backgrounds, overlays, captions, and frames aren't
@@ -53,16 +65,16 @@ Phase 1 ("Shell") and Phase 2 ("Camera") from `CLAUDE.md` are implemented and wo
   is a normal PWA-shaped SPA, but there's no service worker yet, so it needs network access
   to load fresh (once cached by the browser it will mostly work, but this isn't guaranteed
   offline behavior per the spec's Phase-45 requirement).
-- **Web Workers** — face/effect/composition processing isn't off the main thread yet; not
-  urgent while those stages are stubs, but required once real vision/effects work lands so
-  the UI doesn't freeze.
+- **Web Workers for effects/composition** — face detection now runs in a worker (see
+  above), but the caricature/ghost/composition stages that will follow it are still stubs,
+  so they aren't off the main thread yet either.
 
 ## Running it
 
 ```bash
 npm install
 npm run dev       # http://localhost:5173, camera works on localhost without HTTPS
-npm run test      # 13 passing unit tests for the state machine
+npm run test      # 21 passing unit tests (state machine + landmark normalization)
 npm run build     # type-checks (tsc -b) and produces dist/
 ```
 
@@ -75,3 +87,21 @@ attract → tap → live camera preview → BOO → 3-2-1-BOO countdown (camera 
 it) → capture → result photo displayed → Print → mock printer succeeds → back to result
 (printComplete) — with zero console errors, plus the operator panel opening correctly on a
 5-second hold and print-failure recovery buttons all present.
+
+Face detection was separately verified by feeding Chromium a real photo (containing 3 faces)
+as a fake camera stream (`--use-file-for-fake-video-capture`) and confirming, with Debug Mode
+on, that all 3 faces were correctly boxed and landmarked on the result screen.
+
+## Live deployment
+
+Hosted on GitHub Pages from the `gh-pages` branch. To redeploy after a change on `main`:
+
+```bash
+npm run build
+# copy dist/ into a gh-pages worktree, commit, push — see git history for the exact steps
+```
+
+**Note:** the result photo itself still looks unchanged from the plain capture — that's
+expected for Phase 3. The only visible sign face detection ran is the debug overlay, which
+is off by default. To see it: hold the ghost logo for 5 seconds → enable "Debug Mode" in the
+operator panel → take a photo.
