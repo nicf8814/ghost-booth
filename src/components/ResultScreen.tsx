@@ -57,6 +57,16 @@ interface ResultScreenProps {
   captionOn: boolean;
   onToggleCaption: () => void;
   captionAvailable: boolean;
+  /** Whether a Horror Filter (effects/HorrorFilters.ts -- VHS, noir, blood
+   * moon, vintage) color grade is applied to whichever photo is currently
+   * showing. Only rendered when the operator has at least one filter
+   * configured and Poster Mode isn't currently applied (both are
+   * whole-photo grades; stacking them would look muddy). Which filter is
+   * used is decided per-photo at capture time, not guest-selectable -- this
+   * is a plain on/off toggle like Frame/Overlays. */
+  filterOn: boolean;
+  onToggleFilter: () => void;
+  filterAvailable: boolean;
   /** One-tap revert: turns every toggle above off at once, back to the
    * plain candid capture. */
   onShowOriginal: () => void;
@@ -92,6 +102,9 @@ export function ResultScreen({
   captionOn,
   onToggleCaption,
   captionAvailable,
+  filterOn,
+  onToggleFilter,
+  filterAvailable,
   onShowOriginal,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
@@ -214,6 +227,19 @@ export function ResultScreen({
           >
             <span className="icon-button-glyph" aria-hidden="true">🎬</span>
             <span className="icon-button-label">POSTER</span>
+          </button>
+        )}
+
+        {filterAvailable && (
+          <button
+            type="button"
+            className={`icon-button ${filterOn ? "icon-button-active" : ""}`}
+            onClick={onToggleFilter}
+            aria-pressed={filterOn}
+            aria-label="Toggle horror filter"
+          >
+            <span className="icon-button-glyph" aria-hidden="true">🎞️</span>
+            <span className="icon-button-label">FILTER</span>
           </button>
         )}
 

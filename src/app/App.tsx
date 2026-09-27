@@ -99,6 +99,7 @@ export default function App() {
   const [overlaysOn, setOverlaysOn] = useState(false);
   const [posterOn, setPosterOn] = useState(false);
   const [captionOn, setCaptionOn] = useState(false);
+  const [filterOn, setFilterOn] = useState(false);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
@@ -199,6 +200,7 @@ export default function App() {
       overlaid: boolean,
       postered: boolean,
       captioned: boolean,
+      filtered: boolean,
     ) => {
       const recipe = photoRecipeRef.current;
       const original = originalBitmapRef.current;
@@ -214,7 +216,7 @@ export default function App() {
       const bitmap = await composeSelectedBitmap(
         base,
         recipe,
-        { goofy, ghost, framed, overlaid, postered, captioned },
+        { goofy, ghost, framed, overlaid, postered, captioned, filtered },
         { compositionEngine },
       );
       if (!bitmap) return;
@@ -233,32 +235,38 @@ export default function App() {
   const handleToggleGoofyFilter = useCallback(() => {
     const next = !goofyFilterOn;
     setGoofyFilterOn(next);
-    void applyPhotoSelection(next, ghostOn, frameOn, overlaysOn, posterOn, captionOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
+    void applyPhotoSelection(next, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
 
   const handleToggleGhost = useCallback(() => {
     const next = !ghostOn;
     setGhostOn(next);
-    void applyPhotoSelection(goofyFilterOn, next, frameOn, overlaysOn, posterOn, captionOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, next, frameOn, overlaysOn, posterOn, captionOn, filterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
 
   const handleToggleFrame = useCallback(() => {
     const next = !frameOn;
     setFrameOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, next, overlaysOn, posterOn, captionOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, next, overlaysOn, posterOn, captionOn, filterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
 
   const handleToggleOverlays = useCallback(() => {
     const next = !overlaysOn;
     setOverlaysOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, next, posterOn, captionOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, next, posterOn, captionOn, filterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
 
   const handleTogglePoster = useCallback(() => {
     const next = !posterOn;
     setPosterOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, next, captionOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, next, captionOn, filterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
+
+  const handleToggleFilter = useCallback(() => {
+    const next = !filterOn;
+    setFilterOn(next);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, next);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, applyPhotoSelection]);
 
   // Caption toggle: unlike the other toggles, every tap -- whether it's
   // turning the caption on or switching it back off -- also rerolls which
@@ -280,8 +288,8 @@ export default function App() {
       const caption = pickCaption("random", "", seededRandom(createSeed()));
       photoRecipeRef.current = { ...photoRecipeRef.current, caption };
     }
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, next);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, state.settings.captionMode, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, next, filterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, filterOn, state.settings.captionMode, applyPhotoSelection]);
 
   // One-tap revert to the plain candid: turns every guest toggle off in a
   // single action (CLAUDE.md section 36's result screen always needs a
@@ -294,7 +302,8 @@ export default function App() {
     setOverlaysOn(false);
     setPosterOn(false);
     setCaptionOn(false);
-    void applyPhotoSelection(false, false, false, false, false, false);
+    setFilterOn(false);
+    void applyPhotoSelection(false, false, false, false, false, false, false);
   }, [applyPhotoSelection]);
 
   const handleCountdownComplete = useCallback(async () => {
@@ -328,6 +337,7 @@ export default function App() {
           frame: state.settings.frame,
           overlays: state.settings.overlays,
           posterMode: state.settings.posterMode,
+          filters: state.settings.filters,
         },
       );
 
@@ -350,6 +360,7 @@ export default function App() {
       setOverlaysOn(availability.overlays);
       setPosterOn(availability.poster);
       setCaptionOn(availability.caption);
+      setFilterOn(availability.filter);
       await applyPhotoSelection(
         true,
         availability.ghost,
@@ -357,6 +368,7 @@ export default function App() {
         availability.overlays,
         availability.poster,
         availability.caption,
+        availability.filter,
       );
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
@@ -375,6 +387,7 @@ export default function App() {
     state.settings.frame,
     state.settings.overlays,
     state.settings.posterMode,
+    state.settings.filters,
     applyPhotoSelection,
   ]);
 
@@ -409,6 +422,7 @@ export default function App() {
     setOverlaysOn(false);
     setPosterOn(false);
     setCaptionOn(false);
+    setFilterOn(false);
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
   }, [dispatch]);
 
@@ -420,6 +434,7 @@ export default function App() {
     setOverlaysOn(false);
     setPosterOn(false);
     setCaptionOn(false);
+    setFilterOn(false);
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch]);
 
@@ -473,6 +488,8 @@ export default function App() {
             posterAvailable: state.settings.posterMode,
             captionOn,
             captionAvailable: state.settings.captionMode !== "off",
+            filterOn,
+            filterAvailable: state.settings.filters.length > 0 && !posterOn,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -488,6 +505,7 @@ export default function App() {
             onToggleOverlays: handleToggleOverlays,
             onTogglePoster: handleTogglePoster,
             onToggleCaption: handleToggleCaption,
+            onToggleFilter: handleToggleFilter,
             onShowOriginal: handleShowOriginal,
           })}
 
@@ -534,6 +552,8 @@ interface RenderScreenArgs {
   posterAvailable: boolean;
   captionOn: boolean;
   captionAvailable: boolean;
+  filterOn: boolean;
+  filterAvailable: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -549,6 +569,7 @@ interface RenderScreenArgs {
   onToggleOverlays: () => void;
   onTogglePoster: () => void;
   onToggleCaption: () => void;
+  onToggleFilter: () => void;
   onShowOriginal: () => void;
 }
 
@@ -607,6 +628,9 @@ function renderScreen(args: RenderScreenArgs) {
           captionOn={args.captionOn}
           onToggleCaption={args.onToggleCaption}
           captionAvailable={args.captionAvailable}
+          filterOn={args.filterOn}
+          onToggleFilter={args.onToggleFilter}
+          filterAvailable={args.filterAvailable}
           onShowOriginal={args.onShowOriginal}
         />
       );

@@ -2,6 +2,7 @@ import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind }
 import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
 import { CAPTIONS, type OverlayKey } from "../effects/HalloweenEffects";
 import { OVERLAY_KEYS } from "../effects/Overlays";
+import { FILTER_KEYS, FILTER_LABELS, type FilterKey } from "../effects/HorrorFilters";
 import { PRINT_LAYOUTS, PRINT_LAYOUT_LABELS, type PrintLayout } from "../printing/PrintLayout";
 
 interface OperatorPanelProps {
@@ -61,6 +62,10 @@ const OVERLAY_LABELS: Record<OverlayKey, string> = {
 };
 
 function toggleOverlay(current: OverlayKey[], key: OverlayKey, checked: boolean): OverlayKey[] {
+  return checked ? [...current, key] : current.filter((k) => k !== key);
+}
+
+function toggleFilter(current: FilterKey[], key: FilterKey, checked: boolean): FilterKey[] {
   return checked ? [...current, key] : current.filter((k) => k !== key);
 }
 
@@ -232,6 +237,21 @@ export function OperatorPanel({
               onChange={(e) => onChange({ posterMode: e.target.checked })}
             />
           </label>
+          <fieldset className="operator-overlay-fieldset">
+            <legend>Horror Filters (whole-photo color grade, one picked at random per photo)</legend>
+            <div className="operator-overlay-grid">
+              {FILTER_KEYS.map((key) => (
+                <label key={key} className="operator-overlay-option">
+                  <input
+                    type="checkbox"
+                    checked={settings.filters.includes(key)}
+                    onChange={(e) => onChange({ filters: toggleFilter(settings.filters, key, e.target.checked) })}
+                  />
+                  {FILTER_LABELS[key]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </section>
 
         <section>

@@ -25,6 +25,7 @@ import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
 import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
 import type { FrameKey } from "../effects/Frames";
 import { applyPosterEffect, POSTER_TINTS, type PosterTint } from "../effects/PosterEffect";
+import { applyHorrorFilter, type FilterKey } from "../effects/HorrorFilters";
 import type { CompositionEngine } from "../rendering/CompositionEngine";
 import { drawCaptionOnBitmap } from "../rendering/CompositionEngine";
 import { createSeed, pick, seededRandom } from "../utils/random";
@@ -40,6 +41,7 @@ export interface CapturePipelineSettings {
   frame: FrameKey;
   overlays: OverlayKey[];
   posterMode: boolean;
+  filters: FilterKey[];
 }
 
 /** Decided once per photo from the seeded rng (CLAUDE.md section 20) and reused across every later toggle recompose, so flipping Frame/Overlays/Poster on and off never reshuffles which caption/overlay-layout/tint the photo uses. */
@@ -49,6 +51,7 @@ export interface PhotoRecipe {
   overlays: OverlayKey[];
   overlaySeed: string;
   posterTint: PosterTint;
+  filterKey: FilterKey;
 }
 
 /** Which of the recipe-dependent guest toggles should even be shown/on by default for a fresh photo, given what the operator has configured. */
@@ -58,6 +61,7 @@ export interface ToggleAvailability {
   overlays: boolean;
   poster: boolean;
   caption: boolean;
+  filter: boolean;
 }
 
 export interface AnalyzedPhoto {
@@ -140,6 +144,11 @@ export async function analyzeAndWarpPhoto(
     overlays: settings.overlays,
     overlaySeed: createSeed(),
     posterTint: pick(POSTER_TINTS, rng),
+    // Picked once per photo, same as posterTint above, so toggling the
+    // Filter button on/off doesn't reshuffle which look this photo got.
+    // Falls back to "vhs" when the operator hasn't enabled any filters --
+    // unused in that case since availability.filter is false below.
+    filterKey: settings.filters.length > 0 ? pick(settings.filters, rng) : "vhs",
   };
 
   return {
@@ -155,6 +164,7 @@ export async function analyzeAndWarpPhoto(
       overlays: settings.overlays.length > 0,
       poster: settings.posterMode,
       caption: settings.captionMode !== "off",
+      filter: settings.filters.length > 0,
     },
   };
 }
@@ -175,6 +185,7 @@ export interface PhotoSelection {
   overlaid: boolean;
   postered: boolean;
   captioned: boolean;
+  filtered: boolean;
 }
 
 export interface ComposeSelectionDeps {
@@ -190,9 +201,14 @@ export interface ComposeSelectionDeps {
  * choice and, when on, is drawn on top of either path -- compose()'s own
  * caption layer for the regular treatment, or drawCaptionOnBitmap for the
  * poster-graded one, since Poster Mode itself is pure color grade/gradient
- * with no text of its own. Returns null only when the base bitmaps aren't
- * ready yet (no photo captured), which callers should treat as "nothing
- * to display", not an error.
+ * with no text of its own. The Filter toggle, when on, grades the source
+ * bitmap (effects/HorrorFilters.ts) before it reaches the regular
+ * frame/overlay/caption composition -- skipped whenever Poster Mode is also
+ * on, since Poster is already a full grade of its own and stacking two
+ * would look muddy (the same mutual-exclusivity App.tsx already applies to
+ * Frame/Overlays while Poster is live). Returns null only when the base
+ * bitmaps aren't ready yet (no photo captured), which callers should treat
+ * as "nothing to display", not an error.
  */
 export async function composeSelectedBitmap(
   base: PhotoBaseBitmaps,
@@ -208,10 +224,15 @@ export async function composeSelectedBitmap(
   const source = (selection.ghost && ghostVariant) || plainVariant;
   if (!source) return null;
 
+  const filteredSource =
+    selection.filtered && !selection.postered
+      ? await applyHorrorFilter(source, { key: recipe.filterKey })
+      : source;
+
   let bitmap = selection.postered
     ? await applyPosterEffect(source, { tint: recipe.posterTint })
     : await deps.compositionEngine.compose({
-        foreground: source,
+        foreground: filteredSource,
         caption: selection.captioned ? recipe.caption : undefined,
         frame: selection.framed ? recipe.frame : "none",
         overlays: selection.overlaid ? recipe.overlays : [],

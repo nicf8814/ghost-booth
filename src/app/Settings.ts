@@ -3,6 +3,7 @@
 
 import type { FrameKey } from "../effects/Frames";
 import { CAPTIONS, type OverlayKey } from "../effects/HalloweenEffects";
+import type { FilterKey } from "../effects/HorrorFilters";
 import type { PrintLayout } from "../printing/PrintLayout";
 
 export type { PrintLayout } from "../printing/PrintLayout";
@@ -84,6 +85,18 @@ export interface BoothSettings {
    * screen to show/hide this set (same show/hide-what-the-operator-
    * picked pattern as Frame), defaulting to on for a fresh photo. */
   overlays: OverlayKey[];
+  /** Horror Filters (whole-photo color grades -- VHS/noir/blood-moon/vintage,
+   * see effects/HorrorFilters.ts) the operator wants available for this
+   * event. Same opt-in pattern as overlays: empty by default, and when
+   * non-empty the guest gets a Filter toggle on the result screen. Which
+   * filter a given photo uses is picked once per photo from this list via
+   * the seeded rng (CapturePipeline's recipe, same pattern as posterTint),
+   * not guest-selectable -- keeps the toggle a simple on/off like the
+   * others rather than adding a picker. Mutually exclusive with Poster
+   * Mode (both are whole-photo grades; stacking them would look muddy) --
+   * enforced the same way Frame/Overlays hide themselves while Poster is
+   * live. */
+  filters: FilterKey[];
 
   // Printing
   printerId?: string;
@@ -120,6 +133,7 @@ export const defaultSettings: BoothSettings = {
   ownerCameoMode: "off",
   posterMode: false,
   overlays: [],
+  filters: [],
 
   printerAdapter: "shareSheet",
   autoPrint: false,

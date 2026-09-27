@@ -89,6 +89,7 @@ const baseSettings: CapturePipelineSettings = {
   frame: "classic",
   overlays: ["bats", "cobwebs"],
   posterMode: true,
+  filters: ["vhs", "noir"],
 };
 
 describe("analyzeAndWarpPhoto", () => {
@@ -186,6 +187,7 @@ describe("analyzeAndWarpPhoto", () => {
     expect(result.recipe.frame).toBe("classic");
     expect(result.recipe.overlays).toEqual(["bats", "cobwebs"]);
     expect(["crimson", "teal", "moonlight"]).toContain(result.recipe.posterTint);
+    expect(["vhs", "noir"]).toContain(result.recipe.filterKey);
     expect(result.recipe.overlaySeed).toEqual(expect.any(String));
   });
 
@@ -203,6 +205,7 @@ describe("analyzeAndWarpPhoto", () => {
       frame: "none",
       overlays: [],
       posterMode: false,
+      filters: [],
     });
 
     expect(result.recipe.caption).toBeUndefined();
@@ -212,6 +215,7 @@ describe("analyzeAndWarpPhoto", () => {
       overlays: false,
       poster: false,
       caption: false,
+      filter: false,
     });
   });
 
@@ -241,6 +245,7 @@ describe("composeSelectedBitmap", () => {
     overlays: ["bats"],
     overlaySeed: "seed-123",
     posterTint: "crimson",
+    filterKey: "vhs",
   };
 
   function base(): PhotoBaseBitmaps {
@@ -259,7 +264,7 @@ describe("composeSelectedBitmap", () => {
     await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: true, ghost: false, framed: false, overlaid: false, postered: false, captioned: false },
+      { goofy: true, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
       { compositionEngine: { compose } },
     );
     expect(compose.mock.calls[0][0].foreground).toBe(b.caricatured);
@@ -267,7 +272,7 @@ describe("composeSelectedBitmap", () => {
     await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false },
+      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
       { compositionEngine: { compose } },
     );
     expect(compose.mock.calls[1][0].foreground).toBe(b.original);
@@ -282,7 +287,7 @@ describe("composeSelectedBitmap", () => {
     await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: false, ghost: true, framed: false, overlaid: false, postered: false, captioned: false },
+      { goofy: false, ghost: true, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
       { compositionEngine: { compose } },
     );
 
@@ -296,7 +301,7 @@ describe("composeSelectedBitmap", () => {
     await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: false, ghost: false, framed: true, overlaid: true, postered: false, captioned: true },
+      { goofy: false, ghost: false, framed: true, overlaid: true, postered: false, captioned: true, filtered: false },
       { compositionEngine: { compose } },
     );
     expect(compose.mock.calls[0][0]).toMatchObject({
@@ -308,7 +313,7 @@ describe("composeSelectedBitmap", () => {
     await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false },
+      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
       { compositionEngine: { compose } },
     );
     expect(compose.mock.calls[1][0]).toMatchObject({
@@ -325,7 +330,7 @@ describe("composeSelectedBitmap", () => {
     const bitmap = await composeSelectedBitmap(
       b,
       recipe,
-      { goofy: false, ghost: false, framed: true, overlaid: true, postered: true, captioned: false },
+      { goofy: false, ghost: false, framed: true, overlaid: true, postered: true, captioned: false, filtered: false },
       { compositionEngine: { compose } },
     );
 
@@ -333,12 +338,45 @@ describe("composeSelectedBitmap", () => {
     expect(bitmap).not.toBeNull();
   });
 
+  it("grades the source through the horror filter before compose() when filtered is on", async () => {
+    const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const b = base();
+
+    await composeSelectedBitmap(
+      b,
+      recipe,
+      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: true },
+      { compositionEngine: { compose } },
+    );
+
+    // applyHorrorFilter runs through the faked OffscreenCanvas and always
+    // resolves to "canvas-output" -- confirms compose() received the
+    // graded bitmap, not the original source, when the filter toggle is on.
+    expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
+  });
+
+  it("skips the horror filter when Poster Mode is also on (both are whole-photo grades)", async () => {
+    const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const b = base();
+
+    await composeSelectedBitmap(
+      b,
+      recipe,
+      { goofy: false, ghost: false, framed: false, overlaid: false, postered: true, captioned: false, filtered: true },
+      { compositionEngine: { compose } },
+    );
+
+    // Poster Mode replaces compose() entirely, so it should still never be
+    // called even though `filtered` is also true.
+    expect(compose).not.toHaveBeenCalled();
+  });
+
   it("returns null when there is no base bitmap yet (nothing captured)", async () => {
     const compose = vi.fn();
     const bitmap = await composeSelectedBitmap(
       { original: null as unknown as ImageBitmap, caricatured: null as unknown as ImageBitmap, originalGhost: null, caricaturedGhost: null },
       recipe,
-      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false },
+      { goofy: false, ghost: false, framed: false, overlaid: false, postered: false, captioned: false, filtered: false },
       { compositionEngine: { compose } },
     );
     expect(bitmap).toBeNull();
