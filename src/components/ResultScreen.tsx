@@ -107,10 +107,13 @@ export function ResultScreen({
 
   return (
     <div className="screen result-screen">
-      <div className="result-header">
-        <span className="result-title">GHOST BOOTH</span>
-        <span className="result-subtitle">You&apos;ve been spookified</span>
-      </div>
+      {/* Branding lives as small corner marks now instead of a title bar --
+          content-first, chrome-minimal: the photo is the thing the guest
+          looks at, not the header. These sit out of normal flow (position:
+          absolute in CSS) so they cost the layout no vertical space at all,
+          which is what actually lets result-photo-frame grow. */}
+      <span className="result-brand-mark" aria-hidden="true">👻 GHOST BOOTH</span>
+      <span className="result-tagline-mark" aria-hidden="true">🎃 HAPPY HALLOWEEN 🎃</span>
 
       <div className="result-photo-frame">
         {imageUrl ? (
@@ -209,8 +212,6 @@ export function ResultScreen({
           <span className="icon-button-label">ORIGINAL</span>
         </button>
       </div>
-
-      <p className="result-footer">🎃 HAPPY HALLOWEEN 🎃</p>
     </div>
   );
 }

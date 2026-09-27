@@ -818,3 +818,33 @@ Three fixes/features from user-reported screenshots and a new explicit ask
   Verified: `tsc -b --force`, `oxlint`, `npm run build`, and the full
   suite (180 tests, `tests/CapturePipeline.test.ts` updated for the new
   `ghostOpacity` field) all clean.
+
+## Result screen: full-bleed stage, corner-mark branding -- done
+
+Layout pass on the result screen per explicit user direction (with an
+Instagram screenshot as a loose reference, discussed and scoped down
+first -- CLAUDE.md section 32's "design for someone standing several feet
+away, huge buttons" ruled out porting Instagram's icon-sidebar/gesture
+UI wholesale, so only the parts that don't fight that were taken):
+
+- **Full-bleed photo stage.** `result-photo-frame`/`result-photo`'s
+  max-width/max-height grew from `min(85vw, 70vh)` / `52vh` to
+  `min(96vw, 82vh)` / `68vh` -- the single biggest visual change, and the
+  literal "make the stage bigger" ask.
+- **Branding moved to corner marks.** The old `result-header` (a
+  two-line "GHOST BOOTH" / "You've been spookified" title block) and the
+  bottom `result-footer` ("🎃 HAPPY HALLOWEEN 🎃" paragraph) both took up
+  in-flow vertical space above/below the photo. Replaced with two small
+  `position: absolute` marks (`result-brand-mark` top-left,tagline
+  top-right) that cost the layout zero vertical space -- freeing up the
+  room the bigger stage above needed.
+- **Bottom dock tightened, not shrunk.** `result-screen`'s gap/padding
+  were trimmed (32px generic -> 12px/14px), and `feature-carousel`'s
+  max-width was bumped to match the new wider stage. The RETAKE/PRINT/
+  GOOFY/SPOOKY/ORIGINAL icon buttons and the Frame/Overlays/Filter/Poster
+  carousel chips are untouched in size/label -- explicitly kept "exactly
+  as chunky" per the user's direction, since those are the touch targets
+  a guest standing several feet from the iPad actually needs to hit.
+  Verified: `tsc -b --force`, `oxlint`, `npm run build`, and the full
+  suite (180 tests, no test referenced the removed header/footer markup)
+  all clean.

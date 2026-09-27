@@ -161,32 +161,43 @@
 
 /* ---- Result ---- */
 .result-screen {
-  /* Tighter than the default .screen gap -- this screen stacks a photo plus
-     two rows of buttons, and the generic 32px gap left the whole thing
-     feeling sparse/oversized on a phone-width viewport. */
-  gap: 16px;
-  padding: 24px 20px;
+  /* Tighter than the default .screen gap, and tighter still than the
+     original header+subtitle version -- content-first/chrome-minimal:
+     the photo stage is the thing that should dominate this screen, so
+     every other element (branding, dock) is trimmed to just what it
+     needs. Branding no longer sits in flow at all (see the corner marks
+     below), so this gap/padding is purely photo <-> dock <-> carousel
+     spacing now. */
+  gap: 12px;
+  padding: 14px 16px 18px;
 }
 
-.result-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+/* Small corner marks instead of a title bar -- carries the same branding
+   ("GHOST BOOTH" / "HAPPY HALLOWEEN") the old header/footer did, but out
+   of normal document flow (position: absolute) so it costs the layout
+   zero vertical space. That's what actually gives result-photo-frame the
+   room to grow below. */
+.result-brand-mark,
+.result-tagline-mark {
+  position: absolute;
+  top: 14px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
 }
 
-.result-title {
-  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
-  font-weight: 900;
-  letter-spacing: 0.06em;
+.result-brand-mark {
+  left: 18px;
   color: #ff7a1a;
-  text-shadow: 0 0 16px rgba(255, 122, 26, 0.5);
+  text-shadow: 0 0 10px rgba(255, 122, 26, 0.45);
 }
 
-.result-subtitle {
-  font-size: clamp(0.9rem, 2vw, 1.1rem);
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 600;
+.result-tagline-mark {
+  right: 18px;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .result-photo-frame {
@@ -196,11 +207,18 @@
      re-cropped it via object-fit: cover, cutting off heads/cameos (the bug
      reported: "photo booth window cuts a lot of the image off"). Letting
      the box size to the image's natural ratio and using `contain` below
-     means the whole photo is always visible. */
+     means the whole photo is always visible. Sized as large as the stage
+     can go now that branding no longer eats flow space above it and the
+     dock below is tightened -- near-edge-to-edge full-bleed stage per the
+     "make the stage bigger" / Instagram-style full-bleed photo request,
+     while still leaving room for the always-big, always-labeled control
+     dock underneath (CLAUDE.md section 32 -- this app is not a full
+     Instagram-style layout precisely because it drops the labeled buttons,
+     which this booth still needs). */
   position: relative;
   display: inline-flex;
-  max-width: min(85vw, 70vh);
-  max-height: 52vh;
+  max-width: min(96vw, 82vh);
+  max-height: 68vh;
   border-radius: 16px;
   overflow: hidden;
   background: #000;
@@ -217,7 +235,7 @@
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: 52vh;
+  max-height: 68vh;
   object-fit: contain;
 }
 
@@ -292,13 +310,6 @@
 .icon-button-active .icon-button-glyph {
   background: linear-gradient(180deg, #ff9433, #d8580a);
   border-color: #ffb15c;
-}
-
-.result-footer {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.45);
-  letter-spacing: 0.04em;
 }
 
 /* ---- Debug landmark overlay (operator debug mode only) ---- */
@@ -477,7 +488,7 @@
    category's chip row is shown, scrolling horizontally if it overflows. */
 .feature-carousel {
   width: 100%;
-  max-width: min(85vw, 70vh);
+  max-width: min(96vw, 82vh);
   text-align: left;
 }
 
