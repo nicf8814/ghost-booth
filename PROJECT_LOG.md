@@ -775,3 +775,18 @@ Three fixes/features from user-reported screenshots and a new explicit ask
   `tests/CapturePipeline.test.ts` updated for the reworked
   `PhotoOptions`/`DefaultSelection`/`PhotoBaseBitmaps`/`PhotoSelection`/
   `ComposeSelectionDeps` shapes. Full suite: 180 tests, all green.
+
+- **Unlicensed stock cameo images removed.** The user confirmed they
+  don't hold a license for the five stock horror/creature images added
+  above. Pulled back out immediately rather than left live pending a
+  license: deleted `public/cameo/the-rake.jpg`,
+  `forest-crawler.jpg`, `glass-hands.jpg`, `zombie-woman.jpg`, and
+  `smoke-skull.jpg`, and trimmed `effects/Cameos.ts`'s `CameoKey`/
+  `CAMEO_KEYS`/`CAMEO_LABELS`/`CAMEO_FILENAMES` back down to just
+  `nicCutout`. The ghost-cameo picker architecture built above (guest
+  picks a key from a menu, cover-fill sizing, composited on demand in
+  `composeSelectedBitmap`) is untouched and still live with the one
+  cameo -- it's ready to take more choosable ghosts the moment there's
+  artwork with clear rights to use, just add a key + file, same as
+  before. Verified: `tsc -b --force`, `oxlint`, `npm run build`, and the
+  full suite (180 tests) all clean.

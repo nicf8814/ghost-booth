@@ -85,10 +85,14 @@ describe("OwnerCameoEngine.composite", () => {
     (globalThis as Record<string, unknown>).fetch = fetchMock;
     (globalThis as Record<string, unknown>).createImageBitmap = vi.fn(async () => fakeBitmap());
 
-    const engine = new OwnerCameoEngine({ nicCutout: "/cameo/a.png", theRake: "/cameo/b.png" } as Record<CameoKey, string>);
+    // A second key is added via a runtime-only cast (not a real CameoKey)
+    // purely to exercise "one fetch per distinct key" -- the catalog only
+    // lists "nicCutout" today, but the caching behavior being tested here
+    // doesn't depend on how many real keys exist.
+    const engine = new OwnerCameoEngine({ nicCutout: "/cameo/a.png", other: "/cameo/b.png" } as unknown as Record<CameoKey, string>);
     await engine.composite(fakeBitmap(), "nicCutout");
     await engine.composite(fakeBitmap(), "nicCutout");
-    await engine.composite(fakeBitmap(), "theRake");
+    await engine.composite(fakeBitmap(), "other" as CameoKey);
 
     expect(fetchMock).toHaveBeenCalledTimes(2); // once per distinct key, not once per composite() call
   });

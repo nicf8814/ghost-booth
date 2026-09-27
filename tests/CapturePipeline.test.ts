@@ -275,11 +275,11 @@ describe("composeSelectedBitmap", () => {
     const composite = vi.fn(async () => fakeBitmap("ghosted"));
     const b = base();
 
-    await composeSelectedBitmap(b, recipe, baseSelection({ ghostKey: "theRake" }), {
+    await composeSelectedBitmap(b, recipe, baseSelection({ ghostKey: "nicCutout" }), {
       compositionEngine: { compose },
       ownerCameoEngine: { composite },
     });
-    expect(composite).toHaveBeenCalledWith(b.original, "theRake");
+    expect(composite).toHaveBeenCalledWith(b.original, "nicCutout");
     expect(compose.mock.calls[0][0].foreground).not.toBe(b.original);
 
     composite.mockClear();
