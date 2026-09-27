@@ -24,10 +24,10 @@ import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
-import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
+import { CAPTIONS, pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
 import type { FrameKey } from "../effects/Frames";
 import { applyPosterEffect, POSTER_TINTS, type PosterTint } from "../effects/PosterEffect";
-import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
+import { Canvas2DCompositionEngine, drawCaptionOnBitmap } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import "./app.css";
 
@@ -95,6 +95,7 @@ export default function App() {
   const [frameOn, setFrameOn] = useState(false);
   const [overlaysOn, setOverlaysOn] = useState(false);
   const [posterOn, setPosterOn] = useState(false);
+  const [captionOn, setCaptionOn] = useState(false);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
@@ -184,15 +185,24 @@ export default function App() {
 
   // Composes the currently-selected combination of guest toggles into the
   // photo shown/printed, and swaps resultImageUrl to it. Poster Mode, when
-  // on, replaces the regular caption+frame+overlay composition entirely
-  // (same mutually-exclusive-treatment rationale PosterEffect.ts has
-  // always documented -- its own vignette/tagline would clash with a
-  // frame border and duplicate the caption); otherwise frame/overlays are
-  // drawn (or not) on top of the base bitmap, with the caption always
-  // included (CLAUDE.md section 25 -- not guest-toggleable, consistent
-  // with the original design).
+  // on, replaces the regular frame+overlay composition entirely (same
+  // mutually-exclusive-treatment rationale PosterEffect.ts has always
+  // documented -- its own vignette would clash with a frame border);
+  // otherwise frame/overlays are drawn (or not) on top of the base bitmap.
+  // The caption toggle is independent of that choice and, when on, is
+  // drawn on top of either path (compose()'s own caption layer for the
+  // regular treatment, or drawCaptionOnBitmap for the poster-graded one,
+  // since Poster Mode itself is now pure color grade/gradient with no text
+  // of its own).
   const applyPhotoSelection = useCallback(
-    async (goofy: boolean, ghost: boolean, framed: boolean, overlaid: boolean, postered: boolean) => {
+    async (
+      goofy: boolean,
+      ghost: boolean,
+      framed: boolean,
+      overlaid: boolean,
+      postered: boolean,
+      captioned: boolean,
+    ) => {
       const ghostVariant = goofy ? caricaturedGhostBitmapRef.current : originalGhostBitmapRef.current;
       const plainVariant = goofy ? caricaturedBitmapRef.current : originalBitmapRef.current;
       // Falls back to the non-ghost variant if ghost was requested but
@@ -202,16 +212,20 @@ export default function App() {
       const recipe = photoRecipeRef.current;
       if (!source || !recipe) return;
 
-      const bitmap = postered
-        ? await applyPosterEffect(source, { tagline: recipe.caption, tint: recipe.posterTint })
+      let bitmap = postered
+        ? await applyPosterEffect(source, { tint: recipe.posterTint })
         : await compositionEngine.compose({
             foreground: source,
             ghosts: [],
-            caption: recipe.caption,
+            caption: captioned ? recipe.caption : undefined,
             frame: framed ? recipe.frame : "none",
             overlays: overlaid ? recipe.overlays : [],
             overlaySeed: recipe.overlaySeed,
           });
+
+      if (postered && captioned && recipe.caption) {
+        bitmap = await drawCaptionOnBitmap(bitmap, recipe.caption);
+      }
 
       masterBitmapRef.current = bitmap;
       const blob = await imageBitmapToBlob(bitmap);
@@ -227,32 +241,48 @@ export default function App() {
   const handleToggleGoofyFilter = useCallback(() => {
     const next = !goofyFilterOn;
     setGoofyFilterOn(next);
-    void applyPhotoSelection(next, ghostOn, frameOn, overlaysOn, posterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+    void applyPhotoSelection(next, ghostOn, frameOn, overlaysOn, posterOn, captionOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
 
   const handleToggleGhost = useCallback(() => {
     const next = !ghostOn;
     setGhostOn(next);
-    void applyPhotoSelection(goofyFilterOn, next, frameOn, overlaysOn, posterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, next, frameOn, overlaysOn, posterOn, captionOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
 
   const handleToggleFrame = useCallback(() => {
     const next = !frameOn;
     setFrameOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, next, overlaysOn, posterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, next, overlaysOn, posterOn, captionOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
 
   const handleToggleOverlays = useCallback(() => {
     const next = !overlaysOn;
     setOverlaysOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, next, posterOn);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, next, posterOn, captionOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
 
   const handleTogglePoster = useCallback(() => {
     const next = !posterOn;
     setPosterOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, next);
-  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, next, captionOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, applyPhotoSelection]);
+
+  // Caption toggle: unlike the other toggles, every tap -- whether it's
+  // turning the caption on or switching it back off -- also rerolls which
+  // line is queued, so a guest who keeps tapping cycles through different
+  // captions rather than seeing the same one reappear every time they turn
+  // it back on. Only rerolls in "random" caption mode; a "fixed" caption
+  // is still just shown/hidden (there's nothing to randomize between).
+  const handleToggleCaption = useCallback(() => {
+    const next = !captionOn;
+    setCaptionOn(next);
+    if (photoRecipeRef.current && state.settings.captionMode === "random") {
+      const idx = Math.floor(Math.random() * CAPTIONS.length);
+      photoRecipeRef.current = { ...photoRecipeRef.current, caption: CAPTIONS[idx] };
+    }
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, next);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, captionOn, state.settings.captionMode, applyPhotoSelection]);
 
   // One-tap revert to the plain candid: turns every guest toggle off in a
   // single action (CLAUDE.md section 36's result screen always needs a
@@ -264,7 +294,8 @@ export default function App() {
     setFrameOn(false);
     setOverlaysOn(false);
     setPosterOn(false);
-    void applyPhotoSelection(false, false, false, false, false);
+    setCaptionOn(false);
+    void applyPhotoSelection(false, false, false, false, false, false);
   }, [applyPhotoSelection]);
 
   const handleCountdownComplete = useCallback(async () => {
@@ -352,6 +383,7 @@ export default function App() {
       const frameAvailable = state.settings.frame !== "none";
       const overlaysAvailable = state.settings.overlays.length > 0;
       const posterAvailable = state.settings.posterMode;
+      const captionAvailable = state.settings.captionMode !== "off";
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
       // default) and every other toggle on exactly when the operator has
@@ -363,7 +395,8 @@ export default function App() {
       setFrameOn(frameAvailable);
       setOverlaysOn(overlaysAvailable);
       setPosterOn(posterAvailable);
-      await applyPhotoSelection(true, ghostAvailable, frameAvailable, overlaysAvailable, posterAvailable);
+      setCaptionOn(captionAvailable);
+      await applyPhotoSelection(true, ghostAvailable, frameAvailable, overlaysAvailable, posterAvailable, captionAvailable);
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
       dispatch({
@@ -414,6 +447,7 @@ export default function App() {
     setFrameOn(false);
     setOverlaysOn(false);
     setPosterOn(false);
+    setCaptionOn(false);
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
   }, [dispatch]);
 
@@ -424,6 +458,7 @@ export default function App() {
     setFrameOn(false);
     setOverlaysOn(false);
     setPosterOn(false);
+    setCaptionOn(false);
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch]);
 
@@ -475,6 +510,8 @@ export default function App() {
             overlaysAvailable: state.settings.overlays.length > 0 && !posterOn,
             posterOn,
             posterAvailable: state.settings.posterMode,
+            captionOn,
+            captionAvailable: state.settings.captionMode !== "off",
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -489,6 +526,7 @@ export default function App() {
             onToggleFrame: handleToggleFrame,
             onToggleOverlays: handleToggleOverlays,
             onTogglePoster: handleTogglePoster,
+            onToggleCaption: handleToggleCaption,
             onShowOriginal: handleShowOriginal,
           })}
 
@@ -533,6 +571,8 @@ interface RenderScreenArgs {
   overlaysAvailable: boolean;
   posterOn: boolean;
   posterAvailable: boolean;
+  captionOn: boolean;
+  captionAvailable: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -547,6 +587,7 @@ interface RenderScreenArgs {
   onToggleFrame: () => void;
   onToggleOverlays: () => void;
   onTogglePoster: () => void;
+  onToggleCaption: () => void;
   onShowOriginal: () => void;
 }
 
@@ -602,6 +643,9 @@ function renderScreen(args: RenderScreenArgs) {
           posterOn={args.posterOn}
           onTogglePoster={args.onTogglePoster}
           posterAvailable={args.posterAvailable}
+          captionOn={args.captionOn}
+          onToggleCaption={args.onToggleCaption}
+          captionAvailable={args.captionAvailable}
           onShowOriginal={args.onShowOriginal}
         />
       );

@@ -87,12 +87,15 @@ Phases complete (per `CLAUDE.md`'s numbering):
   - **Poster Mode promoted to a guest-facing toggle.** Previously
     operator-wide only (to avoid multiplying the old precomputed-bitmap
     variants); now that composition happens on demand, that constraint is
-    gone. Still mutually exclusive with the regular caption+frame+overlay
+    gone. Still mutually exclusive with the regular frame+overlay
     treatment for the same reason as before (both have their own
-    text/vignette, combining would clutter), so Frame/Overlays toggle
+    border/vignette, combining would clutter), so Frame/Overlays toggle
     buttons hide themselves whenever Poster is on for the current photo
     (dynamic, based on live toggle state, not just the operator setting —
-    they reappear immediately if the guest flips Poster back off).
+    they reappear immediately if the guest flips Poster back off). See the
+    dedicated Poster Mode / Caption bullets further down for the later
+    round that also made the caption its own independent toggle and
+    stripped all text out of Poster Mode itself.
   - **"Melted face" fix (see also Phase 4 above).** Root cause was
     sequential composition of overlapping control points: each control
     point's warp fed its *output* forward as the next control point's
@@ -104,30 +107,45 @@ Phases complete (per `CLAUDE.md`'s numbering):
     space. Covered by a new dedicated regression test
     (`tests/MeshWarp.test.ts`) plus the existing "stacking the same point
     pushes further" test, which still passes under the additive model.
-  - **One-tap revert to original.** A new "↩️ ORIGINAL" button on the
-    result screen (`onShowOriginal`) resets all 5 toggles to their
-    off/candid state in one tap and recomposes — always visible,
-    unconditionally available regardless of what the operator has
-    configured.
-- **Poster Mode (beta)** — a new operator toggle (`effects/PosterEffect.ts`),
-  requested after analyzing reference horror-movie posters (Evil Dead Rise,
-  IT, Fright Night). Grades the whole photo like a poster -- desaturate/
-  contrast/tint color grade, a radial vignette that pools light around the
-  subject, and a small letter-spaced tagline (reusing the same caption
-  pool). No title text is drawn (removed per user feedback -- "I like the
-  color grades" but didn't want the bold red "GHOST BOOTH" title). Three tint presets
-  (crimson/teal/moonlight) chosen per-photo from the seeded rng, matching
-  each reference poster's limited palette. This is the "quick procedural"
-  tier explicitly chosen over the alternatives: it grades the *whole* photo
-  rather than lifting the guest onto a separate background, because that
-  would need Phase 6 person segmentation (not built) to do properly, and a
-  generative-AI background was ruled out for now as a cost/latency/offline
-  tradeoff (CLAUDE.md sections 51-52, 64). When Poster Mode is on, it
-  replaces the regular caption+frame treatment for that photo rather than
-  layering on top (both have their own text/border, so combining them would
-  clutter the frame). Scoped as an operator-wide setting for the event, not
-  a per-photo guest toggle, to avoid multiplying the four cached bitmap
-  variants into eight.
+  - **One-tap revert to original.** A "↩️ ORIGINAL" button on the result
+    screen (`onShowOriginal`) resets every toggle (now 6, with Caption
+    added — see below) to their off/candid state in one tap and
+    recomposes — always visible, unconditionally available regardless of
+    what the operator has configured.
+- **Poster Mode (beta)** — operator toggle + guest-facing result-screen
+  toggle (`effects/PosterEffect.ts`), requested after analyzing reference
+  horror-movie posters (Evil Dead Rise, IT, Fright Night). Grades the whole
+  photo like a poster -- desaturate/contrast/tint color grade + a radial
+  vignette that pools light around the subject. **Text-free now**: an
+  earlier version also drew a small letter-spaced tagline directly onto the
+  poster grade (after an even earlier bold-red "GHOST BOOTH" title was
+  already dropped per feedback); per further direction that tagline was
+  removed too, so Poster Mode is now purely the color theme/gradient
+  treatment. Three tint presets (crimson/teal/moonlight) chosen per-photo
+  from the seeded rng, matching each reference poster's limited palette.
+  This is the "quick procedural" tier explicitly chosen over the
+  alternatives: it grades the *whole* photo rather than lifting the guest
+  onto a separate background, because that would need Phase 6 person
+  segmentation (not built) to do properly, and a generative-AI background
+  was ruled out for now as a cost/latency/offline tradeoff (CLAUDE.md
+  sections 51-52, 64). When Poster Mode is on, it replaces the regular
+  frame+overlay treatment for that photo rather than layering on top (both
+  have their own border/vignette). The caption (below) is independent of
+  Poster Mode and layers on top of either treatment.
+- **Caption — promoted to its own guest-facing toggle, with reroll-on-tap.**
+  Previously always baked in per CLAUDE.md section 25's "always on" framing;
+  now a "💬 CAPTION" toggle on the result screen (only rendered when the
+  operator's Caption Mode isn't "off") shows/hides it like the other
+  toggles, but with one difference: every tap -- turning it on *or* off --
+  also rerolls which line is queued next (only in "random" Caption Mode;
+  "fixed" mode still just shows/hides the one configured caption, nothing
+  to randomize between). This lets a guest keep tapping to cycle through
+  different one-liners rather than being stuck with whichever one got
+  picked at capture time. Applies on top of either the regular frame/overlay
+  treatment (`CompositionEngine`'s existing caption layer) or a Poster-Mode-
+  graded photo (a new `drawCaptionOnBitmap` helper in `CompositionEngine.ts`
+  draws the same treatment directly onto the poster bitmap, since Poster
+  Mode itself no longer draws any text of its own).
 - **Phase 9 (Printing)** — printer model is now known: **Kodak Mini 2 Retro
   (black), confirmed purchase.** It's Bluetooth-only with no AirPrint and no
   published SDK, and Safari has no Web Bluetooth API at all (confirmed via

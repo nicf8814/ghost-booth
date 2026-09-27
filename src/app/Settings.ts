@@ -60,16 +60,19 @@ export interface BoothSettings {
    * guest's own segmented photo was tried and reverted (didn't look great,
    * wasn't reliable enough); this fixed-asset approach replaced it. */
   ownerCameoMode: OwnerCameoMode;
-  /** "Poster Mode" (beta): grades the photo like a horror movie poster
-   * (color grade, vignette, title/tagline typography) instead of the
-   * regular caption+frame treatment. See effects/PosterEffect.ts. Turning
-   * this on makes the guest-facing Poster toggle available at all (same
-   * on/off-availability pattern as ownerCameoMode/frame/overlays below);
-   * it no longer forces poster grading onto every photo unconditionally
-   * -- the guest can flip it off per-photo to see the regular
-   * caption+frame+overlay treatment instead (or the plain candid, via the
-   * other toggles). Defaults to on for a fresh photo when enabled here,
-   * matching the previous always-on behavior out of the box. */
+  /** "Poster Mode" (beta): grades the photo like a horror movie poster --
+   * pure color grade + vignette gradient, no text of its own (that was
+   * dropped; the caption toggle below is the only source of text on a
+   * photo now, and it applies independently of whether Poster Mode is on)
+   * -- instead of the regular frame+overlay treatment. See
+   * effects/PosterEffect.ts. Turning this on makes the guest-facing Poster
+   * toggle available at all (same on/off-availability pattern as
+   * ownerCameoMode/frame/overlays below); it no longer forces poster
+   * grading onto every photo unconditionally -- the guest can flip it off
+   * per-photo to see the regular frame+overlay treatment instead (or the
+   * plain candid, via the other toggles). Defaults to on for a fresh photo
+   * when enabled here, matching the previous always-on behavior out of the
+   * box. */
   posterMode: boolean;
   /** Halloween overlays (CLAUDE.md section 24) the operator wants
    * available for this event -- drawn procedurally (effects/Overlays.ts),

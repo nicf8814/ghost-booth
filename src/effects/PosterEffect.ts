@@ -1,10 +1,13 @@
 // "Poster Mode" (operator beta feature): grades a photo to read like a
-// horror movie poster -- desaturated/tinted color grade, a directional
-// vignette that pools light around the subject, and bold horror-style
-// title/tagline typography. Modeled on the shared visual language of
-// classic and modern horror one-sheets (Evil Dead Rise, Stephen King's IT,
-// Fright Night): one dominant tint, deep shadow falloff, distressed title
-// lockup, small spaced-caps tagline.
+// horror movie poster -- desaturated/tinted color grade + a directional
+// vignette that pools light around the subject. Modeled on the shared
+// visual language of classic and modern horror one-sheets (Evil Dead Rise,
+// Stephen King's IT, Fright Night): one dominant tint, deep shadow falloff.
+// Pure color-grade/gradient treatment now -- no text is drawn by this
+// module at all (an earlier version drew a small tagline here; that was
+// removed per direction to keep Poster Mode as just the color theme/
+// gradient, with the caption toggle below being the only source of text on
+// a photo, poster or not).
 //
 // This is the "quick procedural version" tier -- no person segmentation, so
 // it grades/vignettes the whole photo rather than lifting the guest onto a
@@ -12,15 +15,15 @@
 // prefer fast/offline/predictable over a fancier generative pipeline) and
 // can be revisited once Phase 6 segmentation exists.
 //
-// Applied as an alternative to the regular caption+frame composition
-// (CompositionEngine), not layered on top of it -- the poster's own title/
-// tagline text and vignette already fill that role, and combining both
-// would clutter the frame with two competing text/border treatments.
+// Applied as an alternative to the regular frame+overlay composition
+// (CompositionEngine), not layered on top of it -- the poster's own
+// vignette already fills a similar role and a frame border on top would
+// clutter it. The caption toggle is independent of Poster Mode and applies
+// on top of either treatment (see App.tsx's applyPhotoSelection).
 
 export type PosterTint = "crimson" | "teal" | "moonlight";
 
 export interface PosterConfig {
-  tagline?: string;
   tint: PosterTint;
 }
 
@@ -81,29 +84,5 @@ export async function applyPosterEffect(source: ImageBitmap, config: PosterConfi
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (config.tagline) {
-    drawPosterTagline(ctx, canvas.width, canvas.height, config.tagline);
-  }
-
   return canvas.transferToImageBitmap();
-}
-
-/** Small, letter-spaced caps sitting in its own zone -- the only text now that the title lockup was dropped. */
-function drawPosterTagline(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, tagline: string): void {
-  const fontSize = Math.round(width * 0.032);
-  ctx.save();
-  ctx.font = `700 ${fontSize}px Georgia, "Times New Roman", serif`;
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#f0e6e6";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
-  ctx.shadowBlur = fontSize * 0.4;
-
-  const spaced = spaceOutLetters(tagline);
-  ctx.fillText(spaced, width / 2, height * 0.62);
-  ctx.restore();
-}
-
-/** Crude letter-spacing for canvas text (no letter-spacing CSS property on 2D context). */
-function spaceOutLetters(text: string): string {
-  return text.split("").join(" "); // thin space
 }

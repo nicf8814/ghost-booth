@@ -48,9 +48,17 @@ interface ResultScreenProps {
   posterOn: boolean;
   onTogglePoster: () => void;
   posterAvailable: boolean;
+  /** Whether a caption (CLAUDE.md section 25) is drawn on whichever photo
+   * is currently showing, poster-graded or not. Only rendered when the
+   * operator's Caption Mode isn't "off". Unlike the other toggles, every
+   * tap also rerolls which caption is queued next (in "random" caption
+   * mode) -- so repeated taps cycle through different lines rather than
+   * just showing/hiding the same one. */
+  captionOn: boolean;
+  onToggleCaption: () => void;
+  captionAvailable: boolean;
   /** One-tap revert: turns every toggle above off at once, back to the
-   * plain candid capture (with its caption, which stays baked in
-   * regardless -- CLAUDE.md section 25's "always on" caption). */
+   * plain candid capture. */
   onShowOriginal: () => void;
 }
 
@@ -81,6 +89,9 @@ export function ResultScreen({
   posterOn,
   onTogglePoster,
   posterAvailable,
+  captionOn,
+  onToggleCaption,
+  captionAvailable,
   onShowOriginal,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
@@ -203,6 +214,19 @@ export function ResultScreen({
           >
             <span className="icon-button-glyph" aria-hidden="true">🎬</span>
             <span className="icon-button-label">POSTER</span>
+          </button>
+        )}
+
+        {captionAvailable && (
+          <button
+            type="button"
+            className={`icon-button ${captionOn ? "icon-button-active" : ""}`}
+            onClick={onToggleCaption}
+            aria-pressed={captionOn}
+            aria-label="Toggle caption, picks a new random line each tap"
+          >
+            <span className="icon-button-glyph" aria-hidden="true">💬</span>
+            <span className="icon-button-label">CAPTION</span>
           </button>
         )}
 

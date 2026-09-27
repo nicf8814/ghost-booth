@@ -81,6 +81,24 @@ export class Canvas2DCompositionEngine implements CompositionEngine {
   }
 }
 
+/**
+ * Draws the same caption treatment `compose()` uses, but directly onto a
+ * standalone bitmap (Poster Mode's own gradient/vignette grade -- see
+ * effects/PosterEffect.ts -- doesn't go through `compose()`, since a frame
+ * and Poster's vignette are mutually exclusive treatments; the caption
+ * toggle is independent of that choice and applies to either path). Never
+ * throws (CLAUDE.md section 49) -- returns the source bitmap untouched if a
+ * 2D context isn't available.
+ */
+export async function drawCaptionOnBitmap(source: ImageBitmap, caption: string): Promise<ImageBitmap> {
+  const canvas = new OffscreenCanvas(source.width, source.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return source;
+  ctx.drawImage(source, 0, 0);
+  drawCaption(ctx, caption, canvas.width, canvas.height);
+  return canvas.transferToImageBitmap();
+}
+
 function drawCaption(
   ctx: OffscreenCanvasRenderingContext2D,
   caption: string,
