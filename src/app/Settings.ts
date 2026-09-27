@@ -15,6 +15,15 @@ export type CaricaturePreset =
 
 export type CaptionMode = "off" | "random" | "fixed";
 export type PrintLayout = "4x6" | "square" | "2x6strip";
+// Which PhotoPrinter adapter (src/printing/) actually handles Print taps.
+// Defaults to "mock" so the full booth flow stays testable without any
+// hardware; the operator switches to "shareSheet" for a real event once a
+// printer app (e.g. Kodak Photo Printer) is installed on the iPad --
+// CLAUDE.md sections 37-39 require this to be operator-configurable rather
+// than assumed, since the exact printer/browser combination decides what's
+// even possible (no Web Bluetooth in Safari, no SDK for most consumer
+// photo printers).
+export type PrinterAdapterKind = "mock" | "shareSheet" | "browserPrint" | "airPrint";
 // "random" (a per-photo chance of appearing) is a planned follow-up to the
 // initial always-on/off toggle; the type is already a union so adding it
 // later won't need a settings migration.
@@ -43,6 +52,8 @@ export interface BoothSettings {
 
   // Printing
   printerId?: string;
+  /** Which PhotoPrinter adapter handles a Print tap -- see PrinterAdapterKind. */
+  printerAdapter: PrinterAdapterKind;
   autoPrint: boolean;
   copies: number;
   printLayout: PrintLayout;
@@ -66,6 +77,7 @@ export const defaultSettings: BoothSettings = {
   captionMode: "random",
   ownerCameoMode: "off",
 
+  printerAdapter: "mock",
   autoPrint: false,
   copies: 1,
   printLayout: "4x6",

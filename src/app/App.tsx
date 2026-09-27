@@ -12,6 +12,11 @@ import { captureMasterFrame } from "../camera/CaptureService";
 import { imageBitmapToBlob } from "../utils/image";
 import { PrinterManager } from "../printing/PrinterManager";
 import { MockPrinterAdapter } from "../printing/MockPrinterAdapter";
+import { ShareSheetPrinterAdapter } from "../printing/ShareSheetPrinterAdapter";
+import { BrowserPrintAdapter } from "../printing/BrowserPrintAdapter";
+import { AirPrintAdapter } from "../printing/AirPrintAdapter";
+import type { PrinterAdapterKind } from "./Settings";
+import type { PhotoPrinter } from "../printing/PrinterAdapter";
 import { loadSettings, saveSettings } from "../storage/SettingsStore";
 import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
 import type { FaceModel } from "../vision/VisionTypes";
@@ -22,6 +27,24 @@ import { createSeed, seededRandom } from "../utils/random";
 import "./app.css";
 
 const printerManager = new PrinterManager(new MockPrinterAdapter({ failRate: 0 }));
+
+// One instance per adapter kind, reused rather than reconstructed on every
+// settings change -- none of these adapters hold a real connection worth
+// tearing down/rebuilding (CLAUDE.md section 37-38's abstraction: swapping
+// which one PrinterManager delegates to is the only thing that changes).
+function createPrinterAdapter(kind: PrinterAdapterKind): PhotoPrinter {
+  switch (kind) {
+    case "shareSheet":
+      return new ShareSheetPrinterAdapter();
+    case "browserPrint":
+      return new BrowserPrintAdapter();
+    case "airPrint":
+      return new AirPrintAdapter();
+    case "mock":
+    default:
+      return new MockPrinterAdapter({ failRate: 0 });
+  }
+}
 const caricatureEngine = new MeshWarpCaricatureEngine();
 // Same subpath-safe resolution as the face-detector models below --
 // public/cameo/nic-cutout.png needs to resolve correctly under a GitHub
@@ -89,6 +112,13 @@ export default function App() {
     if (!settingsLoadedRef.current) return;
     saveSettings(state.settings);
   }, [state.settings]);
+
+  // Keep the printer manager's active adapter in sync with the operator's
+  // "Printer" setting (defaults to the mock adapter until this runs once
+  // settings finish loading).
+  useEffect(() => {
+    printerManager.setAdapter(createPrinterAdapter(state.settings.printerAdapter));
+  }, [state.settings.printerAdapter]);
 
   // Idle timeout: return to attract from any non-attract, non-error state
   // after the configured window of inactivity (CLAUDE.md sections 33, 43).

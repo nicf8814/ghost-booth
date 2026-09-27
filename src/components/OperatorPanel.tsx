@@ -1,4 +1,4 @@
-import type { BoothSettings, CaptionMode, CaricaturePreset } from "../app/Settings";
+import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind } from "../app/Settings";
 
 interface OperatorPanelProps {
   settings: BoothSettings;
@@ -29,6 +29,13 @@ const PRESETS: CaricaturePreset[] = [
 ];
 
 const CAPTION_MODES: CaptionMode[] = ["off", "random", "fixed"];
+
+const PRINTER_ADAPTERS: { value: PrinterAdapterKind; label: string }[] = [
+  { value: "mock", label: "Mock (testing, no hardware)" },
+  { value: "shareSheet", label: "Share Sheet (Kodak Photo Printer app, AirDrop, etc.)" },
+  { value: "browserPrint", label: "Browser/System Print Dialog" },
+  { value: "airPrint", label: "AirPrint (via system print dialog)" },
+];
 
 /**
  * Hidden settings + diagnostics panel (CLAUDE.md sections 47-48). Reached
@@ -161,6 +168,19 @@ export function OperatorPanel({
 
         <section>
           <h3>Printing</h3>
+          <label>
+            Printer
+            <select
+              value={settings.printerAdapter}
+              onChange={(e) => onChange({ printerAdapter: e.target.value as PrinterAdapterKind })}
+            >
+              {PRINTER_ADAPTERS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             Auto Print
             <input
