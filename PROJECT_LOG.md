@@ -15,8 +15,15 @@ Phases complete (per `CLAUDE.md`'s numbering):
 - **Phase 1 (Shell)** — done
 - **Phase 2 (Camera)** — done
 - **Phase 3 (Vision)** — done (face detection + landmarks)
-- **Phase 4 (Caricature)** — partial: nose, eyes, jaw, ears wired up. Mouth,
-  forehead, cheeks, body caricature not yet built.
+- **Phase 4 (Caricature)** — done. All spec-listed deformations are wired up:
+  nose, eyes, jaw, ears, mouth, forehead, cheeks, eyebrows, plus body/shoulder
+  (`shoulderScale`/`bodyScale`, landmark-anchored approximations extending
+  down/out from the jaw contour since there's no body landmark source). The
+  "melted face" overlap issue (see below) is also fixed. Explicit scope cut
+  that remains: `faceWidth`/`faceHeight`/`neckScale` from
+  `CaricatureConfiguration` are not wired to a control point — they'd need
+  anisotropic (non-radial) warp support the current spherize math doesn't
+  have; noted as a follow-up in "Open threads" below.
 - **Phase 5 (GPU)** — effectively done as a side effect of Phase 4 (WebGL2 mesh
   warp + Canvas2D fallback already exist and are generic, not nose-specific).
 - **Phase 6 (Segmentation)**, **Phase 7 (Ghost)** — tried and reverted. A
@@ -32,29 +39,76 @@ Phases complete (per `CLAUDE.md`'s numbering):
   as "ghosts" and have one picked at random per photo, rather than a
   live-generated effect -- `OwnerCameoEngine` was extended to support that
   (see below) ahead of the user actually adding more images.
-- **Phase 8 (Composition)** — partially wired. `Canvas2DCompositionEngine`
+- **Phase 8 (Composition)** — done. `Canvas2DCompositionEngine`
   (background/ghosts/foreground/caption layering, already built earlier) is
-  now actually invoked from the live capture pipeline in `App.tsx`: every
-  photo gets a caption (`effects/HalloweenEffects.ts`'s `pickCaption`, honors
-  the operator's Caption Mode: off/random/fixed, using the same per-photo
-  seeded rng as the caricature preset) and a frame (`effects/Frames.ts`,
-  procedurally drawn Canvas 2D — `classic` double-line border or `filmStrip`
-  sprocket-hole bars, no raster assets to source/license). The caption is
-  always baked in (not guest-toggleable), but the frame is now its own
-  guest-facing "🖼️ FRAME" toggle on the result screen (same instant-swap
-  pattern as Goofy Filter/Spookify) — only rendered when the operator has a
-  frame configured (and hidden when Poster Mode is on, which has its own
-  border/vignette and no separate frame concept). Combined with the
-  existing Goofy/Spookify toggles this now bakes **eight** combinations per
-  photo (candid/goofy × ghost-on/off × frame-on/off) up front so all three
-  toggles stay instant swaps with no recompute. Operator still picks the
-  Frame style itself (which border, if any) and Caption Mode (+ Fixed
-  Caption text when in "fixed" mode) from the operator panel — the new
-  guest toggle is "show/hide whatever frame the operator picked," not a
-  style choice. Halloween overlays (cobwebs/bats/blood splatter/etc., spec
-  section 24) are still unbuilt — `OverlayKey` type exists but no assets or
-  layering logic. **Current focus candidates**: overlays, or the "melted
-  face" caricature overlap issue.
+  invoked from the live capture pipeline in `App.tsx`: every photo gets a
+  caption (`effects/HalloweenEffects.ts`'s `pickCaption`, honors the
+  operator's Caption Mode: off/random/fixed, using the same per-photo seeded
+  rng as the caricature preset) and a frame (`effects/Frames.ts`, procedurally
+  drawn Canvas 2D — `classic` double-line border or `filmStrip` sprocket-hole
+  bars, no raster assets to source/license). The caption is always baked in
+  (not guest-toggleable). Frame, Halloween overlays, and Poster Mode are all
+  guest-facing toggles now (see below).
+  - **Halloween overlays (spec section 24) — done.** All 16 `OverlayKey`
+    types (blood splatter, cobwebs, spiders, bats, skulls, eyeballs, horns,
+    vampire fangs, graveyard, moon, candles, fog, cracked glass, scratches,
+    film grain, vignette) are implemented in `effects/Overlays.ts` as
+    procedural Canvas2D draw functions (`drawOverlays(ctx, keys, width,
+    height, rng)`) — same "no raster assets to source/license" approach as
+    `Frames.ts`/`PosterEffect.ts`, not the spec's literal "transparent PNG/
+    WebP/SVG assets." Placement/sizing/rotation for each decoration is
+    randomized per photo via the same seeded-rng pattern as everything else
+    (a new `overlaySeed`, stored per-photo). The operator picks which
+    overlay types are in play at all (a 16-checkbox fieldset in the
+    operator panel's Effects section, backed by `settings.overlays:
+    OverlayKey[]`, empty by default); the guest gets a "🕸️ OVERLAYS"
+    toggle to show/hide that set (same show/hide-what-the-operator-picked
+    pattern as Frame), only rendered when the operator has configured at
+    least one overlay type and Poster Mode isn't currently applied. Layer
+    order: overlays draw between the foreground and the caption (spec
+    section 28's "decorative effects" slot).
+  - **Architecture change: on-demand composition, not precomputed bitmap
+    variants.** With Frame, Overlays, and Poster Mode all promoted to
+    guest-facing toggles alongside Goofy/Spookify, the toggle count went
+    from 3 (8 precomputed combinations) to 5 (32 combinations) — baking
+    every combination up front the way the old 8-variant design did no
+    longer scales. `App.tsx` now stores only 4 base bitmaps
+    (`original`/`caricatured`/`originalGhost`/`caricaturedGhost`, same as
+    before) plus a small per-photo "recipe" (`photoRecipeRef`: caption,
+    frame, overlays, overlaySeed, poster tint) captured once at capture
+    time. Every toggle flip calls `applyPhotoSelection(goofy, ghost, frame,
+    overlays, poster)`, which composes fresh on demand — either
+    `compositionEngine.compose()` (regular caption+frame+overlay
+    treatment) or `applyPosterEffect()` (poster grade), never both, against
+    whichever of the 4 base bitmaps the goofy/ghost combination picks.
+    Verified via E2E test that a toggle tap (one canvas-draw pass) is well
+    within interactive latency (~400ms budget in the test, comfortably
+    met) — a better tradeoff than precomputing 32 bitmaps per photo.
+  - **Poster Mode promoted to a guest-facing toggle.** Previously
+    operator-wide only (to avoid multiplying the old precomputed-bitmap
+    variants); now that composition happens on demand, that constraint is
+    gone. Still mutually exclusive with the regular caption+frame+overlay
+    treatment for the same reason as before (both have their own
+    text/vignette, combining would clutter), so Frame/Overlays toggle
+    buttons hide themselves whenever Poster is on for the current photo
+    (dynamic, based on live toggle state, not just the operator setting —
+    they reappear immediately if the guest flips Poster back off).
+  - **"Melted face" fix (see also Phase 4 above).** Root cause was
+    sequential composition of overlapping control points: each control
+    point's warp fed its *output* forward as the next control point's
+    input, so overlapping regions (e.g. nose/eye/jaw radii crossing on a
+    turned face) accumulated order-dependent, cascading distortion.
+    `MeshWarp.ts`'s `warpPoint` now computes every control point's
+    displacement independently against the *original* point and sums the
+    displacements — order-independent, no warping-through-already-warped-
+    space. Covered by a new dedicated regression test
+    (`tests/MeshWarp.test.ts`) plus the existing "stacking the same point
+    pushes further" test, which still passes under the additive model.
+  - **One-tap revert to original.** A new "↩️ ORIGINAL" button on the
+    result screen (`onShowOriginal`) resets all 5 toggles to their
+    off/candid state in one tap and recomposes — always visible,
+    unconditionally available regardless of what the operator has
+    configured.
 - **Poster Mode (beta)** — a new operator toggle (`effects/PosterEffect.ts`),
   requested after analyzing reference horror-movie posters (Evil Dead Rise,
   IT, Fright Night). Grades the whole photo like a poster -- desaturate/
@@ -131,23 +185,30 @@ Phases complete (per `CLAUDE.md`'s numbering):
     server and no persistent "reference photo" of any guest anywhere in this
     architecture — CLAUDE.md section 44 requires this (local processing, no
     cloud upload, no biometric database, landmarks discarded after use).
-- Caricature (Phase 4): `MeshWarpCaricatureEngine` (`effects/CaricatureEngine.ts`)
-  builds a list of `ControlPoint`s from a `FaceModel` (`effects/MeshWarp.ts`:
-  `buildNoseControlPoint`, `buildEyeControlPoints`, `buildJawControlPoint`,
-  `buildEarControlPoints`) and renders the warp via `WebGL2MeshWarpRenderer`
-  (`rendering/WebGLRenderer.ts`) with a `Canvas2DMeshWarpRenderer` fallback
-  (`rendering/CanvasRenderer.ts`) if WebGL2 is unavailable/fails.
+- Caricature (Phase 4, now complete): `MeshWarpCaricatureEngine`
+  (`effects/CaricatureEngine.ts`) builds a list of `ControlPoint`s from a
+  `FaceModel` (`effects/MeshWarp.ts`: `buildNoseControlPoint`,
+  `buildEyeControlPoints`, `buildJawControlPoint`, `buildEarControlPoints`,
+  `buildMouthControlPoint`, `buildForeheadControlPoint`,
+  `buildCheekControlPoints`, `buildEyebrowControlPoints`,
+  `buildShoulderControlPoint`, `buildBodyControlPoint`) and renders the warp
+  via `WebGL2MeshWarpRenderer` (`rendering/WebGLRenderer.ts`) with a
+  `Canvas2DMeshWarpRenderer` fallback (`rendering/CanvasRenderer.ts`) if
+  WebGL2 is unavailable/fails. Cheeks/forehead/shoulders/body have no direct
+  dlib68 landmark, so (following the same precedent already established for
+  ears) they're landmark-anchored approximations: derived from nearby
+  contour/jaw points rather than a dedicated landmark.
   - The warp math is a radial "spherize": `r' = R*(r/R)^(1/scale)`. Strictly
     monotonic in `r` for any positive scale ⇒ mathematically cannot fold the
     mesh, regardless of how extreme `scale` gets. `SAFE_MIN/MAX_SCALE` (0.5–2.4,
     in `effects/Presets.ts`) is a *taste* ceiling, not a fold-safety limit.
-  - Multiple control points are applied sequentially (composed), which is an
-    approximation when regions overlap (documented caveat in `MeshWarp.ts`) —
-    on some face angles this currently reads as "melted/uncanny" rather than
-    cleanly cartoonish, since nose/eye/jaw falloff radii can overlap on a
-    turned face. Not yet fixed; noted as a possible follow-up (weighted
-    blending instead of sequential composition) if it's a problem in
-    practice.
+  - **Multiple control points are now composed via independent-displacement
+    summation, not sequential chaining** (the "melted face" fix — see Phase
+    8 above for the full explanation). Each control point's displacement is
+    computed against the original point and all displacements are summed,
+    so overlapping regions (nose/eye/jaw/mouth/cheek falloff radii crossing
+    on a turned face) no longer cascade through already-warped coordinate
+    space. Order-independence is covered by a dedicated unit test.
 - Presets (`effects/Presets.ts`): named presets (Goblin, Demon, HotMess, Witch,
   Vampire, PumpkinHead, CartoonVillain, DrunkUncle, EvilPromQueen) each set
   eyeScale/noseScale/jawScale/earScale, tuned toward a **goofy + scary-witch**
@@ -225,17 +286,19 @@ Phases complete (per `CLAUDE.md`'s numbering):
 src/
   app/App.tsx                 orchestrates the whole capture→process→result flow
   app/Settings.ts              BoothSettings incl. defaults (caricatureStrength: 1.0)
-  effects/MeshWarp.ts          pure warp math + 4 control-point builders (unit tested)
+  effects/MeshWarp.ts          pure warp math + 10 control-point builders (unit tested)
   effects/CaricatureEngine.ts  MeshWarpCaricatureEngine (WebGL2→Canvas2D→passthrough)
   effects/Presets.ts           named presets + Random/WTF mode + safety clamp
+  effects/Overlays.ts          16 procedural Halloween overlay draw functions
   rendering/WebGLRenderer.ts   WebGL2 mesh warp (vertex-shader-only warp)
   rendering/CanvasRenderer.ts  Canvas2D fallback (per-triangle affine draw)
+  rendering/CompositionEngine.ts  background/ghosts/foreground/overlays/caption/frame layering
   vision/FaceDetectionWorker.ts  face-api.js in a Web Worker
   vision/WorkerFaceDetector.ts   main-thread handle to the worker
   vision/Face68LandmarkIndices.ts  68pt → normalized FaceModel mapping
-  components/ResultScreen.tsx  result photo + Spookify toggle + Print/Retake
+  components/ResultScreen.tsx  result photo + Goofy/Spookify/Frame/Overlays/Poster/Original toggles
   components/DebugLandmarkOverlay.tsx  operator debug-mode landmark overlay
-tests/                        43→51 unit tests across 4 files, all passing
+tests/                        70 unit tests across 4 files, all passing
 public/models/                bundled face-api model weights (offline-capable)
 ```
 
@@ -298,11 +361,10 @@ Claude-Session: https://claude.ai/code/session_01GpLRxRzKKwayo1BhjetDEa
 
 ## Open threads / not-yet-resolved
 
-- Overlapping control-point regions on turned faces can look "melted" rather
-  than cartoonish — not fixed, revisit if it's a real problem once more people
-  test it.
-- Mouth, forehead, cheek deformations (rest of Phase 4) — paused in favor of
-  ghost effect, come back to later.
+- `faceWidth`/`faceHeight`/`neckScale` (`CaricatureConfiguration`) are not
+  wired to a control point — would need anisotropic (non-uniform-radial)
+  warp support the current spherize math doesn't have; a possible follow-up
+  if it turns out to matter for the beta.
 - Real printer model still unknown — `VendorPrinterAdapter` intentionally
   throws until supplied.
 - No service worker yet (Phase 45 offline requirement not fully met — app

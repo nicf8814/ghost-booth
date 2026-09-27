@@ -5,24 +5,33 @@
 // fallback for environments where GPU features fail", section 49's
 // "never crash - degrade gracefully").
 //
-// Nose, eyes, jaw, and ears are wired up so far, per the spec's
-// incremental build order ("Implement one deformation first: nose
-// enlargement. Then add: eyes, mouth, forehead, jaw, ears."). mouthScale/
-// foreheadScale/cheekScale/eyebrowScale already exist on
-// CaricatureConfiguration (Presets.ts) and are accepted here, but don't
-// yet produce a control point. Adding the next feature is a matter of
-// writing a buildXControlPoint (MeshWarp.ts) and pushing its result into
-// `controlPoints` below - this engine, both renderers, and the tests
-// don't need to change shape to support it.
+// All of Phase 4's per-face deformations are wired up: nose, eyes, jaw,
+// and ears first (the spec's incremental build order), then mouth,
+// forehead, cheeks, and eyebrows once those had their own
+// buildXControlPoint(s) in MeshWarp.ts. Shoulder/body ("CLAUDE.md section
+// 14's body caricature) are landmark-anchored approximations rather than
+// a true silhouette edit, since Phase 6 person segmentation doesn't exist
+// in this build (tried and reverted -- see PROJECT_LOG.md); see
+// buildShoulderControlPoint/buildBodyControlPoint's own docstrings.
+// faceWidth/faceHeight/neckScale remain unwired: they'd need an
+// anisotropic (non-radially-symmetric) warp, which this engine's
+// spherize-based ControlPoint doesn't support -- noted as a possible
+// follow-up, not attempted here.
 
 import type { CaricatureEngine } from "./EffectEngine";
 import type { CaricatureConfiguration } from "./Presets";
 import type { FaceModel } from "../vision/VisionTypes";
 import {
+  buildBodyControlPoint,
+  buildCheekControlPoints,
   buildEarControlPoints,
+  buildEyebrowControlPoints,
   buildEyeControlPoints,
+  buildForeheadControlPoint,
   buildJawControlPoint,
+  buildMouthControlPoint,
   buildNoseControlPoint,
+  buildShoulderControlPoint,
   type ControlPoint,
 } from "./MeshWarp";
 import { WebGL2MeshWarpRenderer } from "../rendering/WebGLRenderer";
@@ -80,5 +89,15 @@ function buildControlPoints(face: FaceModel, config: CaricatureConfiguration): C
   const jaw = buildJawControlPoint(face, config);
   if (jaw) points.push(jaw);
   points.push(...buildEarControlPoints(face, config));
+  const mouth = buildMouthControlPoint(face, config);
+  if (mouth) points.push(mouth);
+  const forehead = buildForeheadControlPoint(face, config);
+  if (forehead) points.push(forehead);
+  points.push(...buildCheekControlPoints(face, config));
+  points.push(...buildEyebrowControlPoints(face, config));
+  const shoulder = buildShoulderControlPoint(face, config);
+  if (shoulder) points.push(shoulder);
+  const body = buildBodyControlPoint(face, config);
+  if (body) points.push(body);
   return points;
 }

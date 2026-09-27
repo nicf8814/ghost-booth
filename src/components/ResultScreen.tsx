@@ -27,17 +27,39 @@ interface ResultScreenProps {
   ghostAvailable: boolean;
   /** Whether the decorative border (operator's "Frame" setting) is drawn
    * around whichever photo is currently showing. Only rendered when the
-   * operator has a frame configured (and Poster Mode is off, which has its
-   * own border/vignette and no separate frame). */
+   * operator has a frame configured and Poster Mode isn't currently
+   * applied to this photo (Poster Mode has its own border/vignette and
+   * no separate frame). */
   frameOn: boolean;
   onToggleFrame: () => void;
   frameAvailable: boolean;
+  /** Whether the operator's configured Halloween overlays (CLAUDE.md
+   * section 24 -- cobwebs, bats, etc) are drawn on whichever photo is
+   * currently showing. Only rendered when the operator has at least one
+   * overlay configured and Poster Mode isn't currently applied. */
+  overlaysOn: boolean;
+  onToggleOverlays: () => void;
+  overlaysAvailable: boolean;
+  /** Whether "Poster Mode" (effects/PosterEffect.ts) is applied to
+   * whichever photo is currently showing, replacing the regular
+   * caption+frame+overlay treatment with a horror-poster color grade.
+   * Only rendered when the operator has Poster Mode enabled for this
+   * event. */
+  posterOn: boolean;
+  onTogglePoster: () => void;
+  posterAvailable: boolean;
+  /** One-tap revert: turns every toggle above off at once, back to the
+   * plain candid capture (with its caption, which stays baked in
+   * regardless -- CLAUDE.md section 25's "always on" caption). */
+  onShowOriginal: () => void;
 }
 
 /**
- * CLAUDE.md section 36. There's no caricature/ghost/composition pipeline
- * yet (Phases 4-8), so imageUrl is the plain captured photo; the debug
- * overlay is the only visible sign that vision analysis (Phase 3) ran.
+ * CLAUDE.md section 36. imageUrl is whatever App.tsx's applyPhotoSelection
+ * last composed for the current combination of toggles below -- this
+ * component only renders the current selection and reports taps, it
+ * doesn't know about the caricature/ghost/composition pipeline that
+ * produced it.
  */
 export function ResultScreen({
   imageUrl,
@@ -53,6 +75,13 @@ export function ResultScreen({
   frameOn,
   onToggleFrame,
   frameAvailable,
+  overlaysOn,
+  onToggleOverlays,
+  overlaysAvailable,
+  posterOn,
+  onTogglePoster,
+  posterAvailable,
+  onShowOriginal,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [renderedSize, setRenderedSize] = useState<{ width: number; height: number } | null>(null);
@@ -150,6 +179,42 @@ export function ResultScreen({
             <span className="icon-button-label">FRAME</span>
           </button>
         )}
+
+        {overlaysAvailable && (
+          <button
+            type="button"
+            className={`icon-button ${overlaysOn ? "icon-button-active" : ""}`}
+            onClick={onToggleOverlays}
+            aria-pressed={overlaysOn}
+            aria-label="Toggle Halloween overlays"
+          >
+            <span className="icon-button-glyph" aria-hidden="true">🕸️</span>
+            <span className="icon-button-label">OVERLAYS</span>
+          </button>
+        )}
+
+        {posterAvailable && (
+          <button
+            type="button"
+            className={`icon-button ${posterOn ? "icon-button-active" : ""}`}
+            onClick={onTogglePoster}
+            aria-pressed={posterOn}
+            aria-label="Toggle poster mode"
+          >
+            <span className="icon-button-glyph" aria-hidden="true">🎬</span>
+            <span className="icon-button-label">POSTER</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onShowOriginal}
+          aria-label="Revert to the original candid photo"
+        >
+          <span className="icon-button-glyph" aria-hidden="true">↩️</span>
+          <span className="icon-button-label">ORIGINAL</span>
+        </button>
       </div>
 
       <p className="result-footer">🎃 HAPPY HALLOWEEN 🎃</p>

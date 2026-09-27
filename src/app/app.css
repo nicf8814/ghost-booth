@@ -437,3 +437,35 @@
   font-family: monospace;
   color: #9ca3af;
 }
+
+/* Overlay checkbox grid (OperatorPanel's Effects section) -- a fieldset
+   rather than the usual space-between label row since this is one
+   multi-select control (up to 16 checkboxes), not a row of single
+   settings. */
+.operator-overlay-fieldset {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+}
+
+.operator-overlay-fieldset legend {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  padding: 0 4px;
+}
+
+.operator-overlay-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.operator-overlay-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  margin: 0;
+}

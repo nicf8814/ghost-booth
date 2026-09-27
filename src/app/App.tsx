@@ -24,8 +24,9 @@ import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
-import { pickCaption } from "../effects/HalloweenEffects";
-import { applyPosterEffect, POSTER_TINTS } from "../effects/PosterEffect";
+import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
+import type { FrameKey } from "../effects/Frames";
+import { applyPosterEffect, POSTER_TINTS, type PosterTint } from "../effects/PosterEffect";
 import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import "./app.css";
@@ -84,39 +85,43 @@ export default function App() {
   const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<"printing" | "success" | "failed">("printing");
   const [faces, setFaces] = useState<FaceModel[]>([]);
-  // Whether the result screen is currently showing the caricatured
-  // ("Goofy Filter") photo or the plain candid capture. Defaults to on
-  // (maxed-out effect front and center) every fresh photo; the guest can
-  // flip it off if they want a normal candid instead. Independent of
-  // ghostOn below -- either can be combined with either.
+  // Guest-facing toggles for the current photo. Each is independent of
+  // the others (any combination is valid) and, unlike the old design,
+  // none of these are baked into a precomputed bitmap variant -- see
+  // applyPhotoSelection below for why. Defaults are set fresh on every
+  // capture in handleCountdownComplete.
   const [goofyFilterOn, setGoofyFilterOn] = useState(true);
-  // Whether the booth owner's ghostly cameo ("Spookify") is layered onto
-  // whichever photo is currently showing. Only meaningful/shown when the
-  // operator has "My Cameo" enabled at all; defaults to on for a fresh
-  // photo when the operator has it enabled, off otherwise.
   const [ghostOn, setGhostOn] = useState(false);
-  // Whether the decorative border (operator's "Frame" setting) is drawn on
-  // whichever photo is currently showing. Only meaningful/shown when the
-  // operator has a frame other than "none" selected (and Poster Mode is
-  // off, since Poster Mode has its own vignette/border treatment and
-  // doesn't use the frame setting at all); defaults to on for a fresh photo
-  // when a frame is available.
   const [frameOn, setFrameOn] = useState(false);
+  const [overlaysOn, setOverlaysOn] = useState(false);
+  const [posterOn, setPosterOn] = useState(false);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
-  // All eight combinations (goofy x ghost x frame) of the current photo are
-  // kept after processing so the three toggles are instant (swap which
-  // cached bitmap is displayed/printed) rather than re-running detection,
-  // the mesh warp, the cameo composite, or the frame draw.
+  // The four "base" bitmaps for the current photo -- goofy x ghost, and
+  // nothing else. Frame/overlays/caption/poster are no longer baked into
+  // precomputed pairs (the old design's originalFramedBitmapRef etc.):
+  // with five independent guest toggles now instead of three, caching
+  // every combination up front (2^5 = 32 variants) doesn't scale, so
+  // applyPhotoSelection below composes the current toggle state on
+  // demand instead. A compose() call is one cheap canvas draw, well
+  // within toggle-tap latency, so this doesn't cost noticeably more per
+  // tap than the old swap-a-cached-bitmap approach did.
   const originalBitmapRef = useRef<ImageBitmap | null>(null);
-  const originalFramedBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedBitmapRef = useRef<ImageBitmap | null>(null);
-  const caricaturedFramedBitmapRef = useRef<ImageBitmap | null>(null);
   const originalGhostBitmapRef = useRef<ImageBitmap | null>(null);
-  const originalGhostFramedBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedGhostBitmapRef = useRef<ImageBitmap | null>(null);
-  const caricaturedGhostFramedBitmapRef = useRef<ImageBitmap | null>(null);
+  // The per-photo "recipe" (caption/frame/overlays/poster tint) decided
+  // once at capture time from the seeded rng (CLAUDE.md section 20), so
+  // toggling frame/overlays/poster on and off doesn't reshuffle which
+  // caption or overlay layout the photo uses.
+  const photoRecipeRef = useRef<{
+    caption?: string;
+    frame: FrameKey;
+    overlays: OverlayKey[];
+    overlaySeed: string;
+    posterTint: PosterTint;
+  } | null>(null);
   const settingsLoadedRef = useRef(false);
 
   // Load persisted operator settings once on startup.
@@ -177,57 +182,90 @@ export default function App() {
     dispatch({ kind: "booth", event: { type: "START_COUNTDOWN" } });
   }, [dispatch]);
 
-  // Swaps which cached bitmap (candid vs. goofy, ghost on vs. off, framed
-  // vs. not) is currently shown on the result screen and would be sent to
-  // the printer, without touching detection, the mesh warp, the cameo
-  // composite, or the frame draw — all eight combinations already exist by
-  // the time this is called. Falls back to the plain (non-ghost/unframed)
-  // variant if a given version wasn't computed (cameo/frame not available
-  // for this photo), so a stray ghostOn/frameOn=true can never show a
-  // missing photo.
-  const applyPhotoSelection = useCallback(async (goofy: boolean, ghost: boolean, framed: boolean) => {
-    const base = framed
-      ? goofy
-        ? caricaturedFramedBitmapRef.current
-        : originalFramedBitmapRef.current
-      : goofy
-        ? caricaturedBitmapRef.current
-        : originalBitmapRef.current;
-    const ghostVariant = framed
-      ? goofy
-        ? caricaturedGhostFramedBitmapRef.current
-        : originalGhostFramedBitmapRef.current
-      : goofy
-        ? caricaturedGhostBitmapRef.current
-        : originalGhostBitmapRef.current;
-    const bitmap = (ghost && ghostVariant) || base;
-    if (!bitmap) return;
-    masterBitmapRef.current = bitmap;
-    const blob = await imageBitmapToBlob(bitmap);
-    const url = URL.createObjectURL(blob);
-    setResultImageUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return url;
-    });
-  }, []);
+  // Composes the currently-selected combination of guest toggles into the
+  // photo shown/printed, and swaps resultImageUrl to it. Poster Mode, when
+  // on, replaces the regular caption+frame+overlay composition entirely
+  // (same mutually-exclusive-treatment rationale PosterEffect.ts has
+  // always documented -- its own vignette/tagline would clash with a
+  // frame border and duplicate the caption); otherwise frame/overlays are
+  // drawn (or not) on top of the base bitmap, with the caption always
+  // included (CLAUDE.md section 25 -- not guest-toggleable, consistent
+  // with the original design).
+  const applyPhotoSelection = useCallback(
+    async (goofy: boolean, ghost: boolean, framed: boolean, overlaid: boolean, postered: boolean) => {
+      const ghostVariant = goofy ? caricaturedGhostBitmapRef.current : originalGhostBitmapRef.current;
+      const plainVariant = goofy ? caricaturedBitmapRef.current : originalBitmapRef.current;
+      // Falls back to the non-ghost variant if ghost was requested but
+      // isn't available for this photo (cameo disabled), so a stray
+      // ghostOn=true can never show a missing photo.
+      const source = (ghost && ghostVariant) || plainVariant;
+      const recipe = photoRecipeRef.current;
+      if (!source || !recipe) return;
+
+      const bitmap = postered
+        ? await applyPosterEffect(source, { tagline: recipe.caption, tint: recipe.posterTint })
+        : await compositionEngine.compose({
+            foreground: source,
+            ghosts: [],
+            caption: recipe.caption,
+            frame: framed ? recipe.frame : "none",
+            overlays: overlaid ? recipe.overlays : [],
+            overlaySeed: recipe.overlaySeed,
+          });
+
+      masterBitmapRef.current = bitmap;
+      const blob = await imageBitmapToBlob(bitmap);
+      const url = URL.createObjectURL(blob);
+      setResultImageUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    },
+    [],
+  );
 
   const handleToggleGoofyFilter = useCallback(() => {
     const next = !goofyFilterOn;
     setGoofyFilterOn(next);
-    void applyPhotoSelection(next, ghostOn, frameOn);
-  }, [goofyFilterOn, ghostOn, frameOn, applyPhotoSelection]);
+    void applyPhotoSelection(next, ghostOn, frameOn, overlaysOn, posterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
 
   const handleToggleGhost = useCallback(() => {
     const next = !ghostOn;
     setGhostOn(next);
-    void applyPhotoSelection(goofyFilterOn, next, frameOn);
-  }, [goofyFilterOn, ghostOn, frameOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, next, frameOn, overlaysOn, posterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
 
   const handleToggleFrame = useCallback(() => {
     const next = !frameOn;
     setFrameOn(next);
-    void applyPhotoSelection(goofyFilterOn, ghostOn, next);
-  }, [goofyFilterOn, ghostOn, frameOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, next, overlaysOn, posterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+
+  const handleToggleOverlays = useCallback(() => {
+    const next = !overlaysOn;
+    setOverlaysOn(next);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, next, posterOn);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+
+  const handleTogglePoster = useCallback(() => {
+    const next = !posterOn;
+    setPosterOn(next);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, frameOn, overlaysOn, next);
+  }, [goofyFilterOn, ghostOn, frameOn, overlaysOn, posterOn, applyPhotoSelection]);
+
+  // One-tap revert to the plain candid: turns every guest toggle off in a
+  // single action (CLAUDE.md section 36's result screen always needs a
+  // clean way back to "just the photo," and beta testing needs to be able
+  // to check every feature against a known-off baseline quickly).
+  const handleShowOriginal = useCallback(() => {
+    setGoofyFilterOn(false);
+    setGhostOn(false);
+    setFrameOn(false);
+    setOverlaysOn(false);
+    setPosterOn(false);
+    void applyPhotoSelection(false, false, false, false, false);
+  }, [applyPhotoSelection]);
 
   const handleCountdownComplete = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "COUNTDOWN_COMPLETE" } });
@@ -291,62 +329,41 @@ export default function App() {
         ghostCaricatured = await ownerCameoEngine.composite(working, {}, pickRng);
       }
 
-      // Caption + frame (Phase 8, CLAUDE.md section 28) OR Poster Mode
-      // (effects/PosterEffect.ts) -- mutually exclusive treatments of the
-      // same four bitmaps, picked once per photo from the same seeded rng
-      // used for the caricature preset above (section 20's reproducibility).
-      // Poster Mode supplies its own title/tagline text and vignette, so
-      // running both would double up on text/border treatments -- and has
-      // no separate "frame" concept, so its framed/unframed outputs are
-      // identical (the guest-facing Frame toggle is hidden in that case,
-      // see frameAvailable below).
+      // Everything past this point (caption, frame, overlays, poster
+      // tint) is decided once per photo from the same seeded rng
+      // (CLAUDE.md section 20) and stashed in photoRecipeRef rather than
+      // baked into precomputed bitmaps -- applyPhotoSelection composes
+      // the guest's current toggle state against these four base bitmaps
+      // on demand (see its own comment for why).
       const caption = pickCaption(state.settings.captionMode, state.settings.fixedCaption, rng);
-      const frame = state.settings.frame;
-      const frameAvailable = frame !== "none" && !state.settings.posterMode;
-
-      // Produces both the framed and unframed version of one bitmap so the
-      // guest-facing Frame toggle is an instant swap too, same pattern as
-      // Goofy Filter/Spookify. When there's no frame to toggle (operator
-      // set "none", or Poster Mode is on) both come back identical, and the
-      // second compose() is skipped since there'd be nothing to add.
-      const finishPair = async (bitmap: ImageBitmap): Promise<{ framed: ImageBitmap; unframed: ImageBitmap }> => {
-        if (state.settings.posterMode) {
-          const poster = await applyPosterEffect(bitmap, {
-            tagline: caption,
-            tint: POSTER_TINTS[Math.floor(rng() * POSTER_TINTS.length)],
-          });
-          return { framed: poster, unframed: poster };
-        }
-        const framedResult = await compositionEngine.compose({ foreground: bitmap, ghosts: [], caption, frame });
-        const unframedResult =
-          frame === "none"
-            ? framedResult
-            : await compositionEngine.compose({ foreground: bitmap, ghosts: [], caption, frame: "none" });
-        return { framed: framedResult, unframed: unframedResult };
+      photoRecipeRef.current = {
+        caption,
+        frame: state.settings.frame,
+        overlays: state.settings.overlays,
+        overlaySeed: createSeed(),
+        posterTint: POSTER_TINTS[Math.floor(rng() * POSTER_TINTS.length)],
       };
 
-      const masterVariant = await finishPair(master);
-      const workingVariant = await finishPair(working);
-      const ghostOriginalVariant = ghostOriginal ? await finishPair(ghostOriginal) : null;
-      const ghostCaricaturedVariant = ghostCaricatured ? await finishPair(ghostCaricatured) : null;
+      originalBitmapRef.current = master;
+      caricaturedBitmapRef.current = working;
+      originalGhostBitmapRef.current = ghostOriginal;
+      caricaturedGhostBitmapRef.current = ghostCaricatured;
 
-      originalBitmapRef.current = masterVariant.unframed;
-      originalFramedBitmapRef.current = masterVariant.framed;
-      caricaturedBitmapRef.current = workingVariant.unframed;
-      caricaturedFramedBitmapRef.current = workingVariant.framed;
-      originalGhostBitmapRef.current = ghostOriginalVariant?.unframed ?? null;
-      originalGhostFramedBitmapRef.current = ghostOriginalVariant?.framed ?? null;
-      caricaturedGhostBitmapRef.current = ghostCaricaturedVariant?.unframed ?? null;
-      caricaturedGhostFramedBitmapRef.current = ghostCaricaturedVariant?.framed ?? null;
+      const frameAvailable = state.settings.frame !== "none";
+      const overlaysAvailable = state.settings.overlays.length > 0;
+      const posterAvailable = state.settings.posterMode;
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
-      // default), Spookify on whenever the operator has the cameo feature
-      // enabled, and Frame on whenever the operator has a frame configured
-      // (the guest can flip any of these off independently).
+      // default) and every other toggle on exactly when the operator has
+      // that feature enabled/configured for this event (the guest can
+      // flip any of them off independently, or tap Original to reset all
+      // of them at once).
       setGoofyFilterOn(true);
       setGhostOn(ghostAvailable);
       setFrameOn(frameAvailable);
-      await applyPhotoSelection(true, ghostAvailable, frameAvailable);
+      setOverlaysOn(overlaysAvailable);
+      setPosterOn(posterAvailable);
+      await applyPhotoSelection(true, ghostAvailable, frameAvailable, overlaysAvailable, posterAvailable);
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
       dispatch({
@@ -362,6 +379,7 @@ export default function App() {
     state.settings.captionMode,
     state.settings.fixedCaption,
     state.settings.frame,
+    state.settings.overlays,
     state.settings.posterMode,
     applyPhotoSelection,
   ]);
@@ -394,6 +412,8 @@ export default function App() {
     setGoofyFilterOn(true);
     setGhostOn(false);
     setFrameOn(false);
+    setOverlaysOn(false);
+    setPosterOn(false);
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
   }, [dispatch]);
 
@@ -402,6 +422,8 @@ export default function App() {
     setGoofyFilterOn(true);
     setGhostOn(false);
     setFrameOn(false);
+    setOverlaysOn(false);
+    setPosterOn(false);
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch]);
 
@@ -442,7 +464,17 @@ export default function App() {
             ghostOn,
             ghostAvailable: state.settings.ownerCameoMode !== "off",
             frameOn,
-            frameAvailable: state.settings.frame !== "none" && !state.settings.posterMode,
+            // Frame/Overlays have no visible effect while Poster Mode is
+            // currently applied (it replaces that treatment entirely, see
+            // applyPhotoSelection) -- hidden rather than shown-but-inert
+            // whenever posterOn is the *live* toggle state, not just the
+            // operator's posterMode setting, so the guest/tester sees them
+            // reappear the instant they flip Poster back off.
+            frameAvailable: state.settings.frame !== "none" && !posterOn,
+            overlaysOn,
+            overlaysAvailable: state.settings.overlays.length > 0 && !posterOn,
+            posterOn,
+            posterAvailable: state.settings.posterMode,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -455,6 +487,9 @@ export default function App() {
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onToggleGhost: handleToggleGhost,
             onToggleFrame: handleToggleFrame,
+            onToggleOverlays: handleToggleOverlays,
+            onTogglePoster: handleTogglePoster,
+            onShowOriginal: handleShowOriginal,
           })}
 
           {operatorPanelOpen && (
@@ -494,6 +529,10 @@ interface RenderScreenArgs {
   ghostAvailable: boolean;
   frameOn: boolean;
   frameAvailable: boolean;
+  overlaysOn: boolean;
+  overlaysAvailable: boolean;
+  posterOn: boolean;
+  posterAvailable: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -506,6 +545,9 @@ interface RenderScreenArgs {
   onToggleGoofyFilter: () => void;
   onToggleGhost: () => void;
   onToggleFrame: () => void;
+  onToggleOverlays: () => void;
+  onTogglePoster: () => void;
+  onShowOriginal: () => void;
 }
 
 function renderScreen(args: RenderScreenArgs) {
@@ -554,6 +596,13 @@ function renderScreen(args: RenderScreenArgs) {
           frameOn={args.frameOn}
           onToggleFrame={args.onToggleFrame}
           frameAvailable={args.frameAvailable}
+          overlaysOn={args.overlaysOn}
+          onToggleOverlays={args.onToggleOverlays}
+          overlaysAvailable={args.overlaysAvailable}
+          posterOn={args.posterOn}
+          onTogglePoster={args.onTogglePoster}
+          posterAvailable={args.posterAvailable}
+          onShowOriginal={args.onShowOriginal}
         />
       );
     case "printing":

@@ -35,19 +35,31 @@ export interface ControlPoint {
 }
 
 /**
- * Warps a single normalized point against one or more control points,
- * applied in sequence. For non-overlapping regions (the common case: one
- * point per facial feature) the order doesn't matter; overlapping regions
- * compose left-to-right, which is an acceptable approximation for now and
- * can be revisited (e.g. weighted blending) if later phases show seams
- * where two features' falloff radii intersect.
+ * Warps a single normalized point against one or more control points.
+ *
+ * Each control point's displacement is computed independently against the
+ * point's *original* position, then all displacements are summed. This
+ * used to instead chain control points sequentially (each one's output
+ * fed in as the next one's input), which meant a later control point's
+ * falloff was measured from an already-displaced position -- so two
+ * overlapping regions (e.g. an eye and a nose whose falloff radii cross on
+ * a turned face, or the newer cheek/jaw/mouth regions, which sit closer
+ * together than eyes/nose/ears did) would compound in an order-dependent
+ * way that read as "melted" rather than cartoonish (see PROJECT_LOG.md).
+ * Summing independent displacements removes both the order-dependence and
+ * the cascading-through-already-warped-space effect: the result for a
+ * given point no longer depends on which order its control points are
+ * listed in (see the "is independent of control point order" test below).
  */
 export function warpPoint(point: Point, controlPoints: readonly ControlPoint[]): Point {
-  let result = point;
+  let dx = 0;
+  let dy = 0;
   for (const cp of controlPoints) {
-    result = warpPointSingle(result, cp);
+    const warped = warpPointSingle(point, cp);
+    dx += warped.x - point.x;
+    dy += warped.y - point.y;
   }
-  return result;
+  return { x: point.x + dx, y: point.y + dy };
 }
 
 function warpPointSingle(point: Point, cp: ControlPoint): Point {
@@ -270,6 +282,200 @@ export function buildEarControlPoints(
     };
     return { center, radiusX: radius, radiusY: radius * 1.3, scale: config.earScale };
   });
+}
+
+/**
+ * Builds the control point for mouth enlargement from the lip contours
+ * (dlib 68-point scheme's outerLips/innerLips, exposed on FaceModel).
+ * Centered on the combined outer+inner lip centroid; sized from the outer
+ * lip contour's own bounding box, same margin-for-blending approach as
+ * `buildNoseControlPoint`. The vertical margin is wider than the
+ * horizontal one since mouth exaggeration (CLAUDE.md section 13's "smile
+ * curvature") reads through the lips' vertical motion more than a tight
+ * bounding box around a resting, closed mouth would suggest.
+ */
+export function buildMouthControlPoint(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "mouthScale">,
+): ControlPoint | null {
+  const contour = face.outerLips;
+  const center = contour.length > 0 ? centroid([...contour, ...face.innerLips]) : face.mouth;
+  if (!center) return null;
+
+  let halfWidth: number;
+  let halfHeight: number;
+  if (contour.length > 0) {
+    const xs = contour.map((p) => p.x);
+    const ys = contour.map((p) => p.y);
+    halfWidth = (Math.max(...xs) - Math.min(...xs)) / 2;
+    halfHeight = (Math.max(...ys) - Math.min(...ys)) / 2;
+  } else {
+    halfWidth = face.boundingBox.width * 0.14;
+    halfHeight = face.boundingBox.height * 0.06;
+  }
+
+  const margin = 2.0;
+  return {
+    center,
+    radiusX: Math.max(halfWidth * margin, 0.01),
+    radiusY: Math.max(halfHeight * margin * 1.4, 0.01),
+    scale: config.mouthScale,
+  };
+}
+
+/**
+ * Builds the control point for forehead enlargement. The dlib 68-point
+ * scheme has no forehead/hairline landmarks at all (CLAUDE.md section 13:
+ * "Use eyebrow position, face contour, and an estimated hairline region to
+ * stretch the upper face") -- so unlike the other builders this region is
+ * estimated rather than measured: centered above the eyebrow line, with
+ * its vertical extent taken from the gap between the eyebrows and the top
+ * of the detector's own bounding box (face detectors typically size their
+ * box to include the forehead, so that gap is a reasonable proxy for "how
+ * much forehead is in frame" without dedicated hairline landmarks).
+ */
+export function buildForeheadControlPoint(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "foreheadScale">,
+): ControlPoint | null {
+  const browCenter =
+    face.leftEyebrow && face.rightEyebrow
+      ? centroid([face.leftEyebrow, face.rightEyebrow])
+      : (face.leftEyebrow ?? face.rightEyebrow);
+  if (!browCenter) return null;
+
+  const gap = Math.max(browCenter.y - face.boundingBox.y, face.boundingBox.height * 0.1);
+  // Anchored above the brow line, partway into the estimated hairline gap
+  // rather than at its very top, so the falloff reaches down into the
+  // brows and up toward the hairline without a hard edge at either.
+  const center: Point = { x: browCenter.x, y: Math.max(browCenter.y - gap * 0.55, 0) };
+
+  return {
+    center,
+    radiusX: Math.max(face.boundingBox.width * 0.32, 0.01),
+    radiusY: Math.max(gap * 1.1, 0.01),
+    scale: config.foreheadScale,
+  };
+}
+
+/**
+ * Builds control points for cheek enlargement (CLAUDE.md section 13's
+ * "cheek width", split out from jaw as its own knob). Like ears, the dlib
+ * 68-point scheme has no cheek landmark -- approximated per side as the
+ * midpoint between that eye and the jaw contour point roughly at
+ * cheekbone height (index 2/14 of the 17-point jaw curve; inboard of the
+ * index 0/16 anchors `buildEarControlPoints` uses).
+ */
+export function buildCheekControlPoints(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "cheekScale">,
+): ControlPoint[] {
+  const contour = face.faceContour;
+  const { leftEye, rightEye } = face;
+  if (contour.length < 17 || (!leftEye && !rightEye)) return [];
+
+  const pairs: Array<[Point | undefined, Point]> = [
+    [leftEye, contour[2]],
+    [rightEye, contour[14]],
+  ];
+
+  const radius = Math.max(face.boundingBox.width * 0.16, 0.01);
+  const points: ControlPoint[] = [];
+  for (const [eye, jawAnchor] of pairs) {
+    if (!eye) continue;
+    const center: Point = { x: (eye.x + jawAnchor.x) / 2, y: (eye.y + jawAnchor.y) / 2 };
+    points.push({ center, radiusX: radius, radiusY: radius * 1.15, scale: config.cheekScale });
+  }
+  return points;
+}
+
+/**
+ * Builds control points for eyebrow exaggeration (CLAUDE.md section 13),
+ * centered directly on each eyebrow's own centroid landmark -- unlike
+ * mouth/forehead/cheek, dlib 68 gives eyebrows a real landmark range
+ * (17-21/22-26), so no positional approximation is needed here, only a
+ * radius (sized from interocular distance, same stable proxy
+ * `buildEyeControlPoints` uses).
+ */
+export function buildEyebrowControlPoints(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "eyebrowScale">,
+): ControlPoint[] {
+  const { leftEyebrow, rightEyebrow, leftEye, rightEye } = face;
+  if (!leftEyebrow && !rightEyebrow) return [];
+
+  const interocular =
+    leftEye && rightEye ? distance(leftEye, rightEye) : face.boundingBox.width * 0.45;
+  const radiusX = Math.max(interocular * 0.26, 0.01);
+  const radiusY = Math.max(interocular * 0.14, 0.01);
+
+  const points: ControlPoint[] = [];
+  for (const center of [leftEyebrow, rightEyebrow]) {
+    if (!center) continue;
+    points.push({ center, radiusX, radiusY, scale: config.eyebrowScale });
+  }
+  return points;
+}
+
+/**
+ * Builds the control point for shoulder width (CLAUDE.md section 14's
+ * "tiny shoulders / giant shoulders"). No person segmentation exists in
+ * this build (Phase 6 was tried and reverted -- see PROJECT_LOG.md), so
+ * like ears and cheeks this is a landmark-anchored approximation, not a
+ * true silhouette edit: it warps whatever is actually in the image at the
+ * estimated shoulder band below the chin (clothing, background, or actual
+ * shoulders), the same tradeoff already accepted for ears. Wide and
+ * comparatively flat (radiusY well under radiusX) so it reads as a
+ * horizontal band rather than a circular region.
+ */
+export function buildShoulderControlPoint(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "shoulderScale">,
+): ControlPoint | null {
+  const contour = face.faceContour;
+  if (contour.length < 17) return null;
+  const chin = contour[8];
+
+  const center: Point = {
+    x: chin.x,
+    y: Math.min(chin.y + face.boundingBox.height * 0.55, 0.98),
+  };
+
+  return {
+    center,
+    radiusX: Math.max(face.boundingBox.width * 1.1, 0.01),
+    radiusY: Math.max(face.boundingBox.height * 0.5, 0.01),
+    scale: config.shoulderScale,
+  };
+}
+
+/**
+ * Builds the control point for overall body/torso width (CLAUDE.md
+ * section 14's "barrel-chest silhouette / cartoon body proportions"),
+ * anchored lower and taller than `buildShoulderControlPoint` so the two
+ * can be dialed independently (e.g. wide shoulders tapering to a narrow
+ * waist). Same landmark-approximation caveat as the shoulder control
+ * point above -- see its docstring.
+ */
+export function buildBodyControlPoint(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "bodyScale">,
+): ControlPoint | null {
+  const contour = face.faceContour;
+  if (contour.length < 17) return null;
+  const chin = contour[8];
+
+  const center: Point = {
+    x: chin.x,
+    y: Math.min(chin.y + face.boundingBox.height * 1.15, 0.99),
+  };
+
+  return {
+    center,
+    radiusX: Math.max(face.boundingBox.width * 1.35, 0.01),
+    radiusY: Math.max(face.boundingBox.height * 0.85, 0.01),
+    scale: config.bodyScale,
+  };
 }
 
 function distance(a: Point, b: Point): number {

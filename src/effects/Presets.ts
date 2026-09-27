@@ -66,28 +66,30 @@ export function clampToSafeLimits(config: CaricatureConfiguration): CaricatureCo
   };
 }
 
-// Every preset now sets an eyeScale/noseScale/jawScale/earScale: those
-// four are the deformations actually wired up so far (CLAUDE.md section
-// 59's incremental build order - mouthScale/foreheadScale/cheekScale/
-// eyebrowScale exist on CaricatureConfiguration but don't produce a
-// control point yet), so a preset that left one at the neutral 1.0 would
-// look like that feature simply wasn't part of the effect. Values lean
-// toward the top of the safe range by design (CLAUDE.md section 63's
+// Every preset sets an eyeScale/noseScale/jawScale/earScale: those four
+// were the first deformations wired up (CLAUDE.md section 59's
+// incremental build order). mouthScale/foreheadScale/cheekScale/
+// eyebrowScale/shoulderScale/bodyScale are now wired up too
+// (CaricatureEngine.ts), so a preset that left one at the neutral 1.0
+// would look like that feature simply wasn't part of the effect. Values
+// lean toward the top of the safe range by design (CLAUDE.md section 63's
 // "dark Halloween... absurd... cartoonish" personality, and the booth's
 // own goofy/scary-witch mix) rather than a restrained "tasteful" amount -
 // an operator who wants subtler results has the Caricature Strength
 // slider for that, rather than needing every preset re-authored softer.
 export const PRESET_CONFIGS: Record<Exclude<CaricaturePreset, "Random">, Partial<CaricatureConfiguration>> = {
-  Goblin: { eyeScale: 0.75, noseScale: 2.1, mouthScale: 0.85, foreheadScale: 1.35, jawScale: 1.75, earScale: 1.95 },
-  Demon: { eyeScale: 1.65, noseScale: 1.65, mouthScale: 1.4, foreheadScale: 1.5, jawScale: 1.75, earScale: 1.35 },
-  HotMess: { eyeScale: 1.45, noseScale: 1.55, mouthScale: 1.6, jawScale: 1.3, cheekScale: 1.5, earScale: 1.3, randomness: 0.35 },
+  Goblin: { eyeScale: 0.75, noseScale: 2.1, mouthScale: 0.85, foreheadScale: 1.35, jawScale: 1.75, earScale: 1.95, shoulderScale: 0.75, bodyScale: 0.85 },
+  Demon: { eyeScale: 1.65, noseScale: 1.65, mouthScale: 1.4, foreheadScale: 1.5, jawScale: 1.75, earScale: 1.35, shoulderScale: 1.35, bodyScale: 1.2 },
+  HotMess: { eyeScale: 1.45, noseScale: 1.55, mouthScale: 1.6, jawScale: 1.3, cheekScale: 1.5, earScale: 1.3, bodyScale: 1.2, randomness: 0.35 },
   // Witch leans into the classic long-nose/pointed-chin silhouette.
-  Witch: { eyeScale: 1.3, noseScale: 2.15, jawScale: 1.55, eyebrowScale: 1.55, foreheadScale: 1.15, earScale: 1.2 },
-  Vampire: { eyeScale: 1.3, noseScale: 1.35, mouthScale: 1.3, cheekScale: 0.85, jawScale: 1.2, earScale: 1.45 },
-  PumpkinHead: { faceWidth: 1.45, faceHeight: 1.35, cheekScale: 1.45, mouthScale: 1.3, noseScale: 1.35, eyeScale: 1.2, jawScale: 1.3, earScale: 1.2 },
-  CartoonVillain: { eyebrowScale: 1.65, jawScale: 1.55, noseScale: 1.65, eyeScale: 1.25, earScale: 1.35 },
-  DrunkUncle: { noseScale: 1.95, cheekScale: 1.55, eyeScale: 0.85, mouthScale: 1.2, jawScale: 1.3, earScale: 1.5 },
-  EvilPromQueen: { eyeScale: 1.5, noseScale: 1.35, mouthScale: 1.4, eyebrowScale: 1.4, faceWidth: 0.85, jawScale: 1.2, earScale: 1.15 },
+  Witch: { eyeScale: 1.3, noseScale: 2.15, jawScale: 1.55, eyebrowScale: 1.55, foreheadScale: 1.15, earScale: 1.2, shoulderScale: 0.85 },
+  Vampire: { eyeScale: 1.3, noseScale: 1.35, mouthScale: 1.3, cheekScale: 0.85, jawScale: 1.2, earScale: 1.45, shoulderScale: 1.15 },
+  // "Pumpkin body" is CLAUDE.md section 14's own example for body
+  // caricature, so this preset is where bodyScale leans hardest.
+  PumpkinHead: { faceWidth: 1.45, faceHeight: 1.35, cheekScale: 1.45, mouthScale: 1.3, noseScale: 1.35, eyeScale: 1.2, jawScale: 1.3, earScale: 1.2, shoulderScale: 0.85, bodyScale: 1.45 },
+  CartoonVillain: { eyebrowScale: 1.65, jawScale: 1.55, noseScale: 1.65, eyeScale: 1.25, earScale: 1.35, shoulderScale: 1.25 },
+  DrunkUncle: { noseScale: 1.95, cheekScale: 1.55, eyeScale: 0.85, mouthScale: 1.2, jawScale: 1.3, earScale: 1.5, shoulderScale: 0.8, bodyScale: 1.3 },
+  EvilPromQueen: { eyeScale: 1.5, noseScale: 1.35, mouthScale: 1.4, eyebrowScale: 1.4, faceWidth: 0.85, jawScale: 1.2, earScale: 1.15, shoulderScale: 0.85, bodyScale: 0.9 },
 };
 
 /**
@@ -132,11 +134,10 @@ export function resolvePreset(
 /** WTF mode (CLAUDE.md section 19): pick 2-5 features and exaggerate them. */
 export function randomWtfConfig(rng: () => number): CaricatureConfiguration {
   // nose/eyes/jaw/ears are forced into every roll, at a near-maxed range,
-  // rather than left to chance: they're the deformations actually wired
-  // up so far, so a roll that skipped one would show a visually
-  // unchanged "random" photo for that feature. mouth/forehead/cheek
-  // aren't wired up yet, but are still randomized on top for variety and
-  // to already be in place once they are.
+  // rather than left to chance, so a "random" photo always visibly does
+  // something to the four most legible features. The rest of the wired-up
+  // features (mouth/forehead/cheek/eyebrow/shoulder/body) are randomized
+  // on top, a subset per roll, for variety between photos.
   const config = { ...NEUTRAL_CONFIG };
   config.noseScale = 1.8 + rng() * 0.4; // 1.8..2.2
   config.jawScale = 1.5 + rng() * 0.4; // 1.5..1.9
@@ -146,8 +147,15 @@ export function randomWtfConfig(rng: () => number): CaricatureConfiguration {
   // specifically.
   config.eyeScale = rng() < 0.5 ? 1.5 + rng() * 0.5 : 0.6 + rng() * 0.2;
 
-  const otherFeatures: Array<keyof CaricatureConfiguration> = ["mouthScale", "foreheadScale", "cheekScale"];
-  const count = 1 + Math.floor(rng() * 3); // 1..3
+  const otherFeatures: Array<keyof CaricatureConfiguration> = [
+    "mouthScale",
+    "foreheadScale",
+    "cheekScale",
+    "eyebrowScale",
+    "shoulderScale",
+    "bodyScale",
+  ];
+  const count = 2 + Math.floor(rng() * 3); // 2..4, on top of the four always-rolled features above
   for (const feature of shuffle(otherFeatures, rng).slice(0, count)) {
     config[feature] = 1.4 + rng() * 0.5; // 1.4..1.9
   }

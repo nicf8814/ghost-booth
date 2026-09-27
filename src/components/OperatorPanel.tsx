@@ -1,6 +1,7 @@
 import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind } from "../app/Settings";
 import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
-import { CAPTIONS } from "../effects/HalloweenEffects";
+import { CAPTIONS, type OverlayKey } from "../effects/HalloweenEffects";
+import { OVERLAY_KEYS } from "../effects/Overlays";
 import { PRINT_LAYOUTS, PRINT_LAYOUT_LABELS, type PrintLayout } from "../printing/PrintLayout";
 
 interface OperatorPanelProps {
@@ -39,6 +40,29 @@ const PRINTER_ADAPTERS: { value: PrinterAdapterKind; label: string }[] = [
   { value: "browserPrint", label: "Browser/System Print Dialog" },
   { value: "airPrint", label: "AirPrint (via system print dialog)" },
 ];
+
+const OVERLAY_LABELS: Record<OverlayKey, string> = {
+  bloodSplatter: "Blood Splatter",
+  cobwebs: "Cobwebs",
+  spiders: "Spiders",
+  bats: "Bats",
+  skulls: "Skulls",
+  eyeballs: "Eyeballs",
+  horns: "Horns",
+  vampireFangs: "Vampire Fangs",
+  graveyard: "Graveyard",
+  moon: "Moon",
+  candles: "Candles",
+  fog: "Fog",
+  crackedGlass: "Cracked Glass",
+  scratches: "Scratches",
+  filmGrain: "Film Grain",
+  vignette: "Vignette",
+};
+
+function toggleOverlay(current: OverlayKey[], key: OverlayKey, checked: boolean): OverlayKey[] {
+  return checked ? [...current, key] : current.filter((k) => k !== key);
+}
 
 /**
  * Hidden settings + diagnostics panel (CLAUDE.md sections 47-48). Reached
@@ -152,6 +176,21 @@ export function OperatorPanel({
               ))}
             </select>
           </label>
+          <fieldset className="operator-overlay-fieldset">
+            <legend>Overlays (Halloween decorations, drawn on top of every photo)</legend>
+            <div className="operator-overlay-grid">
+              {OVERLAY_KEYS.map((key) => (
+                <label key={key} className="operator-overlay-option">
+                  <input
+                    type="checkbox"
+                    checked={settings.overlays.includes(key)}
+                    onChange={(e) => onChange({ overlays: toggleOverlay(settings.overlays, key, e.target.checked) })}
+                  />
+                  {OVERLAY_LABELS[key]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label>
             Caption Mode
             <select

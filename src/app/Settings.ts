@@ -2,7 +2,7 @@
 // Persisted via storage/SettingsStore.ts.
 
 import type { FrameKey } from "../effects/Frames";
-import { CAPTIONS } from "../effects/HalloweenEffects";
+import { CAPTIONS, type OverlayKey } from "../effects/HalloweenEffects";
 import type { PrintLayout } from "../printing/PrintLayout";
 
 export type { PrintLayout } from "../printing/PrintLayout";
@@ -62,10 +62,25 @@ export interface BoothSettings {
   ownerCameoMode: OwnerCameoMode;
   /** "Poster Mode" (beta): grades the photo like a horror movie poster
    * (color grade, vignette, title/tagline typography) instead of the
-   * regular caption+frame treatment. See effects/PosterEffect.ts. An
-   * operator-wide style choice for the event, not a per-photo guest
-   * toggle, to avoid multiplying the cached bitmap combinations. */
+   * regular caption+frame treatment. See effects/PosterEffect.ts. Turning
+   * this on makes the guest-facing Poster toggle available at all (same
+   * on/off-availability pattern as ownerCameoMode/frame/overlays below);
+   * it no longer forces poster grading onto every photo unconditionally
+   * -- the guest can flip it off per-photo to see the regular
+   * caption+frame+overlay treatment instead (or the plain candid, via the
+   * other toggles). Defaults to on for a fresh photo when enabled here,
+   * matching the previous always-on behavior out of the box. */
   posterMode: boolean;
+  /** Halloween overlays (CLAUDE.md section 24) the operator wants
+   * available for this event -- drawn procedurally (effects/Overlays.ts),
+   * so this is just which of the fixed OverlayKey set to include, not a
+   * file to manage. Empty by default (an operator opt-in, like My Cameo/
+   * Poster Mode) rather than defaulting to a curated subset, so the
+   * out-of-box look doesn't change for anyone already running the booth.
+   * When non-empty, the guest gets an Overlays toggle on the result
+   * screen to show/hide this set (same show/hide-what-the-operator-
+   * picked pattern as Frame), defaulting to on for a fresh photo. */
+  overlays: OverlayKey[];
 
   // Printing
   printerId?: string;
@@ -101,6 +116,7 @@ export const defaultSettings: BoothSettings = {
   fixedCaption: CAPTIONS[0],
   ownerCameoMode: "off",
   posterMode: false,
+  overlays: [],
 
   printerAdapter: "shareSheet",
   autoPrint: false,

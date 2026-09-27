@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBodyControlPoint,
+  buildCheekControlPoints,
   buildEarControlPoints,
+  buildEyebrowControlPoints,
   buildEyeControlPoints,
+  buildForeheadControlPoint,
   buildJawControlPoint,
+  buildMouthControlPoint,
   buildNoseControlPoint,
+  buildShoulderControlPoint,
   generateGridMesh,
   warpMeshPositions,
   warpPoint,
@@ -81,7 +87,7 @@ describe("warpPoint", () => {
     expect(dist).toBeLessThanOrEqual(0.2 + 1e-9);
   });
 
-  it("applies multiple control points in sequence", () => {
+  it("applies multiple control points additively (not by chaining one's output into the next)", () => {
     const point = { x: 0.55, y: 0.5 };
     const single = warpPoint(point, [cp({ scale: 1.5 })]);
     const double = warpPoint(point, [cp({ scale: 1.5 }), cp({ scale: 1.5 })]);
@@ -91,6 +97,21 @@ describe("warpPoint", () => {
     expect(Math.hypot(double.x - center.x, double.y - center.y)).toBeGreaterThan(
       Math.hypot(single.x - center.x, single.y - center.y),
     );
+  });
+
+  it("is independent of control point order for overlapping regions (the 'melted face' fix)", () => {
+    // Two different, overlapping control points -- e.g. a nose and an eye
+    // whose falloff radii cross on a turned face. Sequential composition
+    // (the previous implementation) would give a different result
+    // depending on which one was applied first; summing independent
+    // displacements gives the same result either way.
+    const point = { x: 0.52, y: 0.51 };
+    const a = cp({ center: { x: 0.5, y: 0.5 }, radiusX: 0.3, radiusY: 0.3, scale: 1.6 });
+    const b = cp({ center: { x: 0.56, y: 0.48 }, radiusX: 0.25, radiusY: 0.25, scale: 1.35 });
+    const ab = warpPoint(point, [a, b]);
+    const ba = warpPoint(point, [b, a]);
+    expect(ab.x).toBeCloseTo(ba.x, 10);
+    expect(ab.y).toBeCloseTo(ba.y, 10);
   });
 
   it("treats a non-positive scale as effectively a no-fold minimum rather than producing NaN/Infinity", () => {
@@ -288,5 +309,120 @@ describe("buildEarControlPoints", () => {
   it("returns an empty array when the face contour doesn't have the full 17 jaw points", () => {
     const face = makeFace({ faceContour: [] });
     expect(buildEarControlPoints(face, { earScale: 1.7 })).toEqual([]);
+  });
+});
+
+describe("buildMouthControlPoint", () => {
+  it("centers on the combined outer+inner lip centroid when contours are present", () => {
+    const outerLips: Point[] = [
+      { x: 0.45, y: 0.7 },
+      { x: 0.55, y: 0.7 },
+      { x: 0.5, y: 0.73 },
+      { x: 0.5, y: 0.67 },
+    ];
+    const face = makeFace({ outerLips, innerLips: [] });
+    const result = buildMouthControlPoint(face, { mouthScale: 1.4 });
+    expect(result).not.toBeNull();
+    expect(result!.center.x).toBeCloseTo(0.5, 5);
+    expect(result!.scale).toBe(1.4);
+    expect(result!.radiusX).toBeGreaterThan(0);
+    expect(result!.radiusY).toBeGreaterThan(0);
+  });
+
+  it("falls back to face.mouth when no lip contour is available", () => {
+    const face = makeFace({ outerLips: [], innerLips: [], mouth: { x: 0.5, y: 0.7 } });
+    const result = buildMouthControlPoint(face, { mouthScale: 1.4 });
+    expect(result).not.toBeNull();
+    expect(result!.center).toEqual({ x: 0.5, y: 0.7 });
+  });
+
+  it("returns null when there is neither a lip contour nor a mouth point", () => {
+    const face = makeFace({ outerLips: [], innerLips: [], mouth: undefined });
+    expect(buildMouthControlPoint(face, { mouthScale: 1.4 })).toBeNull();
+  });
+});
+
+describe("buildForeheadControlPoint", () => {
+  it("centers above the eyebrow line, within the estimated hairline gap", () => {
+    const face = makeFace({
+      leftEyebrow: { x: 0.42, y: 0.3 },
+      rightEyebrow: { x: 0.58, y: 0.3 },
+      boundingBox: { x: 0.3, y: 0.15, width: 0.4, height: 0.5 },
+    });
+    const result = buildForeheadControlPoint(face, { foreheadScale: 1.5 });
+    expect(result).not.toBeNull();
+    expect(result!.center.y).toBeLessThan(0.3);
+    expect(result!.center.y).toBeGreaterThanOrEqual(face.boundingBox.y);
+    expect(result!.scale).toBe(1.5);
+  });
+
+  it("returns null when neither eyebrow was detected", () => {
+    expect(buildForeheadControlPoint(makeFace(), { foreheadScale: 1.5 })).toBeNull();
+  });
+});
+
+describe("buildCheekControlPoints", () => {
+  it("returns one control point per detected eye, between the eye and the jaw", () => {
+    const contour = makeJawContour();
+    const face = makeFace({
+      faceContour: contour,
+      leftEye: { x: 0.4, y: 0.4 },
+      rightEye: { x: 0.6, y: 0.4 },
+    });
+    const points = buildCheekControlPoints(face, { cheekScale: 1.3 });
+    expect(points).toHaveLength(2);
+    for (const p of points) {
+      expect(p.scale).toBe(1.3);
+      expect(p.radiusX).toBeGreaterThan(0);
+    }
+  });
+
+  it("returns an empty array without a jaw contour or any detected eye", () => {
+    expect(buildCheekControlPoints(makeFace(), { cheekScale: 1.3 })).toEqual([]);
+  });
+});
+
+describe("buildEyebrowControlPoints", () => {
+  it("returns one control point per detected eyebrow, centered on it exactly", () => {
+    const face = makeFace({ leftEyebrow: { x: 0.42, y: 0.32 }, rightEyebrow: { x: 0.58, y: 0.32 } });
+    const points = buildEyebrowControlPoints(face, { eyebrowScale: 1.5 });
+    expect(points).toHaveLength(2);
+    expect(points.map((p) => p.center)).toEqual(
+      expect.arrayContaining([{ x: 0.42, y: 0.32 }, { x: 0.58, y: 0.32 }]),
+    );
+  });
+
+  it("returns an empty array when neither eyebrow was detected", () => {
+    expect(buildEyebrowControlPoints(makeFace(), { eyebrowScale: 1.5 })).toEqual([]);
+  });
+});
+
+describe("buildShoulderControlPoint and buildBodyControlPoint", () => {
+  it("anchor below the chin, with the body point lower than the shoulder point", () => {
+    const contour = makeJawContour();
+    const face = makeFace({ faceContour: contour });
+    const shoulder = buildShoulderControlPoint(face, { shoulderScale: 1.3 });
+    const body = buildBodyControlPoint(face, { bodyScale: 1.3 });
+    expect(shoulder).not.toBeNull();
+    expect(body).not.toBeNull();
+    expect(shoulder!.center.y).toBeGreaterThan(contour[8].y);
+    expect(body!.center.y).toBeGreaterThan(shoulder!.center.y);
+    expect(shoulder!.scale).toBe(1.3);
+    expect(body!.scale).toBe(1.3);
+  });
+
+  it("clamp their center within the normalized image range even for a very tall bounding box", () => {
+    const contour = makeJawContour();
+    const face = makeFace({ faceContour: contour, boundingBox: { x: 0.3, y: 0.1, width: 0.4, height: 5 } });
+    const shoulder = buildShoulderControlPoint(face, { shoulderScale: 1.3 });
+    const body = buildBodyControlPoint(face, { bodyScale: 1.3 });
+    expect(shoulder!.center.y).toBeLessThanOrEqual(1);
+    expect(body!.center.y).toBeLessThanOrEqual(1);
+  });
+
+  it("return null without a full 17-point jaw contour", () => {
+    const face = makeFace({ faceContour: [] });
+    expect(buildShoulderControlPoint(face, { shoulderScale: 1.3 })).toBeNull();
+    expect(buildBodyControlPoint(face, { bodyScale: 1.3 })).toBeNull();
   });
 });

@@ -1,6 +1,9 @@
 // CLAUDE.md sections 28-29: layered composition, GPU-tiered rendering.
 
 import { drawFrame } from "../effects/Frames";
+import { drawOverlays } from "../effects/Overlays";
+import type { OverlayKey } from "../effects/HalloweenEffects";
+import { seededRandom } from "../utils/random";
 
 export interface CompositionConfig {
   background?: ImageBitmap;
@@ -8,6 +11,10 @@ export interface CompositionConfig {
   foreground: ImageBitmap; // caricatured people
   caption?: string;
   frame?: string; // key into public/frames
+  /** Halloween overlays (CLAUDE.md section 24) to draw between the foreground and the caption -- "decorative effects" in section 28's layer order. Empty/omitted draws nothing. */
+  overlays?: OverlayKey[];
+  /** Seeds overlay placement (which corner a cobweb lands in, etc). Pass the same value across repeated compose() calls for one photo so toggling overlays on/off doesn't shuffle their layout; omit for a fixed default (fine for a one-off compose). */
+  overlaySeed?: string;
   brandingText?: string;
 }
 
@@ -34,8 +41,8 @@ export function detectRenderTier(): RenderTier {
 /**
  * Canvas2D composition, used as the baseline implementation and as the
  * guaranteed fallback when WebGL2/WebGPU are unavailable. Layers
- * background -> ghosts -> foreground -> caption -> frame (CLAUDE.md
- * section 28).
+ * background -> ghosts -> foreground -> overlays -> caption -> frame
+ * (CLAUDE.md section 28).
  */
 export class Canvas2DCompositionEngine implements CompositionEngine {
   async compose(config: CompositionConfig): Promise<ImageBitmap> {
@@ -57,6 +64,10 @@ export class Canvas2DCompositionEngine implements CompositionEngine {
       ctx.globalAlpha = 1;
     }
     ctx.drawImage(foreground, 0, 0);
+
+    if (config.overlays && config.overlays.length > 0) {
+      drawOverlays(ctx, config.overlays, canvas.width, canvas.height, seededRandom(config.overlaySeed ?? "overlay"));
+    }
 
     if (config.caption) {
       drawCaption(ctx, config.caption, canvas.width, canvas.height);
