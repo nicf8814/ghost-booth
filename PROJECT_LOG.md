@@ -19,32 +19,19 @@ Phases complete (per `CLAUDE.md`'s numbering):
   forehead, cheeks, body caricature not yet built.
 - **Phase 5 (GPU)** — effectively done as a side effect of Phase 4 (WebGL2 mesh
   warp + Canvas2D fallback already exist and are generic, not nose-specific).
-- **Phase 6 (Segmentation)**, **Phase 7 (Ghost)** — done. Real per-guest
-  ghost effect (spec sections 21-23), built from the GUEST'S OWN segmented
-  silhouette, not any fixed asset or (per an explicit user ask that was
-  declined) any copyrighted movie-poster character likeness. Person
-  segmentation via MediaPipe's `SelfieSegmentation` (`@mediapipe/
-  selfie_segmentation`'s model/wasm assets bundled locally under
-  `public/segmentation/`, loaded via an injected `<script>` tag since the
-  package's JS bundle is a classic global-namespace script, not real ESM --
-  `vision/MediaPipePersonSegmenter.ts`). `effects/GhostEngine.ts` extracts
-  the person from the mask, draws 2 translucent/blurred/desaturated/offset
-  duplicate echoes (seeded per-photo rng, section 20, reused across the
-  candid/goofy variants so the pose doesn't jump when Goofy Filter is
-  toggled), then redraws the SHARP person cutout (not the whole rectangular
-  photo) on top -- drawing the full opaque foreground photo over the echoes,
-  as an earlier pass of this code did, completely erased them regardless of
-  offset, since a same-size opaque rectangle covers everything under it; the
-  fix was to layer base photo -> echoes -> sharp person-only cutout, so the
-  echoes stay visible in the space around the real subject (above the head,
-  to the sides). Toggled via the "Real Ghost Effect (beta)" operator
-  setting (`Settings.ts`'s `realGhostMode`), which takes priority over "My
-  Cameo" for the Spookify toggle when both are enabled -- they're different
-  things: My Cameo is the booth owner's own fixed pre-cut cameo, this is a
-  live per-guest effect. Known limitation: MediaPipe returns one mask
-  covering every person in frame as a single blob, not per-individual
-  instances, so a multi-person capture currently ghosts the whole group
-  together rather than each guest separately.
+- **Phase 6 (Segmentation)**, **Phase 7 (Ghost)** — tried and reverted. A
+  real per-guest ghost effect (spec sections 21-23) was built from each
+  guest's own MediaPipe-segmented silhouette, but the user tried it and
+  didn't like the result ("doesn't work great") and asked to go back to
+  "My Cameo" instead. Reverted: `effects/GhostEngine.ts`,
+  `vision/MediaPipePersonSegmenter.ts`, and `public/segmentation/`'s bundled
+  model/wasm assets were all deleted; the "Real Ghost Effect (beta)"
+  operator toggle and `Settings.ts`'s `realGhostMode` are gone. The Spookify
+  toggle is powered solely by "My Cameo" again now (see below). Stated
+  plan going forward: the user wants to load several photos of themselves
+  as "ghosts" and have one picked at random per photo, rather than a
+  live-generated effect -- `OwnerCameoEngine` was extended to support that
+  (see below) ahead of the user actually adding more images.
 - **Phase 8 (Composition)** — partially wired. `Canvas2DCompositionEngine`
   (background/ghosts/foreground/caption layering, already built earlier) is
   now actually invoked from the live capture pipeline in `App.tsx`: every
@@ -185,6 +172,18 @@ Phases complete (per `CLAUDE.md`'s numbering):
   - **Explicit follow-up requested by the user and not yet built**: a
     "random chance per photo" mode instead of a flat always-available
     toggle — the settings type is already shaped for this.
+  - **Multiple cameo images, randomly picked per photo**: `OwnerCameoEngine`
+    now takes an array of asset URLs (instead of a single one) and, given
+    more than one, picks between them with the same per-photo seeded rng as
+    the caricature preset (section 20) — picked once and reused for both
+    the candid and goofy variants of a given photo so they show the same
+    "ghost". Today there's still only one image
+    (`public/cameo/nic-cutout.png`), so behavior is unchanged; the user's
+    stated plan is to eventually load several photos of themselves as
+    different "ghosts". To add more: drop additional cutout PNGs into
+    `public/cameo/` and list their filenames in `App.tsx`'s
+    `CAMEO_ASSET_FILENAMES` array — nothing else needs to change. A URL
+    that 404s is skipped rather than breaking the booth.
 - Operator panel: reachable by **tapping** the ghost logo (not the spec's
   5-second hold — that gesture wasn't registering reliably in iPhone Safari,
   swapped to a plain tap "for now"; `HoldToActivate.tsx` still exists unused,
@@ -264,8 +263,10 @@ Claude-Session: https://claude.ai/code/session_01GpLRxRzKKwayo1BhjetDEa
 - Caricature effects should be **prominent/maxed by default**; operator panel
   is where you pull back, not where you turn it on.
 - Post-capture Spookify toggle so a candid photo is still an option per group.
-- Ghost effect is the app's namesake feature and is now built (see above) —
-  was prioritized above finishing the rest of the caricature engine.
+- Ghost effect is the app's namesake feature — a live per-guest version was
+  tried and reverted (see Status-at-a-glance above); "My Cameo" is the
+  ghost feature going forward, with the user's own stated plan to expand it
+  to several randomly-picked cameo images over time.
 - Operator panel access = tap (not hold) due to iPhone Safari issue.
 
 ## Open threads / not-yet-resolved
@@ -283,19 +284,16 @@ Claude-Session: https://claude.ai/code/session_01GpLRxRzKKwayo1BhjetDEa
 - Auto-detection/unattended start (Phase 10) not started — booth currently
   requires a tap to begin.
 
-## Ghost effect (Phase 6/7) — done
+## Ghost effect (Phase 6/7) — tried, reverted
 
-Built per `CLAUDE.md` sections 21–23: person segmentation
-(`vision/MediaPipePersonSegmenter.ts`, MediaPipe SelfieSegmentation, assets
-bundled locally under `public/segmentation/`) + ghost compositing
-(`effects/GhostEngine.ts`, 2 translucent/blurred/desaturated/offset echoes
-of the guest's own segmented silhouette from the same captured photo, sharp
-person redrawn on top so echoes stay visible in the space around them).
-Wired into `App.tsx`'s capture pipeline and the "Real Ghost Effect (beta)"
-operator toggle. See the Status-at-a-glance entry above for the fuller
-writeup, including the layering bug that had to be fixed (an opaque
-full-frame foreground draw was erasing the echoes) and the known
-multi-person-in-one-mask limitation. Not yet done: per-instance
-segmentation for multiple distinct guests, and tuning echo visibility
-strength beyond the CLAUDE.md-suggested 0.20–0.45 opacity range (currently
-on the fainter end of that range).
+A live per-guest ghost (person segmentation + duplicated/blurred/offset
+echoes of the guest's own segmented silhouette, per `CLAUDE.md` sections
+21–23) was built, debugged, and confirmed visually working, but the user
+tried it and didn't like the result and asked to revert to "My Cameo". See
+the Status-at-a-glance entry above for what was reverted and why. Phase 6
+(segmentation) and Phase 7 (ghost) are back to not-started in terms of
+what's shipped; the code exists in git history (see the commit that added
+`vision/MediaPipePersonSegmenter.ts` and `effects/GhostEngine.ts`) if a
+future attempt wants a starting point, but the layering approach and the
+MediaPipe single-mask-per-frame limitation are both worth reconsidering
+rather than just restoring as-is.

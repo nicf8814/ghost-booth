@@ -19,11 +19,9 @@ import type { PrinterAdapterKind } from "./Settings";
 import type { PhotoPrinter } from "../printing/PrinterAdapter";
 import { loadSettings, saveSettings } from "../storage/SettingsStore";
 import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
-import { MediaPipePersonSegmenter } from "../vision/MediaPipePersonSegmenter";
 import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
-import { compositeGuestGhost, pickGhostEchoConfigs } from "../effects/GhostEngine";
 import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
 import { pickCaption } from "../effects/HalloweenEffects";
 import { applyPosterEffect, POSTER_TINTS } from "../effects/PosterEffect";
@@ -55,14 +53,23 @@ const caricatureEngine = new MeshWarpCaricatureEngine();
 // baseline/guaranteed-available tier (section 29); no state worth
 // reconstructing between photos, so one shared instance.
 const compositionEngine = new Canvas2DCompositionEngine();
-// Same subpath-safe resolution as the face-detector models below --
-// public/cameo/nic-cutout.png needs to resolve correctly under a GitHub
-// Pages subpath deployment too.
-const ownerCameoEngine = new OwnerCameoEngine(new URL("cameo/nic-cutout.png", document.baseURI).href);
-// Person segmentation backing the real per-guest ghost effect (Phase 6-7,
-// CLAUDE.md sections 21-23) -- see effects/GhostEngine.ts. Same
-// subpath-safe base-URL resolution as the other bundled model assets.
-const personSegmenter = new MediaPipePersonSegmenter(new URL("segmentation/", document.baseURI).href);
+// "My Cameo" -- the booth owner's own ghostly cutout(s), composited in as a
+// recurring haunting easter egg (see effects/OwnerCameoEngine.ts). A real
+// per-guest ghost generated live from each guest's own segmented photo was
+// tried and reverted (it didn't look great and wasn't reliable enough --
+// CLAUDE.md section 64 prioritizes booth reliability over a fancier
+// effect); this fixed-asset approach is simpler and more predictable.
+// List every filename you drop into public/cameo/ here -- once there's more
+// than one, a per-photo seeded rng (same one driving the caricature preset)
+// picks a different one each time (CLAUDE.md section 20's reproducible
+// randomness), so it reads as several different "ghosts" of the owner
+// rather than a single unvarying stamp. Same subpath-safe resolution as the
+// face-detector models below -- these need to resolve correctly under a
+// GitHub Pages subpath deployment too.
+const CAMEO_ASSET_FILENAMES = ["nic-cutout.png"];
+const ownerCameoEngine = new OwnerCameoEngine(
+  CAMEO_ASSET_FILENAMES.map((name) => new URL(`cameo/${name}`, document.baseURI).href),
+);
 
 // Resolved against document.baseURI (not a bare relative path) so the
 // worker's model fetches still land on /models/ correctly even when the
@@ -119,19 +126,6 @@ export default function App() {
     });
     return () => faceDetector.dispose();
   }, []);
-
-  // Person segmentation (Real Ghost Effect) is loaded lazily, only once the
-  // operator turns the beta feature on -- unlike face detection, most
-  // events won't use it, so there's no reason to force a ~5MB model
-  // download/parse on every booth startup. A failed/slow load degrades to
-  // "no ghost" the same way a failed face-detection load degrades to "no
-  // face detected" (CLAUDE.md section 49).
-  useEffect(() => {
-    if (!state.settings.realGhostMode) return;
-    personSegmenter.init().catch((err) => {
-      console.warn("Person segmentation model failed to load; Real Ghost Effect will fall back to no ghost.", err);
-    });
-  }, [state.settings.realGhostMode]);
 
   // Persist settings whenever they change (debounced by React batching).
   useEffect(() => {
@@ -247,26 +241,23 @@ export default function App() {
         }
       }
 
-      // Ghost layer for the "Spookify" toggle: either the real per-guest
-      // ghost (Phases 6-7, CLAUDE.md sections 21-23 -- a distorted,
-      // translucent duplicate of the GUEST's own segmented silhouette) when
-      // Real Ghost Effect is on, or "My Cameo" (the booth owner's fixed
-      // cutout) otherwise. Both can't sensibly layer into one ghost, so
-      // Real Ghost Effect takes priority when both are enabled. Only
-      // computed when at least one is on -- neither composite() nor
-      // compositeGuestGhost() mutates its input, so `master`/`working`
-      // stay valid for the non-ghost variants below.
-      const ghostAvailable = state.settings.realGhostMode || state.settings.ownerCameoMode !== "off";
+      // Ghost layer for the "Spookify" toggle: "My Cameo" (the booth
+      // owner's own fixed cutout(s), effects/OwnerCameoEngine.ts). Only
+      // computed when enabled -- composite() doesn't mutate its input, so
+      // `master`/`working` stay valid for the non-ghost variants below.
+      // When there are several cameo images (CAMEO_ASSET_FILENAMES above),
+      // one is picked per photo from the same seeded rng as the caricature
+      // preset -- picked once and reused for both variants below so the
+      // candid and goofy versions of one photo show the same "ghost"
+      // rather than two different ones.
+      const ghostAvailable = state.settings.ownerCameoMode !== "off";
       let ghostOriginal: ImageBitmap | null = null;
       let ghostCaricatured: ImageBitmap | null = null;
-      if (state.settings.realGhostMode) {
-        const segmentations = await personSegmenter.segment(await createImageBitmap(master));
-        const echoes = pickGhostEchoConfigs(rng);
-        ghostOriginal = await compositeGuestGhost(master, segmentations, master, echoes);
-        ghostCaricatured = await compositeGuestGhost(master, segmentations, working, echoes);
-      } else if (ghostAvailable) {
-        ghostOriginal = await ownerCameoEngine.composite(master);
-        ghostCaricatured = await ownerCameoEngine.composite(working);
+      if (ghostAvailable) {
+        const cameoPick = rng();
+        const pickRng = () => cameoPick;
+        ghostOriginal = await ownerCameoEngine.composite(master, {}, pickRng);
+        ghostCaricatured = await ownerCameoEngine.composite(working, {}, pickRng);
       }
 
       // Caption + frame (Phase 8, CLAUDE.md section 28) OR Poster Mode
@@ -313,7 +304,6 @@ export default function App() {
     state.settings.fixedCaption,
     state.settings.frame,
     state.settings.posterMode,
-    state.settings.realGhostMode,
     applyPhotoSelection,
   ]);
 
@@ -384,7 +374,7 @@ export default function App() {
             debugMode: state.settings.debugMode,
             goofyFilterOn,
             ghostOn,
-            ghostAvailable: state.settings.realGhostMode || state.settings.ownerCameoMode !== "off",
+            ghostAvailable: state.settings.ownerCameoMode !== "off",
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,

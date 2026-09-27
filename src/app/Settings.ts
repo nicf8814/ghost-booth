@@ -49,10 +49,14 @@ export interface BoothSettings {
   captionMode: CaptionMode;
   /** Caption text used when captionMode is "fixed". */
   fixedCaption: string;
-  /** The booth owner's own ghostly cameo, composited into every photo when
-   * enabled (public/cameo/nic-cutout.png, given a translucent/blurred
-   * treatment matching the other ghosts). Off by default -- an operator
-   * decision for each event, not a guest-facing default. */
+  /** The booth owner's own ghostly cameo(s), composited into every photo
+   * when enabled (public/cameo/*.png, given a translucent/blurred
+   * treatment). When more than one cameo image is configured
+   * (App.tsx's CAMEO_ASSET_FILENAMES), a different one is picked per photo.
+   * Off by default -- an operator decision for each event, not a
+   * guest-facing default. A real per-guest ghost generated live from each
+   * guest's own segmented photo was tried and reverted (didn't look great,
+   * wasn't reliable enough); this fixed-asset approach replaced it. */
   ownerCameoMode: OwnerCameoMode;
   /** "Poster Mode" (beta): grades the photo like a horror movie poster
    * (color grade, vignette, title/tagline typography) instead of the
@@ -60,12 +64,6 @@ export interface BoothSettings {
    * operator-wide style choice for the event, not a per-photo guest
    * toggle, to avoid multiplying the cached bitmap combinations. */
   posterMode: boolean;
-  /** "Real Ghost Effect" (beta): a translucent, distorted duplicate of the
-   * GUEST's own segmented silhouette (CLAUDE.md sections 21-23), not the
-   * booth owner's fixed cutout. When on, it takes priority over My Cameo
-   * for what powers the Spookify toggle, since both can't sensibly
-   * combine into one ghost layer. See effects/GhostEngine.ts. */
-  realGhostMode: boolean;
 
   // Printing
   printerId?: string;
@@ -95,7 +93,6 @@ export const defaultSettings: BoothSettings = {
   fixedCaption: CAPTIONS[0],
   ownerCameoMode: "off",
   posterMode: false,
-  realGhostMode: false,
 
   printerAdapter: "shareSheet",
   autoPrint: false,

@@ -72,11 +72,19 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   silly ones. Defaults to on for every fresh capture. (This button was originally called
   "Spookify" — renamed once the ghost cameo below got its own independent toggle of that name.)
 - **"My Cameo" (beta) + Spookify toggle**: an operator-only "My Cameo (beta)" checkbox (Effects
-  section of the operator panel) enables the booth owner's own photo
-  (`public/cameo/nic-cutout.png`, a bundled cutout, not anything captured from a guest) as a
+  section of the operator panel) enables the booth owner's own photo(s)
+  (`public/cameo/`, bundled cutouts, not anything captured from a guest) as a
   recurring ghostly photobomb — blurred, desaturated, brightened, and translucent
-  (`src/effects/OwnerCameoEngine.ts`), the same visual language the guest ghost effect will
-  eventually use. When enabled, the result screen shows a second "👻 SPOOKIFY: ON/OFF" button,
+  (`src/effects/OwnerCameoEngine.ts`). A live per-guest ghost (generated from each guest's
+  own segmented photo) was tried and reverted — didn't look great, wasn't reliable enough —
+  so this fixed-asset approach is the ghost feature going forward. `OwnerCameoEngine` takes a
+  list of cameo image URLs; given more than one, it picks a different one per photo using the
+  same per-photo seeded rng as the caricature preset (so it's reproducible, and the candid and
+  goofy versions of one photo show the same pick). Only one image exists today
+  (`nic-cutout.png`) — the stated plan is to add several photos of the owner as different
+  "ghosts" over time; drop more cutout PNGs into `public/cameo/` and list them in `App.tsx`'s
+  `CAMEO_ASSET_FILENAMES` array to start randomizing, nothing else needs to change. When
+  enabled, the result screen shows a second "👻 SPOOKIFY: ON/OFF" button,
   independent of Goofy Filter — the ghost can be layered onto either the candid or the goofy
   version, in any combination of the two toggles. Both toggles are instant swaps between four
   pre-computed cached bitmaps (candid, goofy, candid+ghost, goofy+ghost), no re-processing.
@@ -102,29 +110,23 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   letter-spaced tagline (drawn from the same caption pool; no title text is drawn).
   Three tint presets (crimson/teal/moonlight) are chosen per photo from
   the seeded rng. `effects/PosterEffect.ts` grades the whole captured photo rather than
-  lifting the guest onto a separate background — doing that properly would use person
-  segmentation, now that it exists (see below), but hasn't been requested. An
-  operator-wide style choice for the event, not a per-photo guest toggle.
-- **Person segmentation & the real per-guest ghost effect** (Phases 6–7): built. The
-  guest asked to superimpose their own "ghost face" the way a set of horror-movie
-  posters were styled; extracting the actual copyrighted character likenesses from
-  those posters was declined (Pennywise, the Evil Dead Rise deadite, the Fright Night
-  creature are all protected), so this instead builds a real ghost from the guest's
-  own captured photo. `vision/MediaPipePersonSegmenter.ts` runs MediaPipe's
-  SelfieSegmentation model (assets bundled locally under `public/segmentation/`, loaded
-  via an injected `<script>` tag since the npm package's JS bundle is a classic
-  global-namespace script rather than real ESM) to separate the guest from the
-  background. `effects/GhostEngine.ts` then extracts the person, draws 2
-  translucent/blurred/desaturated/offset duplicate echoes (seeded per-photo, so a
-  photo's ghost pose is reproducible and doesn't jump when Goofy Filter is toggled),
-  and redraws the sharp person cutout on top so the echoes stay visible in the space
-  around the real subject rather than being covered by the full opaque photo. Toggled
-  via the "Real Ghost Effect (beta)" operator setting, which takes priority over "My
-  Cameo" for the Spookify button when both are on (My Cameo is the booth owner's own
-  fixed cutout — a different, simpler thing). Known limitation: MediaPipe returns one
-  mask for every person in frame, not per-individual instances, so a multi-person
-  capture currently ghosts the whole group as one blob rather than each guest
-  separately.
+  lifting the guest onto a separate background — that would want person segmentation,
+  which was explored (see below) but isn't currently in the app. An operator-wide style
+  choice for the event, not a per-photo guest toggle.
+
+### Tried and reverted
+
+- **Person segmentation & a live per-guest ghost effect** (Phases 6–7): the guest asked
+  to superimpose their own "ghost face" the way a set of horror-movie posters were
+  styled; extracting the actual copyrighted character likenesses from those posters was
+  declined (Pennywise, the Evil Dead Rise deadite, the Fright Night creature are all
+  protected), so a real ghost generated from the guest's own captured photo was built
+  instead — MediaPipe SelfieSegmentation for person segmentation, then 2
+  translucent/blurred/desaturated/offset duplicate echoes composited behind the sharp
+  subject. It worked (confirmed visually), but didn't look great and was asked to be
+  reverted in favor of "My Cameo" above. The code no longer exists in the working tree;
+  see git history for `vision/MediaPipePersonSegmenter.ts` and `effects/GhostEngine.ts`
+  if a future attempt wants a starting point.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 

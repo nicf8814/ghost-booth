@@ -192,14 +192,6 @@ export function OperatorPanel({
               onChange={(e) => onChange({ posterMode: e.target.checked })}
             />
           </label>
-          <label>
-            Real Ghost Effect (beta)
-            <input
-              type="checkbox"
-              checked={settings.realGhostMode}
-              onChange={(e) => onChange({ realGhostMode: e.target.checked })}
-            />
-          </label>
         </section>
 
         <section>
