@@ -230,48 +230,66 @@ function jaggedRectPath(
   ctx.closePath();
 }
 
-/** The named event frame: a black banner across the bottom reading "HEISTERKAMP HALLOWEEN 2027" in a dripping-blood horror lettering style, plus a thin dripping-blood accent along the top edge. */
+/** The named event frame: a black banner across the bottom reading "HEISTERKAMP HALLOWEEN 2027" in bold horror lettering, with blood dripping *from* the banner's top edge into the photo above it -- not across the text itself, which stays clean and legible. Font size auto-shrinks to fit the banner width so the text is never clipped or cramped at any photo size. */
 function drawHeisterkampFrame(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number): void {
   ctx.save();
 
-  // Thin blood-drip accent along the very top edge, ahead of the banner
-  // text below so the whole frame reads as one "dripping" motif rather
-  // than the banner being the only place blood shows up.
-  drawBloodDrips(ctx, width, 0, width * 0.02, "rgba(120, 8, 12, 0.85)");
+  // Thin blood-drip accent along the very top edge of the whole frame --
+  // unrelated to the banner, just carries the "dripping" motif to the top
+  // of the photo too.
+  drawBloodDrips(ctx, width, 0, width * 0.02, "rgba(120, 8, 12, 0.85)", 1);
 
   // Bottom banner.
-  const bannerH = Math.round(height * 0.11);
+  const bannerH = Math.round(height * 0.13);
   const bannerY = height - bannerH;
   ctx.fillStyle = "#0a0508";
   ctx.fillRect(0, bannerY, width, bannerH);
 
-  const fontSize = Math.round(bannerH * 0.52);
-  ctx.font = `900 ${fontSize}px Impact, "Arial Black", sans-serif`;
+  // Blood dripping *down from the banner's top edge into the photo above
+  // it* -- drawn before the text, and entirely outside the banner
+  // rectangle, so it never crosses into the text area below.
+  drawBloodDrips(ctx, width, bannerY, bannerH * 0.55, "rgba(150, 10, 14, 0.88)", -1);
+
+  const text = "HEISTERKAMP HALLOWEEN 2027";
+  const maxTextWidth = width * 0.92;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const textY = bannerY + bannerH * 0.5;
-  const text = "HEISTERKAMP HALLOWEEN 2027";
 
-  ctx.fillStyle = "#8a0d10";
-  ctx.fillText(text, width / 2 + 2, textY + 2);
+  // Shrink the font until the full line fits the banner width -- a fixed
+  // size clipped or crowded the text on narrower photos, which was the
+  // main legibility problem. Floors out at a still-readable minimum rather
+  // than shrinking forever.
+  let fontSize = Math.round(bannerH * 0.5);
+  const minFontSize = Math.round(bannerH * 0.22);
+  ctx.font = `900 ${fontSize}px Impact, "Arial Black", sans-serif`;
+  while (fontSize > minFontSize && ctx.measureText(text).width > maxTextWidth) {
+    fontSize -= 1;
+    ctx.font = `900 ${fontSize}px Impact, "Arial Black", sans-serif`;
+  }
+
+  const textY = bannerY + bannerH * 0.5;
+
+  // A solid black outline (not a close-in-color offset copy, which reads
+  // as a smudge more than a shadow) gives the cream fill real contrast
+  // against the near-black banner regardless of font size.
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = Math.max(2, fontSize * 0.1);
+  ctx.strokeText(text, width / 2, textY);
   ctx.fillStyle = "#f4e6c8";
   ctx.fillText(text, width / 2, textY);
-
-  // Blood dripping down from the banner's text baseline into the photo
-  // above it (drips hang "up" into the frame since the banner sits at the
-  // bottom, so visually they drip from the top edge of the black bar).
-  drawBloodDrips(ctx, width, bannerY, bannerH * 0.9, "rgba(150, 10, 14, 0.88)");
 
   ctx.restore();
 }
 
-/** A deterministic row of uneven blood-drip streaks hanging down from `y` -- shared by drawHeisterkampFrame's top accent and its banner edge. No rng (frames must render identically every time for a given size), so drip lengths/positions come from a fixed trig-based wobble instead. */
+/** A deterministic row of uneven blood-drip streaks hanging from `y`, either downward (`direction: 1`, into the photo below) or upward (`direction: -1`, into the photo above -- used for drips that hang from the *top* of a bottom banner without crossing into it). Shared by drawHeisterkampFrame's top-of-frame accent and its banner-edge drips. No rng (frames must render identically every time for a given size), so drip lengths/positions come from a fixed trig-based wobble instead. */
 function drawBloodDrips(
   ctx: OffscreenCanvasRenderingContext2D,
   width: number,
   y: number,
   maxDripLen: number,
   color: string,
+  direction: 1 | -1,
 ): void {
   const count = Math.max(6, Math.round(width / 42));
   ctx.fillStyle = color;
@@ -279,7 +297,7 @@ function drawBloodDrips(
     const t = i / count;
     const x = t * width + Math.sin(i * 7.13) * 6;
     const wobble = (Math.sin(i * 3.71) + 1) / 2; // 0..1, deterministic per index
-    const dripLen = maxDripLen * (0.25 + wobble * 0.75);
+    const dripLen = direction * maxDripLen * (0.25 + wobble * 0.75);
     const dripW = maxDripLen * (0.14 + wobble * 0.1);
 
     // A rounded "bead" at the drip's base, tapering into a thin trail.

@@ -674,3 +674,31 @@ A batch of smaller feature requests, landed together:
   - Deliberately not started this round (explicit user direction: revisit
     after these smaller items land): the ghost feature. See "Ghost effect
     (Phase 6/7) — tried, reverted" above for where that stands.
+
+## Heisterkamp frame legibility fix — done
+
+Two bugs in the frame added earlier this session:
+
+- **Blood was drawn over the banner text.** The banner-edge blood drips
+  were anchored at the top of the black banner but drawn *downward*
+  (`y + dripLen`), which is straight into the same bar the text sits in --
+  at the wobble's high end a drip could reach most of the banner's height,
+  crossing right through the letters. Fixed by giving `drawBloodDrips` a
+  `direction` parameter: the banner's drips now hang *upward*
+  (`direction: -1`) from the banner's top edge into the photo above it, so
+  the "blood dripping from the frame" look survives but never touches the
+  text area. The top-of-frame accent drip row is unaffected (already hung
+  downward into the photo, away from any text).
+- **Fixed font size could clip or crowd the text.** `"HEISTERKAMP
+  HALLOWEEN 2027"` was drawn at a size derived only from the banner's
+  height, with no check against its width, so it could run tight to (or
+  past) the edges depending on photo aspect ratio. `drawHeisterkampFrame`
+  now shrinks the font in a loop (`ctx.measureText`) until the line fits
+  within 92% of the frame width, with a legible floor. Also swapped the
+  close-in-color offset-copy "shadow" for a solid black `strokeText`
+  outline behind the cream fill -- clearer contrast against the
+  near-black banner at any size -- and bumped the banner height slightly
+  (11% -> 13% of photo height) for more breathing room.
+  Verified: `tsc -b`, `oxlint`, `npm run build`, and the full suite (182
+  tests) all clean -- no test exercises this frame's pixels directly, so
+  none needed changes.
