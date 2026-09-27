@@ -21,8 +21,26 @@ Phases complete (per `CLAUDE.md`'s numbering):
   warp + Canvas2D fallback already exist and are generic, not nose-specific).
 - **Phase 6 (Segmentation)**, **Phase 7 (Ghost)**, **Phase 8 (Composition)** —
   not started. **This is the current focus.**
-- **Phase 9 (Printing)** — mock printer only; blocked on the user telling us
-  the real printer model.
+- **Phase 9 (Printing)** — printer model is now known: **Kodak Mini 2 Retro
+  (black), confirmed purchase.** It's Bluetooth-only with no AirPrint and no
+  published SDK, and Safari has no Web Bluetooth API at all (confirmed via
+  research, no roadmap from WebKit) -- so direct in-browser printing isn't
+  possible regardless of the printer's protocol. `ShareSheetPrinterAdapter`
+  (opens the native iOS share sheet with the photo attached, operator picks
+  the Kodak Photo Printer app, one tap) is built and is now the default
+  printer adapter (`defaultSettings.printerAdapter: "shareSheet"`). **Not
+  yet verified against the real device** -- the one open question is
+  whether the Kodak Photo Printer app actually accepts a Share Sheet
+  hand-off (no evidence found either way in research; confirmed NOT
+  supported for HP Sprocket by an HP support rep, as a data point, but
+  that doesn't tell us about Kodak specifically). Needs a hands-on test
+  once the printer is paired to the iPad.
+  - Explored and shelved for now: Raspberry Pi Bluetooth-protocol
+    reverse-engineering (would enable a genuinely zero-tap print, real
+    project with unbounded time cost, requires an Android phone for the
+    HCI snoop-log capture); a used/renewed Canon SELPHY CP1300/1500 would
+    have given guaranteed one-tap-via-AirPrint printing with zero custom
+    code, but the user chose the Kodak on price.
 - **Phase 10 (Booth mode / auto-detection)** — not started.
 
 ## Architecture as built
