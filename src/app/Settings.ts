@@ -50,7 +50,7 @@ export const defaultSettings: BoothSettings = {
   autoStart: true,
   idleTimeoutSeconds: 45,
 
-  caricatureStrength: 0.7,
+  caricatureStrength: 1.0,
   ghostStrength: 0.5,
   preset: "Random",
   frame: "classic",

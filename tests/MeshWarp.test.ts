@@ -183,7 +183,7 @@ describe("buildNoseControlPoint", () => {
     expect(result).not.toBeNull();
     expect(result!.center).toEqual({ x: 0.5, y: 0.5 });
     // No contour to size from: falls back to a fraction of the face box.
-    expect(result!.radiusX).toBeCloseTo(face.boundingBox.width * 0.12 * 1.9, 5);
+    expect(result!.radiusX).toBeCloseTo(face.boundingBox.width * 0.12 * 2.2, 5);
   });
 
   it("returns null when there is neither a nose contour nor a nose point", () => {

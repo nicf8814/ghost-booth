@@ -38,9 +38,13 @@ export const NEUTRAL_CONFIG: CaricatureConfiguration = {
 };
 
 // Safe limits: the mesh warp must never be asked to fold over itself
-// (CLAUDE.md section 12).
-export const SAFE_MIN_SCALE = 0.6;
-export const SAFE_MAX_SCALE = 1.8;
+// (CLAUDE.md section 12). MeshWarp.ts's radial remap is strictly
+// monotonic for *any* positive scale, so folding isn't actually a risk at
+// higher values -- this range is a taste/legibility ceiling (how far a
+// feature can stretch before it stops reading as "exaggerated face" and
+// starts reading as "broken photo"), not a mathematical necessity.
+export const SAFE_MIN_SCALE = 0.5;
+export const SAFE_MAX_SCALE = 2.4;
 
 export function clampToSafeLimits(config: CaricatureConfiguration): CaricatureConfiguration {
   const clamp = (v: number) => Math.min(SAFE_MAX_SCALE, Math.max(SAFE_MIN_SCALE, v));
@@ -62,16 +66,22 @@ export function clampToSafeLimits(config: CaricatureConfiguration): CaricatureCo
   };
 }
 
+// Every preset now sets a noseScale, even ones the original spec didn't
+// give one (Vampire, PumpkinHead, EvilPromQueen): nose enlargement is
+// currently the *only* deformation actually wired up (CLAUDE.md section
+// 59's incremental build order), so a preset with no noseScale would
+// produce a visually unchanged photo today. Once eyes/mouth/forehead/
+// jaw/ears land, these can go back to being selective per-preset again.
 export const PRESET_CONFIGS: Record<Exclude<CaricaturePreset, "Random">, Partial<CaricatureConfiguration>> = {
-  Goblin: { eyeScale: 0.85, noseScale: 1.65, mouthScale: 0.9, foreheadScale: 1.25, jawScale: 1.45, earScale: 1.5 },
-  Demon: { eyeScale: 1.4, noseScale: 1.3, mouthScale: 1.25, foreheadScale: 1.4, jawScale: 1.5 },
-  HotMess: { eyeScale: 1.25, noseScale: 1.2, mouthScale: 1.4, jawScale: 1.15, cheekScale: 1.35, randomness: 0.35 },
-  Witch: { noseScale: 1.5, jawScale: 1.2, eyebrowScale: 1.4, foreheadScale: 1.1 },
-  Vampire: { eyeScale: 1.15, mouthScale: 1.2, cheekScale: 0.9, jawScale: 1.1 },
-  PumpkinHead: { faceWidth: 1.3, faceHeight: 1.2, cheekScale: 1.3, mouthScale: 1.2 },
-  CartoonVillain: { eyebrowScale: 1.5, jawScale: 1.3, noseScale: 1.2, eyeScale: 1.1 },
-  DrunkUncle: { noseScale: 1.4, cheekScale: 1.4, eyeScale: 0.9, mouthScale: 1.15 },
-  EvilPromQueen: { eyeScale: 1.3, mouthScale: 1.3, eyebrowScale: 1.3, faceWidth: 0.9 },
+  Goblin: { eyeScale: 0.8, noseScale: 2.0, mouthScale: 0.85, foreheadScale: 1.35, jawScale: 1.6, earScale: 1.7 },
+  Demon: { eyeScale: 1.5, noseScale: 1.6, mouthScale: 1.35, foreheadScale: 1.5, jawScale: 1.65 },
+  HotMess: { eyeScale: 1.35, noseScale: 1.5, mouthScale: 1.55, jawScale: 1.2, cheekScale: 1.5, randomness: 0.35 },
+  Witch: { noseScale: 1.9, jawScale: 1.3, eyebrowScale: 1.55, foreheadScale: 1.15 },
+  Vampire: { eyeScale: 1.2, noseScale: 1.25, mouthScale: 1.3, cheekScale: 0.85, jawScale: 1.15 },
+  PumpkinHead: { faceWidth: 1.45, faceHeight: 1.35, cheekScale: 1.45, mouthScale: 1.3, noseScale: 1.2 },
+  CartoonVillain: { eyebrowScale: 1.65, jawScale: 1.4, noseScale: 1.5, eyeScale: 1.15 },
+  DrunkUncle: { noseScale: 1.8, cheekScale: 1.55, eyeScale: 0.85, mouthScale: 1.2 },
+  EvilPromQueen: { eyeScale: 1.4, noseScale: 1.3, mouthScale: 1.4, eyebrowScale: 1.4, faceWidth: 0.85 },
 };
 
 /**
@@ -115,21 +125,24 @@ export function resolvePreset(
 
 /** WTF mode (CLAUDE.md section 19): pick 2-5 features and exaggerate them. */
 export function randomWtfConfig(rng: () => number): CaricatureConfiguration {
-  const features: Array<keyof CaricatureConfiguration> = [
+  const otherFeatures: Array<keyof CaricatureConfiguration> = [
     "eyeScale",
-    "noseScale",
     "mouthScale",
     "foreheadScale",
     "jawScale",
     "earScale",
     "cheekScale",
   ];
-  const count = 2 + Math.floor(rng() * 4); // 2..5
-  const chosen = shuffle(features, rng).slice(0, count);
+  // noseScale is forced into every WTF roll rather than left to chance:
+  // it's currently the only deformation actually wired up, so a roll that
+  // skipped it would produce a visually unchanged "random" photo.
+  const count = 1 + Math.floor(rng() * 4); // 1..4 *additional* features on top of nose
+  const chosen = shuffle(otherFeatures, rng).slice(0, count);
 
   const config = { ...NEUTRAL_CONFIG };
+  config.noseScale = 1.6 + rng() * 0.6; // 1.6..2.2
   for (const feature of chosen) {
-    config[feature] = 1.3 + rng() * 0.45; // 1.3..1.75
+    config[feature] = 1.5 + rng() * 0.6; // 1.5..2.1
   }
   config.randomness = 0.4 + rng() * 0.3;
   return clampToSafeLimits(config);

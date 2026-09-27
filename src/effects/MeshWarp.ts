@@ -171,7 +171,10 @@ export function buildNoseControlPoint(
     halfHeight = face.boundingBox.height * 0.12;
   }
 
-  const margin = 1.9;
+  // Wider than a tight fit around the nose contour so the falloff has
+  // room to blend into the cheeks/lip area instead of the enlargement
+  // reading as a hard-edged cutout.
+  const margin = 2.2;
   return {
     center,
     radiusX: Math.max(halfWidth * margin, 0.01),
