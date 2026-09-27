@@ -70,6 +70,14 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   toggling swaps which one is displayed/printed instantly, with no re-detection or re-warping
   — for a group that wants one normal photo alongside the silly ones. Defaults to on for
   every fresh capture.
+- **"My Cameo" (beta)**: an operator-only toggle (Effects section of the operator panel) that
+  composites the booth owner's own photo (`public/cameo/nic-cutout.png`, a bundled cutout, not
+  anything captured from a guest) into every photo as a recurring ghostly photobomb — blurred,
+  desaturated, brightened, and translucent (`src/effects/OwnerCameoEngine.ts`), the same visual
+  language the guest ghost effect will eventually use. Off by default. Applied only to the
+  caricatured ("Spookify on") version of the photo, never the candid, so toggling Spookify off
+  still gives a clean cameo-free photo. A fixed always-on/off toggle for now; a "random chance
+  per photo" mode is planned as a follow-up once the toggle version is confirmed working.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 

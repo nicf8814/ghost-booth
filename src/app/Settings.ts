@@ -15,6 +15,10 @@ export type CaricaturePreset =
 
 export type CaptionMode = "off" | "random" | "fixed";
 export type PrintLayout = "4x6" | "square" | "2x6strip";
+// "random" (a per-photo chance of appearing) is a planned follow-up to the
+// initial always-on/off toggle; the type is already a union so adding it
+// later won't need a settings migration.
+export type OwnerCameoMode = "off" | "always";
 
 export interface BoothSettings {
   // Camera
@@ -31,6 +35,11 @@ export interface BoothSettings {
   preset: CaricaturePreset;
   frame: string; // key into public/frames
   captionMode: CaptionMode;
+  /** The booth owner's own ghostly cameo, composited into every photo when
+   * enabled (public/cameo/nic-cutout.png, given a translucent/blurred
+   * treatment matching the other ghosts). Off by default -- an operator
+   * decision for each event, not a guest-facing default. */
+  ownerCameoMode: OwnerCameoMode;
 
   // Printing
   printerId?: string;
@@ -55,6 +64,7 @@ export const defaultSettings: BoothSettings = {
   preset: "Random",
   frame: "classic",
   captionMode: "random",
+  ownerCameoMode: "off",
 
   autoPrint: false,
   copies: 1,

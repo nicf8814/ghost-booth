@@ -70,6 +70,30 @@ Phases complete (per `CLAUDE.md`'s numbering):
   `originalBitmapRef`/`caricaturedBitmapRef`). A toggle button on
   `ResultScreen` swaps which one is displayed/printed instantly (no
   re-detection/re-warp). Defaults to on for every fresh capture.
+- **"My Cameo" (beta)**: a distinct feature from the spec's per-guest ghost
+  effect (section 21 — which duplicates whoever is *in* the captured photo).
+  This composites the booth owner's own bundled photo into every guest photo
+  as a recurring ghostly photobomb. `OwnerCameoEngine`
+  (`src/effects/OwnerCameoEngine.ts`) fetches `public/cameo/nic-cutout.png`
+  (a background-removed cutout, produced offline via OpenCV GrabCut +
+  morphological cleanup + manual touch-up from a selfie the user provided —
+  not a guest's photo, not stored biometric data) and composites it with a
+  `blur()`/`saturate()`/`brightness()` canvas filter + reduced
+  `globalAlpha`, matching the guest-ghost visual language in section 21
+  (opacity 0.4, within the spec's 0.20–0.45 range). Gated by
+  `settings.ownerCameoMode: "off" | "always"` (a union type, deliberately
+  built to extend later without a settings migration), exposed as a "My
+  Cameo (beta)" checkbox in the operator panel's Effects section. Applied
+  in `App.tsx`'s `handleCountdownComplete` to the caricatured (`working`)
+  bitmap only, after the mesh warp and before it's cached as
+  `caricaturedBitmapRef` — so it never appears on the candid Spookify-off
+  version. Verified: isolated compositing check (confirms the cameo image
+  itself renders correctly, ghostly-styled, at the right position) plus an
+  end-to-end headless-Chromium run comparing a full capture flow with the
+  toggle on vs. off (pixel diff confirms the toggle changes the output, and
+  only in the expected region). **Explicit follow-up requested by the user
+  and not yet built**: a "random chance per photo" mode instead of a flat
+  always-on toggle — the settings type is already shaped for this.
 - Operator panel: reachable by **tapping** the ghost logo (not the spec's
   5-second hold — that gesture wasn't registering reliably in iPhone Safari,
   swapped to a plain tap "for now"; `HoldToActivate.tsx` still exists unused,

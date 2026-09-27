@@ -16,12 +16,17 @@ import { loadSettings, saveSettings } from "../storage/SettingsStore";
 import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
 import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
+import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
 import { createSeed, seededRandom } from "../utils/random";
 import "./app.css";
 
 const printerManager = new PrinterManager(new MockPrinterAdapter({ failRate: 0 }));
 const caricatureEngine = new MeshWarpCaricatureEngine();
+// Same subpath-safe resolution as the face-detector models below --
+// public/cameo/nic-cutout.png needs to resolve correctly under a GitHub
+// Pages subpath deployment too.
+const ownerCameoEngine = new OwnerCameoEngine(new URL("cameo/nic-cutout.png", document.baseURI).href);
 
 // Resolved against document.baseURI (not a bare relative path) so the
 // worker's model fetches still land on /models/ correctly even when the
@@ -168,6 +173,15 @@ export default function App() {
         }
       }
 
+      // "My Cameo" (operator beta toggle): composites the booth owner's own
+      // ghostly cameo into the Spookify version only, never the candid
+      // original -- toggling Spookify off on the result screen still gives
+      // a clean, cameo-free photo. Applied after the caricature warp so the
+      // cameo itself never gets warped by anyone's face landmarks.
+      if (state.settings.ownerCameoMode !== "off") {
+        working = await ownerCameoEngine.composite(working);
+      }
+
       // Ghost/composition pipeline (Phases 6-8) isn't built yet, so the
       // "caricatured" photo is the working bitmap (or the plain master
       // frame, when no faces were detected). Both the candid original and
@@ -185,7 +199,13 @@ export default function App() {
         event: { type: "CAPTURE_ERROR", message: err instanceof Error ? err.message : "Capture failed" },
       });
     }
-  }, [dispatch, state.settings.preset, state.settings.caricatureStrength, applyPhotoSelection]);
+  }, [
+    dispatch,
+    state.settings.preset,
+    state.settings.caricatureStrength,
+    state.settings.ownerCameoMode,
+    applyPhotoSelection,
+  ]);
 
   const handlePrintRequested = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "PRINT_REQUESTED" } });

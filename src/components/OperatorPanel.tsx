@@ -149,6 +149,14 @@ export function OperatorPanel({
               ))}
             </select>
           </label>
+          <label>
+            My Cameo (beta)
+            <input
+              type="checkbox"
+              checked={settings.ownerCameoMode === "always"}
+              onChange={(e) => onChange({ ownerCameoMode: e.target.checked ? "always" : "off" })}
+            />
+          </label>
         </section>
 
         <section>
