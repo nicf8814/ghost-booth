@@ -98,13 +98,33 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   freeform, unwired text box).
 - **"Poster Mode" (beta)**: an operator-only checkbox that grades every photo like a
   horror movie poster instead of the regular caption+frame look — desaturated/contrast
-  color grade, a radial vignette pooling light around the subject, bold red "GHOST
-  BOOTH" title typography, and a small letter-spaced tagline (drawn from the same
-  caption pool). Three tint presets (crimson/teal/moonlight) are chosen per photo from
+  color grade, a radial vignette pooling light around the subject, and a small
+  letter-spaced tagline (drawn from the same caption pool; no title text is drawn).
+  Three tint presets (crimson/teal/moonlight) are chosen per photo from
   the seeded rng. `effects/PosterEffect.ts` grades the whole captured photo rather than
-  lifting the guest onto a separate background — doing that properly needs person
-  segmentation (Phase 6, not built yet). An operator-wide style choice for the event,
-  not a per-photo guest toggle.
+  lifting the guest onto a separate background — doing that properly would use person
+  segmentation, now that it exists (see below), but hasn't been requested. An
+  operator-wide style choice for the event, not a per-photo guest toggle.
+- **Person segmentation & the real per-guest ghost effect** (Phases 6–7): built. The
+  guest asked to superimpose their own "ghost face" the way a set of horror-movie
+  posters were styled; extracting the actual copyrighted character likenesses from
+  those posters was declined (Pennywise, the Evil Dead Rise deadite, the Fright Night
+  creature are all protected), so this instead builds a real ghost from the guest's
+  own captured photo. `vision/MediaPipePersonSegmenter.ts` runs MediaPipe's
+  SelfieSegmentation model (assets bundled locally under `public/segmentation/`, loaded
+  via an injected `<script>` tag since the npm package's JS bundle is a classic
+  global-namespace script rather than real ESM) to separate the guest from the
+  background. `effects/GhostEngine.ts` then extracts the person, draws 2
+  translucent/blurred/desaturated/offset duplicate echoes (seeded per-photo, so a
+  photo's ghost pose is reproducible and doesn't jump when Goofy Filter is toggled),
+  and redraws the sharp person cutout on top so the echoes stay visible in the space
+  around the real subject rather than being covered by the full opaque photo. Toggled
+  via the "Real Ghost Effect (beta)" operator setting, which takes priority over "My
+  Cameo" for the Spookify button when both are on (My Cameo is the booth owner's own
+  fixed cutout — a different, simpler thing). Known limitation: MediaPipe returns one
+  mask for every person in frame, not per-individual instances, so a multi-person
+  capture currently ghosts the whole group as one blob rather than each guest
+  separately.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 
@@ -112,10 +132,6 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   the same incremental way (one `buildXControlPoint` function added to `MeshWarp.ts` at a
   time; the renderers and `CaricatureEngine` don't need to change shape for each one). Body
   caricature (Phase 4: huge head, giant shoulders, etc.) also isn't wired up yet.
-- **Person segmentation & the real per-guest ghost effect** (Phases 6–7) —
-  `PersonSegmenter`/`GhostEngine` are stubs; no ghosts are composited from the guest's own
-  photo yet (the "My Cameo"/"Spookify" feature above is a different, simpler thing: the
-  booth owner's own pre-cut cutout, not a duplicate generated from the guest).
 - **Backgrounds and Halloween overlays** (Phase 8, remainder) — captions and frames are now
   layered on (see above); backgrounds and overlay assets (cobwebs, bats, blood splatter,
   etc. — `OverlayKey` type exists, no assets/layering logic yet) are not.

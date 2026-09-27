@@ -60,6 +60,12 @@ export interface BoothSettings {
    * operator-wide style choice for the event, not a per-photo guest
    * toggle, to avoid multiplying the cached bitmap combinations. */
   posterMode: boolean;
+  /** "Real Ghost Effect" (beta): a translucent, distorted duplicate of the
+   * GUEST's own segmented silhouette (CLAUDE.md sections 21-23), not the
+   * booth owner's fixed cutout. When on, it takes priority over My Cameo
+   * for what powers the Spookify toggle, since both can't sensibly
+   * combine into one ghost layer. See effects/GhostEngine.ts. */
+  realGhostMode: boolean;
 
   // Printing
   printerId?: string;
@@ -89,6 +95,7 @@ export const defaultSettings: BoothSettings = {
   fixedCaption: CAPTIONS[0],
   ownerCameoMode: "off",
   posterMode: false,
+  realGhostMode: false,
 
   printerAdapter: "shareSheet",
   autoPrint: false,
