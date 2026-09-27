@@ -186,6 +186,35 @@ Phases complete (per `CLAUDE.md`'s numbering):
     mode itself — CLAUDE.md section 42 — is still unbuilt; this is just the
     crop shape for a single photo).
 - **Phase 10 (Booth mode / auto-detection)** — not started.
+- **Horror Filters — done.** Four whole-photo color-grade presets
+  (`effects/HorrorFilters.ts`): `vhs` (Analog Horror -- desaturated,
+  contrast-pushed, scanlines + grain + a cheap RGB-split chromatic
+  aberration), `noir` (Dark -- underexposed, high contrast, blue/green
+  cast), `bloodMoon` (Horror -- red tint, high contrast, crushed
+  shadows, grain), `vintage` (Vintage Haunted -- sepia, faded/lifted
+  blacks, soft grain). Same "quick procedural" tier as
+  `PosterEffect.ts` -- `ctx.filter` color grades plus a few small
+  hand-drawn passes, no shader/WebGL needed for four static looks.
+  Operator picks which filters are in play (`settings.filters:
+  FilterKey[]`, empty by default, a checkbox fieldset in the operator
+  panel's Effects section next to Overlays); which filter a given
+  photo gets is picked once per photo from that list via the existing
+  seeded rng (`PhotoRecipe.filterKey`, same pattern as `posterTint`),
+  so the guest's "🎞️ FILTER" toggle stays a simple on/off rather than
+  a picker. Applied as a pre-pass on the source bitmap before it
+  reaches `CompositionEngine.compose()`, so Frame/Overlays/Caption
+  still layer on top of a filtered photo. Mutually exclusive with
+  Poster Mode (both are whole-photo grades; stacking them would look
+  muddy) -- the Filter toggle hides itself while Poster is live, same
+  pattern Frame/Overlays already use. Verified with two new
+  `composeSelectedBitmap` cases in `tests/CapturePipeline.test.ts`
+  (filter pre-pass runs before compose(), and is skipped when Poster
+  is also on). Full suite: 172 tests, all green; `tsc -b`, `oxlint`,
+  `npm run build` all clean.
+  - Deliberately not built this round (explicit user direction):
+    a live per-guest ghost effect (already tried/reverted, see below)
+    and new caption/horror-text presets (`CAPTIONS` already covers
+    this from earlier work -- CLAUDE.md section 25).
 
 ## Architecture as built
 
