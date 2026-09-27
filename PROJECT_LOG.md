@@ -40,6 +40,24 @@ Phases complete (per `CLAUDE.md`'s numbering):
   `OverlayKey` type exists but no assets or layering logic. **Current focus
   candidates**: overlays, the real ghost effect, or the "melted face"
   caricature overlap issue.
+- **Poster Mode (beta)** — a new operator toggle (`effects/PosterEffect.ts`),
+  requested after analyzing reference horror-movie posters (Evil Dead Rise,
+  IT, Fright Night). Grades the whole photo like a poster -- desaturate/
+  contrast/tint color grade, a radial vignette that pools light around the
+  subject, bold red title typography ("GHOST BOOTH"), and a small
+  letter-spaced tagline (reusing the same caption pool). Three tint presets
+  (crimson/teal/moonlight) chosen per-photo from the seeded rng, matching
+  each reference poster's limited palette. This is the "quick procedural"
+  tier explicitly chosen over the alternatives: it grades the *whole* photo
+  rather than lifting the guest onto a separate background, because that
+  would need Phase 6 person segmentation (not built) to do properly, and a
+  generative-AI background was ruled out for now as a cost/latency/offline
+  tradeoff (CLAUDE.md sections 51-52, 64). When Poster Mode is on, it
+  replaces the regular caption+frame treatment for that photo rather than
+  layering on top (both have their own text/border, so combining them would
+  clutter the frame). Scoped as an operator-wide setting for the event, not
+  a per-photo guest toggle, to avoid multiplying the four cached bitmap
+  variants into eight.
 - **Phase 9 (Printing)** — printer model is now known: **Kodak Mini 2 Retro
   (black), confirmed purchase.** It's Bluetooth-only with no AirPrint and no
   published SDK, and Safari has no Web Bluetooth API at all (confirmed via

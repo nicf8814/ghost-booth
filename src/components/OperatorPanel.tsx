@@ -184,6 +184,14 @@ export function OperatorPanel({
               onChange={(e) => onChange({ ownerCameoMode: e.target.checked ? "always" : "off" })}
             />
           </label>
+          <label>
+            Poster Mode (beta)
+            <input
+              type="checkbox"
+              checked={settings.posterMode}
+              onChange={(e) => onChange({ posterMode: e.target.checked })}
+            />
+          </label>
         </section>
 
         <section>

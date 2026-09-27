@@ -96,6 +96,15 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   the guest can toggle to on the result screen shows the same caption/frame. Operator picks
   Frame and Caption Mode from dropdowns in the operator panel (previously Frame was a
   freeform, unwired text box).
+- **"Poster Mode" (beta)**: an operator-only checkbox that grades every photo like a
+  horror movie poster instead of the regular caption+frame look — desaturated/contrast
+  color grade, a radial vignette pooling light around the subject, bold red "GHOST
+  BOOTH" title typography, and a small letter-spaced tagline (drawn from the same
+  caption pool). Three tint presets (crimson/teal/moonlight) are chosen per photo from
+  the seeded rng. `effects/PosterEffect.ts` grades the whole captured photo rather than
+  lifting the guest onto a separate background — doing that properly needs person
+  segmentation (Phase 6, not built yet). An operator-wide style choice for the event,
+  not a per-photo guest toggle.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 

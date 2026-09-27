@@ -24,6 +24,7 @@ import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
 import { pickCaption } from "../effects/HalloweenEffects";
+import { applyPosterEffect, POSTER_TINTS } from "../effects/PosterEffect";
 import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import "./app.css";
@@ -243,26 +244,28 @@ export default function App() {
       const ghostOriginal = ghostAvailable ? await ownerCameoEngine.composite(master) : null;
       const ghostCaricatured = ghostAvailable ? await ownerCameoEngine.composite(working) : null;
 
-      // Caption + frame (Phase 8, CLAUDE.md section 28): picked once per
-      // photo from the same seeded rng used for the caricature preset above,
-      // so a given photo's caption is reproducible alongside its warp
-      // (section 20). Composited onto all four cached variants so every
-      // combination the guest can toggle to shows the same caption/frame.
+      // Caption + frame (Phase 8, CLAUDE.md section 28) OR Poster Mode
+      // (effects/PosterEffect.ts) -- mutually exclusive treatments of the
+      // same four bitmaps, picked once per photo from the same seeded rng
+      // used for the caricature preset above (section 20's reproducibility).
+      // Poster Mode supplies its own title/tagline text and vignette, so
+      // running both would double up on text/border treatments.
       const caption = pickCaption(state.settings.captionMode, state.settings.fixedCaption, rng);
       const frame = state.settings.frame;
-      originalBitmapRef.current = await compositionEngine.compose({ foreground: master, ghosts: [], caption, frame });
-      caricaturedBitmapRef.current = await compositionEngine.compose({
-        foreground: working,
-        ghosts: [],
-        caption,
-        frame,
-      });
-      originalGhostBitmapRef.current = ghostOriginal
-        ? await compositionEngine.compose({ foreground: ghostOriginal, ghosts: [], caption, frame })
-        : null;
-      caricaturedGhostBitmapRef.current = ghostCaricatured
-        ? await compositionEngine.compose({ foreground: ghostCaricatured, ghosts: [], caption, frame })
-        : null;
+
+      const finish = state.settings.posterMode
+        ? (bitmap: ImageBitmap) =>
+            applyPosterEffect(bitmap, {
+              title: "GHOST BOOTH",
+              tagline: caption,
+              tint: POSTER_TINTS[Math.floor(rng() * POSTER_TINTS.length)],
+            })
+        : (bitmap: ImageBitmap) => compositionEngine.compose({ foreground: bitmap, ghosts: [], caption, frame });
+
+      originalBitmapRef.current = await finish(master);
+      caricaturedBitmapRef.current = await finish(working);
+      originalGhostBitmapRef.current = ghostOriginal ? await finish(ghostOriginal) : null;
+      caricaturedGhostBitmapRef.current = ghostCaricatured ? await finish(ghostCaricatured) : null;
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
       // default) and Spookify on whenever the operator has the cameo
@@ -285,6 +288,7 @@ export default function App() {
     state.settings.captionMode,
     state.settings.fixedCaption,
     state.settings.frame,
+    state.settings.posterMode,
     applyPhotoSelection,
   ]);
 

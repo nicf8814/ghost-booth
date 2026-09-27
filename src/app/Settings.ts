@@ -54,6 +54,12 @@ export interface BoothSettings {
    * treatment matching the other ghosts). Off by default -- an operator
    * decision for each event, not a guest-facing default. */
   ownerCameoMode: OwnerCameoMode;
+  /** "Poster Mode" (beta): grades the photo like a horror movie poster
+   * (color grade, vignette, title/tagline typography) instead of the
+   * regular caption+frame treatment. See effects/PosterEffect.ts. An
+   * operator-wide style choice for the event, not a per-photo guest
+   * toggle, to avoid multiplying the cached bitmap combinations. */
+  posterMode: boolean;
 
   // Printing
   printerId?: string;
@@ -82,6 +88,7 @@ export const defaultSettings: BoothSettings = {
   captionMode: "random",
   fixedCaption: CAPTIONS[0],
   ownerCameoMode: "off",
+  posterMode: false,
 
   printerAdapter: "shareSheet",
   autoPrint: false,
