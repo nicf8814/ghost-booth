@@ -1,6 +1,9 @@
 // Operator-configurable settings (CLAUDE.md section 47).
 // Persisted via storage/SettingsStore.ts.
 
+import type { FrameKey } from "../effects/Frames";
+import { CAPTIONS } from "../effects/HalloweenEffects";
+
 export type CaricaturePreset =
   | "Goblin"
   | "Demon"
@@ -42,8 +45,10 @@ export interface BoothSettings {
   caricatureStrength: number; // 0..1, scales all *Scale params toward 1.0
   ghostStrength: number; // 0..1
   preset: CaricaturePreset;
-  frame: string; // key into public/frames
+  frame: FrameKey;
   captionMode: CaptionMode;
+  /** Caption text used when captionMode is "fixed". */
+  fixedCaption: string;
   /** The booth owner's own ghostly cameo, composited into every photo when
    * enabled (public/cameo/nic-cutout.png, given a translucent/blurred
    * treatment matching the other ghosts). Off by default -- an operator
@@ -75,6 +80,7 @@ export const defaultSettings: BoothSettings = {
   preset: "Random",
   frame: "classic",
   captionMode: "random",
+  fixedCaption: CAPTIONS[0],
   ownerCameoMode: "off",
 
   printerAdapter: "shareSheet",

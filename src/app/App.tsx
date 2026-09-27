@@ -23,6 +23,8 @@ import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
+import { pickCaption } from "../effects/HalloweenEffects";
+import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import "./app.css";
 
@@ -46,6 +48,10 @@ function createPrinterAdapter(kind: PrinterAdapterKind): PhotoPrinter {
   }
 }
 const caricatureEngine = new MeshWarpCaricatureEngine();
+// Caption/frame compositing (CLAUDE.md section 28) -- Canvas2D is the
+// baseline/guaranteed-available tier (section 29); no state worth
+// reconstructing between photos, so one shared instance.
+const compositionEngine = new Canvas2DCompositionEngine();
 // Same subpath-safe resolution as the face-detector models below --
 // public/cameo/nic-cutout.png needs to resolve correctly under a GitHub
 // Pages subpath deployment too.
@@ -226,24 +232,37 @@ export default function App() {
       // master frame when no faces were detected. Both the candid original
       // and the goofy version are kept so the guest can toggle Goofy
       // Filter on the result screen without redoing detection/warping.
-      originalBitmapRef.current = master;
-      caricaturedBitmapRef.current = working;
-
       // "My Cameo" (operator beta toggle): composites the booth owner's own
       // ghostly cameo onto BOTH the candid and goofy versions, so the
       // guest's "Spookify" toggle can layer the ghost onto whichever photo
       // (candid or goofy) they're currently viewing, independent of the
       // Goofy Filter toggle. Only computed when the operator has the
       // feature enabled at all -- composite() doesn't mutate its input, so
-      // `master`/`working` stay valid for the non-ghost variants above.
+      // `master`/`working` stay valid for the non-ghost variants below.
       const ghostAvailable = state.settings.ownerCameoMode !== "off";
-      if (ghostAvailable) {
-        originalGhostBitmapRef.current = await ownerCameoEngine.composite(master);
-        caricaturedGhostBitmapRef.current = await ownerCameoEngine.composite(working);
-      } else {
-        originalGhostBitmapRef.current = null;
-        caricaturedGhostBitmapRef.current = null;
-      }
+      const ghostOriginal = ghostAvailable ? await ownerCameoEngine.composite(master) : null;
+      const ghostCaricatured = ghostAvailable ? await ownerCameoEngine.composite(working) : null;
+
+      // Caption + frame (Phase 8, CLAUDE.md section 28): picked once per
+      // photo from the same seeded rng used for the caricature preset above,
+      // so a given photo's caption is reproducible alongside its warp
+      // (section 20). Composited onto all four cached variants so every
+      // combination the guest can toggle to shows the same caption/frame.
+      const caption = pickCaption(state.settings.captionMode, state.settings.fixedCaption, rng);
+      const frame = state.settings.frame;
+      originalBitmapRef.current = await compositionEngine.compose({ foreground: master, ghosts: [], caption, frame });
+      caricaturedBitmapRef.current = await compositionEngine.compose({
+        foreground: working,
+        ghosts: [],
+        caption,
+        frame,
+      });
+      originalGhostBitmapRef.current = ghostOriginal
+        ? await compositionEngine.compose({ foreground: ghostOriginal, ghosts: [], caption, frame })
+        : null;
+      caricaturedGhostBitmapRef.current = ghostCaricatured
+        ? await compositionEngine.compose({ foreground: ghostCaricatured, ghosts: [], caption, frame })
+        : null;
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
       // default) and Spookify on whenever the operator has the cameo
@@ -263,6 +282,9 @@ export default function App() {
     state.settings.preset,
     state.settings.caricatureStrength,
     state.settings.ownerCameoMode,
+    state.settings.captionMode,
+    state.settings.fixedCaption,
+    state.settings.frame,
     applyPhotoSelection,
   ]);
 

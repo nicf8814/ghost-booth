@@ -83,6 +83,19 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   Defaults to on (ghost visible) whenever the operator has "My Cameo" enabled. A fixed
   always-available/off toggle for now; a "random chance per photo" mode is planned as a
   follow-up once this version is confirmed working.
+- **Captions + frames wired into every photo** (Phase 8, partial): every capture now runs
+  through `Canvas2DCompositionEngine` before it's cached/displayed/printed. A caption is
+  picked once per photo (`effects/HalloweenEffects.ts`'s `pickCaption`, from the same
+  per-photo seeded rng that drives the caricature preset, per section 20) according to the
+  operator's Caption Mode — off / random (one of the 15 stock lines) / fixed (an
+  operator-chosen line, picked from a new "Fixed Caption" dropdown that only shows in fixed
+  mode) — and a frame is drawn procedurally with Canvas 2D (`effects/Frames.ts`, no raster
+  assets): `none`, `classic` (an orange/near-black double-line border matching the app's
+  palette), or `filmStrip` (black sprocket-hole bars top and bottom). Both are composited
+  onto all four cached bitmap variants (candid/goofy × ghost-on/off), so every combination
+  the guest can toggle to on the result screen shows the same caption/frame. Operator picks
+  Frame and Caption Mode from dropdowns in the operator panel (previously Frame was a
+  freeform, unwired text box).
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 
@@ -90,10 +103,13 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   the same incremental way (one `buildXControlPoint` function added to `MeshWarp.ts` at a
   time; the renderers and `CaricatureEngine` don't need to change shape for each one). Body
   caricature (Phase 4: huge head, giant shoulders, etc.) also isn't wired up yet.
-- **Person segmentation & ghost effect** (Phases 6–7) — `PersonSegmenter`/`GhostEngine` are
-  stubs; no ghosts are composited yet.
-- **Full composition** (Phase 8) — backgrounds, overlays, captions, and frames aren't
-  layered onto the photo yet; the result is currently the plain captured photo.
+- **Person segmentation & the real per-guest ghost effect** (Phases 6–7) —
+  `PersonSegmenter`/`GhostEngine` are stubs; no ghosts are composited from the guest's own
+  photo yet (the "My Cameo"/"Spookify" feature above is a different, simpler thing: the
+  booth owner's own pre-cut cutout, not a duplicate generated from the guest).
+- **Backgrounds and Halloween overlays** (Phase 8, remainder) — captions and frames are now
+  layered on (see above); backgrounds and overlay assets (cobwebs, bats, blood splatter,
+  etc. — `OverlayKey` type exists, no assets/layering logic yet) are not.
 - **Real printer hardware** (Phase 9, partial) — only the mock printer and the generic
   browser/AirPrint print-dialog adapters exist. `VendorPrinterAdapter` throws on purpose;
   the exact printer model is needed before it can be implemented.

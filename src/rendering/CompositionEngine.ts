@@ -1,5 +1,7 @@
 // CLAUDE.md sections 28-29: layered composition, GPU-tiered rendering.
 
+import { drawFrame } from "../effects/Frames";
+
 export interface CompositionConfig {
   background?: ImageBitmap;
   ghosts: ImageBitmap[]; // back-to-front order
@@ -31,9 +33,9 @@ export function detectRenderTier(): RenderTier {
 
 /**
  * Canvas2D composition, used as the baseline implementation and as the
- * guaranteed fallback when WebGL2/WebGPU are unavailable. Currently just
- * layers the foreground over the background; ghosts/caption/frame are
- * layered in as those subsystems land (Phase 8).
+ * guaranteed fallback when WebGL2/WebGPU are unavailable. Layers
+ * background -> ghosts -> foreground -> caption -> frame (CLAUDE.md
+ * section 28).
  */
 export class Canvas2DCompositionEngine implements CompositionEngine {
   async compose(config: CompositionConfig): Promise<ImageBitmap> {
@@ -58,6 +60,10 @@ export class Canvas2DCompositionEngine implements CompositionEngine {
 
     if (config.caption) {
       drawCaption(ctx, config.caption, canvas.width, canvas.height);
+    }
+
+    if (config.frame) {
+      drawFrame(ctx, config.frame, canvas.width, canvas.height);
     }
 
     return canvas.transferToImageBitmap();

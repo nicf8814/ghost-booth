@@ -41,6 +41,25 @@ export const ATTRACT_MESSAGES: readonly string[] = [
 
 export const PRINT_FAILURE_MESSAGE = "THE PRINTER HAS BEEN POSSESSED.";
 
+/**
+ * Picks the caption for a photo given the operator's CaptionMode (CLAUDE.md
+ * section 25). Typed as an inline union rather than importing CaptionMode
+ * from app/Settings to avoid a circular import (effects/ is lower-level than
+ * app/). Uses the caller's seeded rng so the choice is reproducible per-photo
+ * (CLAUDE.md section 20) -- callers should pass the same rng instance used
+ * for preset/ghost randomization, not a fresh Math.random().
+ */
+export function pickCaption(
+  mode: "off" | "random" | "fixed",
+  fixedCaption: string,
+  rng: () => number,
+): string | undefined {
+  if (mode === "off") return undefined;
+  if (mode === "fixed") return fixedCaption;
+  const idx = Math.floor(rng() * CAPTIONS.length);
+  return CAPTIONS[idx];
+}
+
 /** Overlay asset keys; actual files live in public/overlays and are added incrementally. */
 export type OverlayKey =
   | "bloodSplatter"

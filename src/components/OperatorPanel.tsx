@@ -1,4 +1,6 @@
 import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind } from "../app/Settings";
+import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
+import { CAPTIONS } from "../effects/HalloweenEffects";
 
 interface OperatorPanelProps {
   settings: BoothSettings;
@@ -141,7 +143,13 @@ export function OperatorPanel({
           </label>
           <label>
             Frame
-            <input type="text" value={settings.frame} onChange={(e) => onChange({ frame: e.target.value })} />
+            <select value={settings.frame} onChange={(e) => onChange({ frame: e.target.value as FrameKey })}>
+              {FRAME_KEYS.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Caption Mode
@@ -156,6 +164,18 @@ export function OperatorPanel({
               ))}
             </select>
           </label>
+          {settings.captionMode === "fixed" && (
+            <label>
+              Fixed Caption
+              <select value={settings.fixedCaption} onChange={(e) => onChange({ fixedCaption: e.target.value })}>
+                {CAPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             My Cameo (beta)
             <input

@@ -19,8 +19,27 @@ Phases complete (per `CLAUDE.md`'s numbering):
   forehead, cheeks, body caricature not yet built.
 - **Phase 5 (GPU)** — effectively done as a side effect of Phase 4 (WebGL2 mesh
   warp + Canvas2D fallback already exist and are generic, not nose-specific).
-- **Phase 6 (Segmentation)**, **Phase 7 (Ghost)**, **Phase 8 (Composition)** —
-  not started. **This is the current focus.**
+- **Phase 6 (Segmentation)**, **Phase 7 (Ghost)** — not started; the real
+  per-guest ghost effect (spec sections 21-23, generated from person
+  segmentation) still doesn't exist. The "My Cameo"/"Spookify" feature is a
+  different, simpler thing (the booth owner's own pre-cut cameo composited
+  in) and is not a substitute for this.
+- **Phase 8 (Composition)** — partially wired. `Canvas2DCompositionEngine`
+  (background/ghosts/foreground/caption layering, already built earlier) is
+  now actually invoked from the live capture pipeline in `App.tsx`: every
+  photo gets a caption (`effects/HalloweenEffects.ts`'s `pickCaption`, honors
+  the operator's Caption Mode: off/random/fixed, using the same per-photo
+  seeded rng as the caricature preset) and a frame (`effects/Frames.ts`,
+  procedurally drawn Canvas 2D — `classic` double-line border or `filmStrip`
+  sprocket-hole bars, no raster assets to source/license) composited onto
+  all four cached bitmap variants (candid/goofy × ghost-on/off), so every
+  toggle combination the guest can hit on the result screen shows the same
+  caption/frame. Operator picks Frame and Caption Mode (+ Fixed Caption text
+  when in "fixed" mode) from the operator panel. Halloween overlays
+  (cobwebs/bats/blood splatter/etc., spec section 24) are still unbuilt —
+  `OverlayKey` type exists but no assets or layering logic. **Current focus
+  candidates**: overlays, the real ghost effect, or the "melted face"
+  caricature overlap issue.
 - **Phase 9 (Printing)** — printer model is now known: **Kodak Mini 2 Retro
   (black), confirmed purchase.** It's Bluetooth-only with no AirPrint and no
   published SDK, and Safari has no Web Bluetooth API at all (confirmed via
