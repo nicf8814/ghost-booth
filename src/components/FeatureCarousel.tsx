@@ -7,6 +7,8 @@ import type { PosterTint } from "../effects/PosterEffect";
 import { POSTER_TINT_LABELS } from "../effects/PosterEffect";
 import type { FilterKey } from "../effects/HorrorFilters";
 import { FILTER_LABELS } from "../effects/HorrorFilters";
+import type { CameoKey } from "../effects/Cameos";
+import { CAMEO_LABELS } from "../effects/Cameos";
 
 interface FeatureCarouselProps {
   frameOptions: FrameKey[];
@@ -24,6 +26,10 @@ interface FeatureCarouselProps {
   filterOptions: FilterKey[];
   filterKey: FilterKey | null;
   onSelectFilter: (key: FilterKey | null) => void;
+
+  ghostOptions: CameoKey[];
+  ghostKey: CameoKey | null;
+  onSelectGhost: (key: CameoKey | null) => void;
 }
 
 interface Chip {
@@ -35,7 +41,7 @@ interface Chip {
 }
 
 interface Category {
-  key: "frame" | "overlays" | "filter" | "poster";
+  key: "frame" | "overlays" | "filter" | "poster" | "ghost";
   label: string;
   chips: Chip[];
   hasSelection: boolean;
@@ -75,10 +81,38 @@ export function FeatureCarousel({
   filterOptions,
   filterKey,
   onSelectFilter,
+  ghostOptions,
+  ghostKey,
+  onSelectGhost,
 }: FeatureCarouselProps) {
   const posterActive = posterTint !== null;
 
   const categories: Category[] = [];
+
+  if (ghostOptions.length > 0) {
+    categories.push({
+      key: "ghost",
+      label: "Ghost",
+      hasSelection: ghostKey !== null,
+      disabledByPoster: false,
+      chips: [
+        {
+          key: "off",
+          label: "Off",
+          active: ghostKey === null,
+          disabled: false,
+          onClick: () => onSelectGhost(null),
+        },
+        ...ghostOptions.map((key) => ({
+          key,
+          label: CAMEO_LABELS[key],
+          active: ghostKey === key,
+          disabled: false,
+          onClick: () => onSelectGhost(key),
+        })),
+      ],
+    });
+  }
 
   if (frameOptions.length > 0) {
     categories.push({

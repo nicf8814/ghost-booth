@@ -6,6 +6,7 @@ import type { FrameKey } from "../effects/Frames";
 import type { OverlayKey } from "../effects/HalloweenEffects";
 import type { PosterTint } from "../effects/PosterEffect";
 import type { FilterKey } from "../effects/HorrorFilters";
+import type { CameoKey } from "../effects/Cameos";
 
 interface ResultScreenProps {
   imageUrl: string | null;
@@ -24,12 +25,13 @@ interface ResultScreenProps {
    * the ghost toggle below -- either can be combined with either. */
   goofyFilterOn: boolean;
   onToggleGoofyFilter: () => void;
-  /** Whether the booth owner's ghostly cameo ("Spookify") is layered onto
-   * whichever photo (candid or goofy) is currently showing. Only rendered
-   * when the operator has the cameo feature enabled at all. */
-  ghostOn: boolean;
-  onToggleGhost: () => void;
-  ghostAvailable: boolean;
+  /** Which specific ghost cameo (if any) is layered onto whichever photo
+   * (candid or goofy) is currently showing -- picked from FeatureCarousel's
+   * Ghost category, only shown when the operator has the cameo feature
+   * enabled at all (ghostOptions non-empty). */
+  ghostKey: CameoKey | null;
+  onSelectGhost: (key: CameoKey | null) => void;
+  ghostOptions: CameoKey[];
   /** Whether a caption (CLAUDE.md section 25) is drawn on whichever photo
    * is currently showing, poster-graded or not. Only rendered when the
    * operator's Caption Mode isn't "off". Unlike the other toggles, every
@@ -75,9 +77,9 @@ export function ResultScreen({
   debugMode,
   goofyFilterOn,
   onToggleGoofyFilter,
-  ghostOn,
-  onToggleGhost,
-  ghostAvailable,
+  ghostKey,
+  onSelectGhost,
+  ghostOptions,
   captionOn,
   onToggleCaption,
   captionAvailable,
@@ -147,6 +149,9 @@ export function ResultScreen({
         filterOptions={filterOptions}
         filterKey={filterKey}
         onSelectFilter={onSelectFilter}
+        ghostOptions={ghostOptions}
+        ghostKey={ghostKey}
+        onSelectGhost={onSelectGhost}
       />
 
       <div className="result-icon-row">
@@ -180,19 +185,6 @@ export function ResultScreen({
           <span className="icon-button-glyph" aria-hidden="true">🎃</span>
           <span className="icon-button-label">GOOFY</span>
         </button>
-
-        {ghostAvailable && (
-          <button
-            type="button"
-            className={`icon-button ${ghostOn ? "icon-button-active" : ""}`}
-            onClick={onToggleGhost}
-            aria-pressed={ghostOn}
-            aria-label="Toggle spookify ghost cameo"
-          >
-            <span className="icon-button-glyph" aria-hidden="true">👻</span>
-            <span className="icon-button-label">SPOOKY</span>
-          </button>
-        )}
 
         {captionAvailable && (
           <button

@@ -30,6 +30,7 @@ import type { FaceModel } from "../vision/VisionTypes";
 import type { FaceDetector } from "../vision/FaceDetector";
 import type { CaricatureEngine } from "../effects/EffectEngine";
 import type { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
+import { CAMEO_KEYS, type CameoKey } from "../effects/Cameos";
 import { resolvePreset, scaleTowardNeutral, varyConfigForFace } from "../effects/Presets";
 import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
 import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
@@ -67,7 +68,8 @@ export interface PhotoRecipe {
  * on at all, empty otherwise.
  */
 export interface PhotoOptions {
-  ghost: boolean;
+  /** Which specific cameos the guest can choose from (CapturePipeline.ts's ghost picker) -- empty when the operator has the feature off entirely. */
+  ghostOptions: CameoKey[];
   caption: boolean;
   frameOptions: FrameKey[];
   overlayOptions: OverlayKey[];
@@ -75,20 +77,19 @@ export interface PhotoOptions {
   filterOptions: FilterKey[];
 }
 
-/** The guest's starting selection for a fresh photo -- frame/overlays default to the operator's configured defaults (on), poster/filter default off so the guest opts into those more dramatic whole-photo treatments deliberately. */
+/** The guest's starting selection for a fresh photo -- frame/overlays default to the operator's configured defaults (on), poster/filter/ghost default off so the guest opts into those more dramatic whole-photo treatments deliberately. */
 export interface DefaultSelection {
   frameKey: FrameKey;
   overlayKeys: OverlayKey[];
   posterTint: PosterTint | null;
   filterKey: FilterKey | null;
+  ghostKey: CameoKey | null;
 }
 
 export interface AnalyzedPhoto {
   faces: FaceModel[];
   original: ImageBitmap;
   caricatured: ImageBitmap;
-  originalGhost: ImageBitmap | null;
-  caricaturedGhost: ImageBitmap | null;
   recipe: PhotoRecipe;
   options: PhotoOptions;
   defaults: DefaultSelection;
@@ -97,7 +98,6 @@ export interface AnalyzedPhoto {
 export interface AnalyzePhotoDeps {
   faceDetector: Pick<FaceDetector, "detect">;
   caricatureEngine: Pick<CaricatureEngine, "warp">;
-  ownerCameoEngine: Pick<OwnerCameoEngine, "composite">;
 }
 
 /**
@@ -149,21 +149,12 @@ export async function analyzeAndWarpPhoto(
     }
   }
 
-  // "My Cameo" ghost layer, only computed when the operator has it
-  // enabled -- composite() doesn't mutate its input, so `master`/`working`
-  // stay valid for the non-ghost variants regardless. When there are
-  // several cameo images, one is picked per photo and reused for both
-  // variants below so the candid and goofy versions of one photo show the
-  // same "ghost" rather than two different ones.
+  // Ghost cameos are no longer baked in here -- the guest picks a specific
+  // cameo from a menu (like Frame/Overlays/Poster/Filter) and
+  // composeSelectedBitmap applies it on demand, so it can be swapped
+  // without re-running detection/warp. ghostAvailable just gates whether
+  // that menu has anything in it at all.
   const ghostAvailable = settings.ownerCameoMode !== "off";
-  let originalGhost: ImageBitmap | null = null;
-  let caricaturedGhost: ImageBitmap | null = null;
-  if (ghostAvailable) {
-    const cameoPick = rng();
-    const pickRng = () => cameoPick;
-    originalGhost = await deps.ownerCameoEngine.composite(master, {}, pickRng);
-    caricaturedGhost = await deps.ownerCameoEngine.composite(working, {}, pickRng);
-  }
 
   const caption = pickCaption(settings.captionMode, settings.fixedCaption, rng);
   const recipe: PhotoRecipe = {
@@ -175,11 +166,9 @@ export async function analyzeAndWarpPhoto(
     faces,
     original: master,
     caricatured: working,
-    originalGhost,
-    caricaturedGhost,
     recipe,
     options: {
-      ghost: ghostAvailable,
+      ghostOptions: ghostAvailable ? CAMEO_KEYS : [],
       caption: settings.captionMode !== "off",
       frameOptions: FRAME_KEYS,
       overlayOptions: settings.overlays,
@@ -191,22 +180,22 @@ export async function analyzeAndWarpPhoto(
       overlayKeys: settings.overlays,
       posterTint: null,
       filterKey: null,
+      ghostKey: null,
     },
   };
 }
 
-/** The four bitmaps `analyzeAndWarpPhoto` produced for one photo -- everything `composeSelectedBitmap` picks between. */
+/** The two bitmaps `analyzeAndWarpPhoto` produced for one photo -- everything `composeSelectedBitmap` picks between. Ghost cameos are no longer baked in as separate variants; the chosen cameo is composited on demand in composeSelectedBitmap instead. */
 export interface PhotoBaseBitmaps {
   original: ImageBitmap;
   caricatured: ImageBitmap;
-  originalGhost: ImageBitmap | null;
-  caricaturedGhost: ImageBitmap | null;
 }
 
 /** The guest's current picks for the photo currently showing. */
 export interface PhotoSelection {
   goofy: boolean;
-  ghost: boolean;
+  /** Which specific cameo (if any) is composited in -- null means no ghost. */
+  ghostKey: CameoKey | null;
   captioned: boolean;
   frameKey: FrameKey;
   overlayKeys: OverlayKey[];
@@ -216,13 +205,15 @@ export interface PhotoSelection {
 
 export interface ComposeSelectionDeps {
   compositionEngine: Pick<CompositionEngine, "compose">;
+  ownerCameoEngine: Pick<OwnerCameoEngine, "composite">;
 }
 
 /**
  * Composes the guest's current picks into the one bitmap that should be
- * shown/printed. Pipeline order: the chosen filter (if any) grades the
- * source first, then the chosen poster tint (if any) grades on top of that
- * -- Filter and Poster can now both be live on the same photo, stacking as
+ * shown/printed. Pipeline order: the chosen ghost cameo (if any) is
+ * composited onto the goofy/plain source first, then the chosen filter (if
+ * any) grades that, then the chosen poster tint (if any) grades on top of
+ * that -- Filter and Poster can both be live on the same photo, stacking as
  * two color grades rather than being mutually exclusive. Frame stays
  * mutually exclusive with Poster (a frame border on top of Poster's own
  * vignette still clutters it the way the original design avoided), so a
@@ -238,19 +229,16 @@ export async function composeSelectedBitmap(
   selection: PhotoSelection,
   deps: ComposeSelectionDeps,
 ): Promise<ImageBitmap | null> {
-  const ghostVariant = selection.goofy ? base.caricaturedGhost : base.originalGhost;
-  const plainVariant = selection.goofy ? base.caricatured : base.original;
-  // Falls back to the non-ghost variant if ghost was requested but isn't
-  // available for this photo (cameo disabled), so a stray ghost=true can
-  // never resolve to a missing bitmap.
-  const source = (selection.ghost && ghostVariant) || plainVariant;
+  const source = selection.goofy ? base.caricatured : base.original;
   if (!source) return null;
+
+  const ghosted = await deps.ownerCameoEngine.composite(source, selection.ghostKey);
 
   const postered = selection.posterTint !== null;
 
   const filteredSource = selection.filterKey
-    ? await applyHorrorFilter(source, { key: selection.filterKey })
-    : source;
+    ? await applyHorrorFilter(ghosted, { key: selection.filterKey })
+    : ghosted;
 
   const gradedSource = postered
     ? await applyPosterEffect(filteredSource, { tint: selection.posterTint as PosterTint })

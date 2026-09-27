@@ -702,3 +702,76 @@ Two bugs in the frame added earlier this session:
   Verified: `tsc -b`, `oxlint`, `npm run build`, and the full suite (182
   tests) all clean -- no test exercises this frame's pixels directly, so
   none needed changes.
+
+## Torn Edge fix, Heisterkamp redesign (attempt 2), and the ghost-cameo picker — done
+
+Three fixes/features from user-reported screenshots and a new explicit ask
+("these are not stickers"):
+
+- **Torn Edge frame was a giant solid blob, not a torn border.**
+  `jaggedRectPath` (the helper that traces the inner jagged edge for the
+  even-odd "punch a jagged hole in the outer rect" technique) called
+  `ctx.beginPath()` internally, which wiped out the outer-rect subpath
+  `drawTornFrame` had already added to the same path before calling it --
+  so `fill("evenodd")` only ever saw one shape (the inner jagged one) and
+  filled it solid, covering almost the entire photo in cream instead of
+  leaving a thin torn-paper ring. Fixed by removing that stray
+  `beginPath()` call so both subpaths (outer rect + inner jagged shape)
+  stay on the same path, which is what even-odd fill needs to punch the
+  hole correctly.
+- **Heisterkamp blood redesigned to drip from the top of the frame, not
+  the banner edge.** The previous fix (see above) technically stopped
+  blood from crossing the actual text pixels, but the result -- a dense
+  row of short upward spikes hugging the top of the black banner -- still
+  looked bad (more "row of thorns" than blood) per the user's follow-up
+  screenshot. Per the user's explicit direction, the banner-edge drips
+  are gone entirely; `drawHeisterkampFrame` now draws one dramatic row of
+  long blood drips from the very top of the frame (`y = 0`, reaching 40%
+  of the photo's height) down over the subject, nowhere near the bottom
+  banner. `drawBloodDrips` gained an optional `count` parameter (density
+  defaults to ~1 drip per 42px of width, same as before, but the
+  top-of-frame call passes a smaller explicit count) plus width now
+  scales off `width / count` instead of the drip length, so a small
+  number of long drips reads as a handful of thick dramatic streaks
+  rather than a dense picket fence of thin spikes.
+- **Ghost cameo picker**, replacing the old single-toggle "My Cameo"
+  Spookify button: the guest now explicitly picks which ghost to layer
+  onto their photo from a menu, same pattern as Frame/Overlays/Poster/
+  Filter. New `effects/Cameos.ts` defines `CameoKey`/`CAMEO_KEYS`/
+  `CAMEO_LABELS`/`CAMEO_FILENAMES` for six choosable cameos: the
+  pre-existing `nic-cutout.png` ("My Cameo") plus five new stock
+  horror/creature images the user supplied, copied into `public/cameo/`
+  (`the-rake.jpg`, `forest-crawler.jpg`, `glass-hands.jpg`,
+  `zombie-woman.jpg`, `smoke-skull.jpg`). `OwnerCameoEngine` was
+  rewritten: `composite()` now takes an explicit `key: CameoKey | null`
+  instead of picking via rng from a plain array, and its default sizing
+  changed from a small corner "sticker" (32% width, offset toward a
+  corner) to a full-frame "cover" fill -- scaled so the cameo's shorter
+  dimension exactly fills the photo, centered -- per the user's explicit
+  "these are not stickers... scale to fit the frame to strike fear"
+  requirement. `CapturePipeline.ts` no longer bakes ghost variants at
+  capture time (`PhotoBaseBitmaps` dropped `originalGhost`/
+  `caricaturedGhost`, `AnalyzePhotoDeps` dropped `ownerCameoEngine`);
+  instead `composeSelectedBitmap` composites the guest's currently-picked
+  cameo (`PhotoSelection.ghostKey`, replacing the old boolean `ghost`)
+  onto the goofy/plain source live, right before the filter/poster
+  grading stages -- consistent with how Frame/Overlays/Poster/Filter
+  already work, and letting the guest swap cameos without re-running
+  face detection/warping. `PhotoOptions.ghost: boolean` became
+  `ghostOptions: CameoKey[]` (empty when the operator's Cameo Mode is
+  off); `DefaultSelection` gained `ghostKey: CameoKey | null` (always
+  null -- guests opt in). `FeatureCarousel.tsx` gained a "Ghost" category
+  (Off + each cameo label as a chip) shown whenever `ghostOptions` is
+  non-empty; `ResultScreen.tsx`'s old standalone "SPOOKY" icon-row toggle
+  button was removed since the picker now lives in the carousel.
+  Licensing note for the user: the five new cameo images are commercial
+  stock photography (their EXIF metadata identifies them as such, e.g.
+  "Scary ghost on dark background") now embedded in this public GitHub
+  Pages repo/site -- worth confirming there's a license that covers this
+  use, or swapping in different art, before this goes further.
+  Verified: `tsc -b` (including a `--force` full rebuild), `oxlint`, and
+  `npm run build` all clean. `tests/OwnerCameoEngine.test.ts` rewritten
+  for the new key-based API and cover-fill default geometry;
+  `tests/CapturePipeline.test.ts` updated for the reworked
+  `PhotoOptions`/`DefaultSelection`/`PhotoBaseBitmaps`/`PhotoSelection`/
+  `ComposeSelectionDeps` shapes. Full suite: 180 tests, all green.

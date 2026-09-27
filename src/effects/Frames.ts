@@ -217,7 +217,12 @@ function jaggedRectPath(
   const wobble = (i: number) => (Math.sin(i * 12.9898) * 43758.5453) % 1;
   const jag = (base: number, i: number) => base + (wobble(i) - 0.5) * depth * 2;
 
-  ctx.beginPath();
+  // Deliberately no ctx.beginPath() here: the caller already opened the
+  // path and added the outer rect subpath before calling this. Calling
+  // beginPath() again wiped that out, leaving only this inner jagged
+  // shape in the path -- so fill("evenodd") filled it solid instead of
+  // subtracting it from the outer rect, which is what turned the "torn
+  // edge" frame into a giant opaque blob covering almost the whole photo.
   let i = 0;
   ctx.moveTo(x, jag(y, i++));
   for (let px = x; px < x + w; px += step) ctx.lineTo(px, jag(y, i++));
@@ -230,25 +235,22 @@ function jaggedRectPath(
   ctx.closePath();
 }
 
-/** The named event frame: a black banner across the bottom reading "HEISTERKAMP HALLOWEEN 2027" in bold horror lettering, with blood dripping *from* the banner's top edge into the photo above it -- not across the text itself, which stays clean and legible. Font size auto-shrinks to fit the banner width so the text is never clipped or cramped at any photo size. */
+/** The named event frame: dramatic blood dripping down from the very top of the frame over the subject, with a clean black banner across the bottom reading "HEISTERKAMP HALLOWEEN 2027" in bold horror lettering -- kept completely free of blood so it stays legible. Font size auto-shrinks to fit the banner width so the text is never clipped or cramped at any photo size. */
 function drawHeisterkampFrame(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number): void {
   ctx.save();
 
-  // Thin blood-drip accent along the very top edge of the whole frame --
-  // unrelated to the banner, just carries the "dripping" motif to the top
-  // of the photo too.
-  drawBloodDrips(ctx, width, 0, width * 0.02, "rgba(120, 8, 12, 0.85)", 1);
+  // Blood dripping down from the top edge of the frame, over the subject --
+  // long, uneven streaks rather than the earlier thin corner accent, so it
+  // reads as "dripping down the photo" rather than a decoration. Nowhere
+  // near the banner at the bottom, so the two never interact.
+  drawBloodDrips(ctx, width, 0, height * 0.4, "rgba(130, 8, 12, 0.82)", 1, 9);
 
-  // Bottom banner.
+  // Bottom banner -- solid black, no blood drawn anywhere near it, so the
+  // text underneath stays clean and legible.
   const bannerH = Math.round(height * 0.13);
   const bannerY = height - bannerH;
   ctx.fillStyle = "#0a0508";
   ctx.fillRect(0, bannerY, width, bannerH);
-
-  // Blood dripping *down from the banner's top edge into the photo above
-  // it* -- drawn before the text, and entirely outside the banner
-  // rectangle, so it never crosses into the text area below.
-  drawBloodDrips(ctx, width, bannerY, bannerH * 0.55, "rgba(150, 10, 14, 0.88)", -1);
 
   const text = "HEISTERKAMP HALLOWEEN 2027";
   const maxTextWidth = width * 0.92;
@@ -282,7 +284,7 @@ function drawHeisterkampFrame(ctx: OffscreenCanvasRenderingContext2D, width: num
   ctx.restore();
 }
 
-/** A deterministic row of uneven blood-drip streaks hanging from `y`, either downward (`direction: 1`, into the photo below) or upward (`direction: -1`, into the photo above -- used for drips that hang from the *top* of a bottom banner without crossing into it). Shared by drawHeisterkampFrame's top-of-frame accent and its banner-edge drips. No rng (frames must render identically every time for a given size), so drip lengths/positions come from a fixed trig-based wobble instead. */
+/** A deterministic row of uneven blood-drip streaks hanging from `y`, either downward (`direction: 1`, into the photo below) or upward (`direction: -1`, into the photo above -- used for drips that hang from the *top* of a bottom banner without crossing into it). Shared by drawHeisterkampFrame's top-of-frame accent and its banner-edge drips. No rng (frames must render identically every time for a given size), so drip lengths/positions come from a fixed trig-based wobble instead. `count` overrides the default density (~1 drip per 42px of width) -- a top-of-frame drip that runs a long way down needs to be sparser and fatter to read as a handful of dramatic streaks rather than a dense picket fence, so its width is derived from `width / count` instead of the long `maxDripLen`. */
 function drawBloodDrips(
   ctx: OffscreenCanvasRenderingContext2D,
   width: number,
@@ -290,15 +292,17 @@ function drawBloodDrips(
   maxDripLen: number,
   color: string,
   direction: 1 | -1,
+  count?: number,
 ): void {
-  const count = Math.max(6, Math.round(width / 42));
+  const dripCount = count ?? Math.max(6, Math.round(width / 42));
+  const baseDripW = width / dripCount;
   ctx.fillStyle = color;
-  for (let i = 0; i < count; i++) {
-    const t = i / count;
+  for (let i = 0; i < dripCount; i++) {
+    const t = i / dripCount;
     const x = t * width + Math.sin(i * 7.13) * 6;
     const wobble = (Math.sin(i * 3.71) + 1) / 2; // 0..1, deterministic per index
     const dripLen = direction * maxDripLen * (0.25 + wobble * 0.75);
-    const dripW = maxDripLen * (0.14 + wobble * 0.1);
+    const dripW = baseDripW * (0.5 + wobble * 0.35);
 
     // A rounded "bead" at the drip's base, tapering into a thin trail.
     ctx.beginPath();

@@ -96,7 +96,7 @@ const baseSettings: CapturePipelineSettings = {
 function baseSelection(overrides: Partial<PhotoSelection> = {}): PhotoSelection {
   return {
     goofy: false,
-    ghost: false,
+    ghostKey: null,
     captioned: false,
     frameKey: "none",
     overlayKeys: [],
@@ -115,7 +115,6 @@ describe("analyzeAndWarpPhoto", () => {
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([fakeFace(), fakeFace()]) },
       caricatureEngine: { warp },
-      ownerCameoEngine: { composite: vi.fn() },
     };
 
     const result = await analyzeAndWarpPhoto(master, deps, baseSettings);
@@ -136,7 +135,6 @@ describe("analyzeAndWarpPhoto", () => {
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
       caricatureEngine: { warp },
-      ownerCameoEngine: { composite: vi.fn() },
     };
 
     const result = await analyzeAndWarpPhoto(master, deps, baseSettings);
@@ -146,45 +144,20 @@ describe("analyzeAndWarpPhoto", () => {
     expect(result.faces).toHaveLength(0);
   });
 
-  it("only computes ghost variants when ownerCameoMode is enabled", async () => {
+  it("exposes ghost cameo options only when ownerCameoMode is enabled, with no ghost picked by default", async () => {
     const master = fakeBitmap("master");
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
       caricatureEngine: { warp: vi.fn() },
-      ownerCameoEngine: { composite: vi.fn().mockResolvedValue(fakeBitmap("ghost")) },
     };
 
     const off = await analyzeAndWarpPhoto(master, deps, { ...baseSettings, ownerCameoMode: "off" });
-    expect(off.originalGhost).toBeNull();
-    expect(off.caricaturedGhost).toBeNull();
-    expect(off.options.ghost).toBe(false);
-    expect(deps.ownerCameoEngine.composite).not.toHaveBeenCalled();
+    expect(off.options.ghostOptions).toEqual([]);
+    expect(off.defaults.ghostKey).toBeNull();
 
     const on = await analyzeAndWarpPhoto(master, deps, { ...baseSettings, ownerCameoMode: "always" });
-    expect(on.originalGhost).not.toBeNull();
-    expect(on.caricaturedGhost).not.toBeNull();
-    expect(on.options.ghost).toBe(true);
-    expect(deps.ownerCameoEngine.composite).toHaveBeenCalledTimes(2);
-  });
-
-  it("uses the same cameo pick for both the original and caricatured ghost variants", async () => {
-    const master = fakeBitmap("master");
-    const composite = vi.fn().mockResolvedValue(fakeBitmap("ghost"));
-    const deps: AnalyzePhotoDeps = {
-      faceDetector: { detect: vi.fn().mockResolvedValue([]) },
-      caricatureEngine: { warp: vi.fn() },
-      ownerCameoEngine: { composite },
-    };
-
-    await analyzeAndWarpPhoto(master, deps, { ...baseSettings, ownerCameoMode: "always" });
-
-    // Both calls' rng argument (3rd param) should resolve to the same
-    // number -- one cameo pick reused for both variants, not two
-    // independent rolls (see the "candid and goofy show the same ghost"
-    // comment in CapturePipeline.ts).
-    const rngA = composite.mock.calls[0][2] as () => number;
-    const rngB = composite.mock.calls[1][2] as () => number;
-    expect(rngA()).toBe(rngB());
+    expect(on.options.ghostOptions.length).toBeGreaterThan(0);
+    expect(on.defaults.ghostKey).toBeNull();
   });
 
   it("builds a recipe respecting the operator's caption mode, and exposes the available frame/overlay/poster/filter options and defaults", async () => {
@@ -192,7 +165,6 @@ describe("analyzeAndWarpPhoto", () => {
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
       caricatureEngine: { warp: vi.fn() },
-      ownerCameoEngine: { composite: vi.fn() },
     };
 
     const result = await analyzeAndWarpPhoto(master, deps, baseSettings);
@@ -218,6 +190,7 @@ describe("analyzeAndWarpPhoto", () => {
     expect(result.defaults.overlayKeys).toEqual(["bats", "cobwebs"]);
     expect(result.defaults.posterTint).toBeNull();
     expect(result.defaults.filterKey).toBeNull();
+    expect(result.defaults.ghostKey).toBeNull();
   });
 
   it("omits the caption when captionMode is off, and options reflect operator config", async () => {
@@ -225,7 +198,6 @@ describe("analyzeAndWarpPhoto", () => {
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
       caricatureEngine: { warp: vi.fn() },
-      ownerCameoEngine: { composite: vi.fn() },
     };
 
     const result = await analyzeAndWarpPhoto(master, deps, {
@@ -239,7 +211,7 @@ describe("analyzeAndWarpPhoto", () => {
 
     expect(result.recipe.caption).toBeUndefined();
     expect(result.options).toEqual({
-      ghost: false,
+      ghostOptions: [],
       caption: false,
       frameOptions: ["none", "classic", "filmStrip", "polaroid", "spooky", "torn", "heisterkamp"],
       overlayOptions: [],
@@ -253,7 +225,6 @@ describe("analyzeAndWarpPhoto", () => {
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
       caricatureEngine: { warp: vi.fn() },
-      ownerCameoEngine: { composite: vi.fn() },
     };
 
     const results = await Promise.all(
@@ -277,44 +248,58 @@ describe("composeSelectedBitmap", () => {
     return {
       original: fakeBitmap("original"),
       caricatured: fakeBitmap("caricatured"),
-      originalGhost: fakeBitmap("originalGhost"),
-      caricaturedGhost: fakeBitmap("caricaturedGhost"),
     };
+  }
+
+  // ownerCameoEngine.composite is a pass-through by default (no ghost
+  // picked in most of these tests, and a stub that never mutates the
+  // bitmap keeps assertions about the *plain* pipeline stages unaffected).
+  function noopCameoEngine() {
+    return { composite: vi.fn(async (bitmap: ImageBitmap) => bitmap) };
   }
 
   it("picks the caricatured bitmap when goofy is on and original when off", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const ownerCameoEngine = noopCameoEngine();
     const b = base();
 
-    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: true }), { compositionEngine: { compose } });
+    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: true }), { compositionEngine: { compose }, ownerCameoEngine });
     expect(compose.mock.calls[0][0].foreground).toBe(b.caricatured);
 
-    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: false }), { compositionEngine: { compose } });
+    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: false }), { compositionEngine: { compose }, ownerCameoEngine });
     expect(compose.mock.calls[1][0].foreground).toBe(b.original);
   });
 
-  it("falls back to the plain (non-ghost) variant when ghost is requested but unavailable for this photo", async () => {
+  it("composites the picked ghost cameo onto the source before compose(), and skips it when ghostKey is null", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const composite = vi.fn(async () => fakeBitmap("ghosted"));
     const b = base();
-    b.originalGhost = null;
-    b.caricaturedGhost = null;
 
-    await composeSelectedBitmap(b, recipe, baseSelection({ goofy: false, ghost: true }), {
+    await composeSelectedBitmap(b, recipe, baseSelection({ ghostKey: "theRake" }), {
       compositionEngine: { compose },
+      ownerCameoEngine: { composite },
     });
+    expect(composite).toHaveBeenCalledWith(b.original, "theRake");
+    expect(compose.mock.calls[0][0].foreground).not.toBe(b.original);
 
-    expect(compose.mock.calls[0][0].foreground).toBe(b.original);
+    composite.mockClear();
+    await composeSelectedBitmap(b, recipe, baseSelection({ ghostKey: null }), {
+      compositionEngine: { compose },
+      ownerCameoEngine: { composite },
+    });
+    expect(composite).toHaveBeenCalledWith(b.original, null);
   });
 
   it("passes frame/overlays/caption through to compose() with the picked keys", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const ownerCameoEngine = noopCameoEngine();
     const b = base();
 
     await composeSelectedBitmap(
       b,
       recipe,
       baseSelection({ frameKey: "classic", overlayKeys: ["bats"], captioned: true }),
-      { compositionEngine: { compose } },
+      { compositionEngine: { compose }, ownerCameoEngine },
     );
     expect(compose.mock.calls[0][0]).toMatchObject({
       frame: "classic",
@@ -322,7 +307,7 @@ describe("composeSelectedBitmap", () => {
       caption: "HAUNTED AND THIRSTY.",
     });
 
-    await composeSelectedBitmap(b, recipe, baseSelection(), { compositionEngine: { compose } });
+    await composeSelectedBitmap(b, recipe, baseSelection(), { compositionEngine: { compose }, ownerCameoEngine });
     expect(compose.mock.calls[1][0]).toMatchObject({
       frame: "none",
       overlays: [],
@@ -332,13 +317,14 @@ describe("composeSelectedBitmap", () => {
 
   it("still routes through compose() when a posterTint is picked, but forces frame to \"none\"", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const ownerCameoEngine = noopCameoEngine();
     const b = base();
 
     const bitmap = await composeSelectedBitmap(
       b,
       recipe,
       baseSelection({ frameKey: "classic", overlayKeys: ["bats"], posterTint: "crimson" }),
-      { compositionEngine: { compose } },
+      { compositionEngine: { compose }, ownerCameoEngine },
     );
 
     // Poster grades the source before compose() runs (via the faked
@@ -354,10 +340,12 @@ describe("composeSelectedBitmap", () => {
 
   it("grades the source through the horror filter before compose() when a filterKey is picked", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const ownerCameoEngine = noopCameoEngine();
     const b = base();
 
     await composeSelectedBitmap(b, recipe, baseSelection({ filterKey: "vhs" }), {
       compositionEngine: { compose },
+      ownerCameoEngine,
     });
 
     // applyHorrorFilter runs through the faked OffscreenCanvas and always
@@ -368,10 +356,12 @@ describe("composeSelectedBitmap", () => {
 
   it("stacks the horror filter and Poster Mode instead of treating them as mutually exclusive", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
+    const ownerCameoEngine = noopCameoEngine();
     const b = base();
 
     await composeSelectedBitmap(b, recipe, baseSelection({ posterTint: "crimson", filterKey: "vhs" }), {
       compositionEngine: { compose },
+      ownerCameoEngine,
     });
 
     // Both grades run (filter first, then poster on top) and compose()
@@ -384,10 +374,10 @@ describe("composeSelectedBitmap", () => {
   it("returns null when there is no base bitmap yet (nothing captured)", async () => {
     const compose = vi.fn();
     const bitmap = await composeSelectedBitmap(
-      { original: null as unknown as ImageBitmap, caricatured: null as unknown as ImageBitmap, originalGhost: null, caricaturedGhost: null },
+      { original: null as unknown as ImageBitmap, caricatured: null as unknown as ImageBitmap },
       recipe,
       baseSelection(),
-      { compositionEngine: { compose } },
+      { compositionEngine: { compose }, ownerCameoEngine: noopCameoEngine() },
     );
     expect(bitmap).toBeNull();
     expect(compose).not.toHaveBeenCalled();
