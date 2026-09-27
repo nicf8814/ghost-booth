@@ -470,93 +470,107 @@
   margin: 0;
 }
 
-/* ---- Guest-facing customize panel (CustomizePanel.tsx) ---- */
-.customize-panel {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  background: rgba(10, 8, 14, 0.97);
-  color: #fff;
-  overflow-y: auto;
+/* ---- Guest-facing feature carousel (FeatureCarousel.tsx) ----
+   Embedded inline on ResultScreen (not a separate screen/overlay) so
+   picking a frame/overlay/filter/poster never leaves the photo the guest
+   is looking at. A tab strip switches between categories; only the active
+   category's chip row is shown, scrolling horizontally if it overflows. */
+.feature-carousel {
+  width: 100%;
+  max-width: min(85vw, 70vh);
   text-align: left;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
 }
 
-.customize-panel-header {
+.feature-carousel-tabs {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 8px;
 }
 
-.customize-panel-header h2 {
+.feature-carousel-arrow {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 122, 26, 0.5);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
   font-size: 1.1rem;
-  letter-spacing: 0.04em;
+  line-height: 1;
 }
 
-.customize-panel-body {
+.feature-carousel-tab-list {
   flex: 1;
-}
-
-.customize-section {
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  transition: opacity 0.15s ease;
-}
-
-.customize-section h3 {
-  font-size: 0.9rem;
-  color: #cbd5e1;
-  letter-spacing: 0.04em;
-  margin-bottom: 10px;
-}
-
-.customize-section-disabled {
-  opacity: 0.35;
-  pointer-events: none;
-}
-
-.customize-hint {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.55);
-  margin: -8px 0 20px;
-}
-
-.customize-chip-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  justify-content: center;
+  gap: 6px;
+  overflow-x: auto;
 }
 
-.customize-chip {
-  padding: 12px 18px;
+.feature-carousel-tab {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.feature-carousel-tab-active {
+  background: rgba(255, 122, 26, 0.18);
+  color: #ff9433;
+}
+
+.feature-carousel-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #ff9433;
+  vertical-align: middle;
+}
+
+.feature-carousel-hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 6px 0 0;
+  text-align: center;
+}
+
+.feature-carousel-chip-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 2px 2px;
+  scroll-snap-type: x proximity;
+}
+
+.feature-carousel-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  padding: 10px 16px;
   border-radius: 999px;
   border: 2px solid rgba(255, 122, 26, 0.5);
   background: rgba(255, 255, 255, 0.04);
   color: #fff;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
-.customize-chip-active {
+.feature-carousel-chip:disabled {
+  opacity: 0.35;
+}
+
+.feature-carousel-chip-active {
   background: linear-gradient(180deg, #ff9433, #d8580a);
   border-color: #ffb15c;
   color: #150500;
-}
-
-.customize-done {
-  margin-top: 16px;
-  width: 100%;
-  padding: 16px;
-  border-radius: 12px;
-  border: none;
-  background: linear-gradient(180deg, #ff9433, #d8580a);
-  color: #150500;
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
 }

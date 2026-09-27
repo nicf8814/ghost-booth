@@ -1,6 +1,11 @@
 import { useRef, useState, type SyntheticEvent } from "react";
 import type { FaceModel } from "../vision/VisionTypes";
 import { DebugLandmarkOverlay } from "./DebugLandmarkOverlay";
+import { FeatureCarousel } from "./FeatureCarousel";
+import type { FrameKey } from "../effects/Frames";
+import type { OverlayKey } from "../effects/HalloweenEffects";
+import type { PosterTint } from "../effects/PosterEffect";
+import type { FilterKey } from "../effects/HorrorFilters";
 
 interface ResultScreenProps {
   imageUrl: string | null;
@@ -34,16 +39,25 @@ interface ResultScreenProps {
   captionOn: boolean;
   onToggleCaption: () => void;
   captionAvailable: boolean;
-  /** Opens the CustomizePanel (App.tsx), where the guest picks the specific
-   * frame, which overlays, the poster tint, and the filter for this photo. */
-  onOpenCustomize: () => void;
-  /** Whether the guest has picked any non-default frame/overlay/poster/
-   * filter for the current photo -- shown as a filled dot on the CUSTOMIZE
-   * button so it's obvious something was chosen without opening the panel. */
-  customizeActive: boolean;
   /** One-tap revert: turns every toggle above off/back to defaults at once,
    * back to the plain candid capture. */
   onShowOriginal: () => void;
+  /** Frame/Overlays/Poster/Filter pickers, rendered inline via
+   * FeatureCarousel below the photo -- see that component. Everything the
+   * guest needs (see the photo, pick features, print) stays on this one
+   * screen; there's no separate customize screen to navigate to/from. */
+  frameOptions: FrameKey[];
+  frameKey: FrameKey;
+  onSelectFrame: (key: FrameKey) => void;
+  overlayOptions: OverlayKey[];
+  overlayKeys: OverlayKey[];
+  onToggleOverlay: (key: OverlayKey) => void;
+  posterTints: PosterTint[];
+  posterTint: PosterTint | null;
+  onSelectPoster: (tint: PosterTint | null) => void;
+  filterOptions: FilterKey[];
+  filterKey: FilterKey | null;
+  onSelectFilter: (key: FilterKey | null) => void;
 }
 
 /**
@@ -67,9 +81,19 @@ export function ResultScreen({
   captionOn,
   onToggleCaption,
   captionAvailable,
-  onOpenCustomize,
-  customizeActive,
   onShowOriginal,
+  frameOptions,
+  frameKey,
+  onSelectFrame,
+  overlayOptions,
+  overlayKeys,
+  onToggleOverlay,
+  posterTints,
+  posterTint,
+  onSelectPoster,
+  filterOptions,
+  filterKey,
+  onSelectFilter,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [renderedSize, setRenderedSize] = useState<{ width: number; height: number } | null>(null);
@@ -109,6 +133,21 @@ export function ResultScreen({
           {faces.length === 0 ? "0 faces detected" : `${faces.length} face${faces.length > 1 ? "s" : ""} detected`}
         </p>
       )}
+
+      <FeatureCarousel
+        frameOptions={frameOptions}
+        frameKey={frameKey}
+        onSelectFrame={onSelectFrame}
+        overlayOptions={overlayOptions}
+        overlayKeys={overlayKeys}
+        onToggleOverlay={onToggleOverlay}
+        posterTints={posterTints}
+        posterTint={posterTint}
+        onSelectPoster={onSelectPoster}
+        filterOptions={filterOptions}
+        filterKey={filterKey}
+        onSelectFilter={onSelectFilter}
+      />
 
       <div className="result-icon-row">
         <button
@@ -154,16 +193,6 @@ export function ResultScreen({
             <span className="icon-button-label">SPOOKY</span>
           </button>
         )}
-
-        <button
-          type="button"
-          className={`icon-button ${customizeActive ? "icon-button-active" : ""}`}
-          onClick={onOpenCustomize}
-          aria-label="Customize frame, overlays, poster, and filter"
-        >
-          <span className="icon-button-glyph" aria-hidden="true">🎨</span>
-          <span className="icon-button-label">CUSTOMIZE</span>
-        </button>
 
         {captionAvailable && (
           <button

@@ -122,7 +122,12 @@ export interface BoothSettings {
 export const defaultSettings: BoothSettings = {
   countdownSeconds: 3,
   autoStart: true,
-  idleTimeoutSeconds: 45,
+  // Was 45s; bumped up now that the result screen's picker is a carousel a
+  // guest browses in place (frame/overlays/filter/poster) rather than a
+  // quick on/off tap -- see App.tsx's activityTick for the actual fix
+  // (browsing the carousel now re-arms this timer), this just gives a more
+  // comfortable floor for "photo's up, nobody's touched anything yet."
+  idleTimeoutSeconds: 90,
 
   caricatureStrength: 1.0,
   ghostStrength: 0.5,

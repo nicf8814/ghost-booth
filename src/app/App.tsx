@@ -7,7 +7,6 @@ import { ProcessingScreen } from "../components/ProcessingScreen";
 import { ResultScreen } from "../components/ResultScreen";
 import { PrintingScreen } from "../components/PrintingScreen";
 import { OperatorPanel } from "../components/OperatorPanel";
-import { CustomizePanel } from "../components/CustomizePanel";
 import { GetUserMediaCameraManager } from "../camera/CameraManager";
 import { captureMasterFrame } from "../camera/CaptureService";
 import { imageBitmapToBlob } from "../utils/image";
@@ -100,7 +99,6 @@ const EMPTY_PHOTO_OPTIONS: PhotoOptions = {
 export default function App() {
   const [state, dispatch] = useAppReducer();
   const [operatorPanelOpen, setOperatorPanelOpen] = useState(false);
-  const [customizePanelOpen, setCustomizePanelOpen] = useState(false);
   const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<"printing" | "success" | "failed">("printing");
   const [faces, setFaces] = useState<FaceModel[]>([]);
@@ -125,6 +123,14 @@ export default function App() {
   // all. Recomputed every capture; empty (nothing to offer) before the
   // first photo.
   const [photoOptions, setPhotoOptions] = useState<PhotoOptions>(EMPTY_PHOTO_OPTIONS);
+  // Bumped on every guest interaction with the result screen (goofy/ghost/
+  // caption toggle, or any FeatureCarousel pick) so the idle timer below
+  // re-arms on that activity, not just on booth-state changes. Without
+  // this, a guest quietly browsing frame/overlay/filter/poster options
+  // never touches state.booth.state, so the idle timer kept counting down
+  // underneath them and discarded the photo mid-choice (reported: photo
+  // vanishing ~30s in, before printing).
+  const [activityTick, setActivityTick] = useState(0);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
@@ -182,15 +188,26 @@ export default function App() {
 
   // Idle timeout: return to attract from any non-attract, non-error state
   // after the configured window of inactivity (CLAUDE.md sections 33, 43).
+  // Also re-arms on activityTick (see its declaration above) so time spent
+  // actively picking frame/overlay/filter/poster options on the result
+  // screen -- which never changes state.booth.state -- doesn't silently
+  // eat into the same countdown as genuine inactivity. Skips "printing" too:
+  // that transition is driven by the printer adapter finishing, not by
+  // guest taps, so it shouldn't be racing the idle timer at all.
   useEffect(() => {
-    if (state.booth.state === "attract" || !state.settings.attractModeEnabled) return;
+    if (
+      state.booth.state === "attract" ||
+      state.booth.state === "printing" ||
+      !state.settings.attractModeEnabled
+    ) {
+      return;
+    }
     const timer = setTimeout(() => {
       dispatch({ kind: "booth", event: { type: "IDLE_TIMEOUT" } });
     }, state.settings.idleTimeoutSeconds * 1000);
     return () => clearTimeout(timer);
-    // Re-arm on every booth state change so activity resets the timer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.booth.state, state.settings.attractModeEnabled, state.settings.idleTimeoutSeconds]);
+  }, [state.booth.state, state.settings.attractModeEnabled, state.settings.idleTimeoutSeconds, activityTick]);
 
   const handleCameraReady = useCallback((camera: GetUserMediaCameraManager) => {
     cameraRef.current = camera;
@@ -235,6 +252,8 @@ export default function App() {
       if (prev) URL.revokeObjectURL(prev);
       return url;
     });
+    // Every guest pick is activity -- see activityTick's declaration.
+    setActivityTick((t) => t + 1);
   }, []);
 
   const currentSelection = useCallback(
@@ -453,7 +472,6 @@ export default function App() {
     setPosterTint(null);
     setFilterKey(null);
     setPhotoOptions(EMPTY_PHOTO_OPTIONS);
-    setCustomizePanelOpen(false);
   }, []);
 
   const handleRetake = useCallback(() => {
@@ -471,9 +489,6 @@ export default function App() {
   }, [dispatch]);
 
   const contextValue = useMemo(() => state, [state]);
-
-  const customizeActive =
-    frameKey !== "none" || overlayKeys.length > 0 || posterTint !== null || filterKey !== null;
 
   return (
     <AppStateContext.Provider value={contextValue}>
@@ -507,7 +522,14 @@ export default function App() {
             ghostAvailable: photoOptions.ghost,
             captionOn,
             captionAvailable: photoOptions.caption,
-            customizeActive,
+            frameOptions: photoOptions.frameOptions,
+            frameKey,
+            overlayOptions: photoOptions.overlayOptions,
+            overlayKeys,
+            posterTints: photoOptions.posterTints,
+            posterTint,
+            filterOptions: photoOptions.filterOptions,
+            filterKey,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -520,27 +542,12 @@ export default function App() {
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onToggleGhost: handleToggleGhost,
             onToggleCaption: handleToggleCaption,
-            onOpenCustomize: () => setCustomizePanelOpen(true),
+            onSelectFrame: handleSelectFrame,
+            onToggleOverlay: handleToggleOverlayKey,
+            onSelectPoster: handleSelectPoster,
+            onSelectFilter: handleSelectFilter,
             onShowOriginal: handleShowOriginal,
           })}
-
-          {customizePanelOpen && (
-            <CustomizePanel
-              onClose={() => setCustomizePanelOpen(false)}
-              frameOptions={photoOptions.frameOptions}
-              frameKey={frameKey}
-              onSelectFrame={handleSelectFrame}
-              overlayOptions={photoOptions.overlayOptions}
-              overlayKeys={overlayKeys}
-              onToggleOverlay={handleToggleOverlayKey}
-              posterTints={photoOptions.posterTints}
-              posterTint={posterTint}
-              onSelectPoster={handleSelectPoster}
-              filterOptions={photoOptions.filterOptions}
-              filterKey={filterKey}
-              onSelectFilter={handleSelectFilter}
-            />
-          )}
 
           {operatorPanelOpen && (
             <OperatorPanel
@@ -579,7 +586,14 @@ interface RenderScreenArgs {
   ghostAvailable: boolean;
   captionOn: boolean;
   captionAvailable: boolean;
-  customizeActive: boolean;
+  frameOptions: FrameKey[];
+  frameKey: FrameKey;
+  overlayOptions: OverlayKey[];
+  overlayKeys: OverlayKey[];
+  posterTints: PosterTint[];
+  posterTint: PosterTint | null;
+  filterOptions: FilterKey[];
+  filterKey: FilterKey | null;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -592,7 +606,10 @@ interface RenderScreenArgs {
   onToggleGoofyFilter: () => void;
   onToggleGhost: () => void;
   onToggleCaption: () => void;
-  onOpenCustomize: () => void;
+  onSelectFrame: (key: FrameKey) => void;
+  onToggleOverlay: (key: OverlayKey) => void;
+  onSelectPoster: (tint: PosterTint | null) => void;
+  onSelectFilter: (key: FilterKey | null) => void;
   onShowOriginal: () => void;
 }
 
@@ -642,9 +659,19 @@ function renderScreen(args: RenderScreenArgs) {
           captionOn={args.captionOn}
           onToggleCaption={args.onToggleCaption}
           captionAvailable={args.captionAvailable}
-          onOpenCustomize={args.onOpenCustomize}
-          customizeActive={args.customizeActive}
           onShowOriginal={args.onShowOriginal}
+          frameOptions={args.frameOptions}
+          frameKey={args.frameKey}
+          onSelectFrame={args.onSelectFrame}
+          overlayOptions={args.overlayOptions}
+          overlayKeys={args.overlayKeys}
+          onToggleOverlay={args.onToggleOverlay}
+          posterTints={args.posterTints}
+          posterTint={args.posterTint}
+          onSelectPoster={args.onSelectPoster}
+          filterOptions={args.filterOptions}
+          filterKey={args.filterKey}
+          onSelectFilter={args.onSelectFilter}
         />
       );
     case "printing":

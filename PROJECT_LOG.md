@@ -269,6 +269,44 @@ Phases complete (per `CLAUDE.md`'s numbering):
   instead of booleans) -- full suite still 172 tests, all green;
   `tsc -b`, `oxlint`, `npm run build` all clean.
 
+- **Picker moved inline as a carousel; idle-timeout photo loss fixed —
+  done.** Two follow-up fixes after guests actually tried the picker
+  above:
+  - The CUSTOMIZE button + full-screen `CustomizePanel` overlay is gone.
+    `CustomizePanel.tsx` was replaced with `components/FeatureCarousel.tsx`,
+    embedded directly in `ResultScreen` between the photo and the icon
+    row -- a small Frame/Overlays/Filter/Poster tab strip (only tabs with
+    something to offer are shown) with one horizontally-scrollable chip
+    row for whichever tab is active, so the whole flow (see the photo,
+    pick features, print) stays on one screen with no separate
+    screen/modal to open and close. Same mutual-exclusivity behavior as
+    before (Frame/Overlays/Filter chips disable with an inline note
+    whenever a poster tint is picked), just always visible instead of
+    behind a button.
+  - The reported "photo disappears after ~30 seconds" was the idle
+    timeout (`App.tsx`'s `IDLE_TIMEOUT` effect, `settings.idleTimeoutSeconds`)
+    firing out from under the guest while they browsed the picker: that
+    effect only re-armed on `state.booth.state` changes, and picking a
+    frame/overlay/filter/poster option never changes booth state (the
+    guest stays in `"result"` the whole time), so the countdown that
+    started the moment the photo appeared kept running underneath every
+    tap and eventually reset the booth to attract -- discarding the photo
+    -- regardless of how engaged the guest still was. Fixed with a new
+    `activityTick` counter in `App.tsx`, bumped inside `applyPhotoSelection`
+    (so every goofy/ghost/caption/frame/overlay/filter/poster pick counts
+    as activity) and added to the idle effect's dependency array so any of
+    those taps re-arms the timer. Also excluded the `"printing"` state
+    from the idle timer entirely (that transition is driven by the printer
+    adapter finishing, not guest taps, so it was never something the idle
+    countdown should race against) and raised the default
+    `idleTimeoutSeconds` from 45 to 90 for a more comfortable floor before
+    any interaction happens. `photoRetentionMinutes` (an operator setting)
+    was investigated and confirmed unrelated -- it's not wired to anything
+    yet, so it wasn't the cause.
+  Verified: `tsc -b`, `oxlint`, `npm run build` all clean; full suite
+  still 172/172 (no test exercised the idle-timeout effect or the
+  carousel directly, so none needed updating).
+
 ## Architecture as built
 
 - Vite + React + TypeScript, directory structure matches `CLAUDE.md` section 3.
