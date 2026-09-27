@@ -74,6 +74,34 @@ export const PRESET_CONFIGS: Record<Exclude<CaricaturePreset, "Random">, Partial
   EvilPromQueen: { eyeScale: 1.3, mouthScale: 1.3, eyebrowScale: 1.3, faceWidth: 0.9 },
 };
 
+/**
+ * Applies the operator's `caricatureStrength` setting (0..1): scales every
+ * *Scale field toward 1.0 (no-op) as strength drops toward 0, so an
+ * operator can dial the effect down to "barely there" without picking a
+ * different preset. `randomness` is left alone since it's not a *Scale
+ * field and already has its own per-preset meaning.
+ */
+export function scaleTowardNeutral(config: CaricatureConfiguration, strength: number): CaricatureConfiguration {
+  const s = Math.min(1, Math.max(0, strength));
+  const lerp = (v: number) => 1 + (v - 1) * s;
+  return {
+    eyeScale: lerp(config.eyeScale),
+    noseScale: lerp(config.noseScale),
+    mouthScale: lerp(config.mouthScale),
+    foreheadScale: lerp(config.foreheadScale),
+    jawScale: lerp(config.jawScale),
+    cheekScale: lerp(config.cheekScale),
+    earScale: lerp(config.earScale),
+    eyebrowScale: lerp(config.eyebrowScale),
+    faceWidth: lerp(config.faceWidth),
+    faceHeight: lerp(config.faceHeight),
+    neckScale: lerp(config.neckScale),
+    shoulderScale: lerp(config.shoulderScale),
+    bodyScale: lerp(config.bodyScale),
+    randomness: config.randomness,
+  };
+}
+
 /** Resolves a named preset (or "Random") into a safe, complete configuration. */
 export function resolvePreset(
   preset: CaricaturePreset,

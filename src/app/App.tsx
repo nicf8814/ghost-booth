@@ -16,9 +16,13 @@ import { MockPrinterAdapter } from "../printing/MockPrinterAdapter";
 import { loadSettings, saveSettings } from "../storage/SettingsStore";
 import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
 import type { FaceModel } from "../vision/VisionTypes";
+import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
+import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
+import { createSeed, seededRandom } from "../utils/random";
 import "./app.css";
 
 const printerManager = new PrinterManager(new MockPrinterAdapter({ failRate: 0 }));
+const caricatureEngine = new MeshWarpCaricatureEngine();
 
 // Resolved against document.baseURI (not a bare relative path) so the
 // worker's model fetches still land on /models/ correctly even when the
@@ -102,18 +106,42 @@ export default function App() {
 
       // Vision analysis (Phase 3) runs during "processing". detect() never
       // throws (CLAUDE.md section 49) — 0 faces just means the rest of the
-      // pipeline falls back to a plain Halloween photo, which is exactly
-      // what happens today since Phases 4-8 aren't built yet. detect()
-      // takes ownership of the bitmap it's given (transferred into the
-      // worker), so we hand it a clone and keep `master` intact for the
-      // result photo and printing.
+      // pipeline falls back to a plain Halloween photo. detect() takes
+      // ownership of the bitmap it's given (transferred into the worker),
+      // so we hand it a clone and keep `master` intact for the result
+      // photo and printing.
       const detectionCopy = await createImageBitmap(master);
       const detectedFaces = await faceDetector.detect(detectionCopy);
       setFaces(detectedFaces);
 
-      // No caricature/ghost/composition pipeline yet (Phases 4-8), so the
-      // "processed" photo is the master frame itself.
-      const blob = await imageBitmapToBlob(master);
+      // Caricature warp (Phase 4): nose enlargement only so far (section
+      // 59's incremental build order). A fresh per-photo seed drives the
+      // "Random"/WTF preset (section 20) so a given photo's result can be
+      // reproduced for debugging by logging the seed. Each detected face is
+      // warped in turn against the same working bitmap — faces don't
+      // overlap in a normal group photo, so sequential per-face warps on
+      // one bitmap are equivalent to warping them independently.
+      const seed = createSeed();
+      const rng = seededRandom(seed);
+      const config = scaleTowardNeutral(
+        resolvePreset(state.settings.preset, rng),
+        state.settings.caricatureStrength,
+      );
+      let working: ImageBitmap = master;
+      for (const face of detectedFaces) {
+        const warped = await caricatureEngine.warp(working, face, config);
+        if (warped !== working) {
+          working = warped;
+        }
+      }
+
+      // Ghost/composition pipeline (Phases 6-8) isn't built yet, so the
+      // "processed" photo is the caricatured working bitmap (or the plain
+      // master frame, when no faces were detected). This becomes the
+      // photo shown on the result screen *and* the one sent to the
+      // printer, so print output actually reflects the effect.
+      masterBitmapRef.current = working;
+      const blob = await imageBitmapToBlob(working);
       const url = URL.createObjectURL(blob);
       setResultImageUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -126,7 +154,7 @@ export default function App() {
         event: { type: "CAPTURE_ERROR", message: err instanceof Error ? err.message : "Capture failed" },
       });
     }
-  }, [dispatch]);
+  }, [dispatch, state.settings.preset, state.settings.caricatureStrength]);
 
   const handlePrintRequested = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "PRINT_REQUESTED" } });
