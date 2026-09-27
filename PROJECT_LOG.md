@@ -65,35 +65,50 @@ Phases complete (per `CLAUDE.md`'s numbering):
   features (doesn't leave it to chance). Default `caricatureStrength` = **1.0**
   (maxed out by default — explicit user direction: ship prominent, let the
   operator panel pull it back rather than shipping subtle by default).
-- Post-capture "Spookify" toggle: after processing, both the candid original
-  and the caricatured bitmap are kept in memory (`App.tsx`:
-  `originalBitmapRef`/`caricaturedBitmapRef`). A toggle button on
-  `ResultScreen` swaps which one is displayed/printed instantly (no
-  re-detection/re-warp). Defaults to on for every fresh capture.
-- **"My Cameo" (beta)**: a distinct feature from the spec's per-guest ghost
-  effect (section 21 — which duplicates whoever is *in* the captured photo).
-  This composites the booth owner's own bundled photo into every guest photo
-  as a recurring ghostly photobomb. `OwnerCameoEngine`
-  (`src/effects/OwnerCameoEngine.ts`) fetches `public/cameo/nic-cutout.png`
-  (a background-removed cutout, produced offline via OpenCV GrabCut +
-  morphological cleanup + manual touch-up from a selfie the user provided —
-  not a guest's photo, not stored biometric data) and composites it with a
-  `blur()`/`saturate()`/`brightness()` canvas filter + reduced
-  `globalAlpha`, matching the guest-ghost visual language in section 21
-  (opacity 0.4, within the spec's 0.20–0.45 range). Gated by
-  `settings.ownerCameoMode: "off" | "always"` (a union type, deliberately
-  built to extend later without a settings migration), exposed as a "My
-  Cameo (beta)" checkbox in the operator panel's Effects section. Applied
-  in `App.tsx`'s `handleCountdownComplete` to the caricatured (`working`)
-  bitmap only, after the mesh warp and before it's cached as
-  `caricaturedBitmapRef` — so it never appears on the candid Spookify-off
-  version. Verified: isolated compositing check (confirms the cameo image
-  itself renders correctly, ghostly-styled, at the right position) plus an
-  end-to-end headless-Chromium run comparing a full capture flow with the
-  toggle on vs. off (pixel diff confirms the toggle changes the output, and
-  only in the expected region). **Explicit follow-up requested by the user
-  and not yet built**: a "random chance per photo" mode instead of a flat
-  always-on toggle — the settings type is already shaped for this.
+- Post-capture "Goofy Filter" toggle (originally named "Spookify", renamed
+  once the ghost cameo got its own toggle of that name -- see below): after
+  processing, both the candid original and the caricatured bitmap are kept
+  in memory (`App.tsx`: `originalBitmapRef`/`caricaturedBitmapRef`). A
+  toggle button on `ResultScreen` swaps which one is displayed/printed
+  instantly (no re-detection/re-warp). Defaults to on for every fresh
+  capture.
+- **"My Cameo" (beta) + independent "Spookify" ghost toggle**: a distinct
+  feature from the spec's per-guest ghost effect (section 21 — which
+  duplicates whoever is *in* the captured photo). This composites the booth
+  owner's own bundled photo into every guest photo as a recurring ghostly
+  photobomb. `OwnerCameoEngine` (`src/effects/OwnerCameoEngine.ts`) fetches
+  `public/cameo/nic-cutout.png` (a background-removed cutout, produced
+  offline via OpenCV GrabCut + morphological cleanup + manual touch-up from
+  a selfie the user provided — not a guest's photo, not stored biometric
+  data) and composites it with a `blur()`/`saturate()`/`brightness()`
+  canvas filter + reduced `globalAlpha`, matching the guest-ghost visual
+  language in section 21 (opacity 0.4, within the spec's 0.20–0.45 range).
+  Gated at the operator level by `settings.ownerCameoMode: "off" | "always"`
+  (a union type, deliberately built to extend later without a settings
+  migration) via a "My Cameo (beta)" checkbox in the operator panel's
+  Effects section — this decides whether the ghost feature exists at all
+  for guests, not whether it's forced on every photo.
+  - On top of that, the guest gets their own independent "👻 SPOOKIFY:
+    ON/OFF" button on the result screen (only rendered when the operator
+    has "My Cameo" enabled), separate from "Goofy Filter" -- the ghost can
+    be layered onto either the candid or the goofy version of the photo, in
+    any combination. `App.tsx`'s `handleCountdownComplete` computes all
+    four bitmaps up front after the mesh warp
+    (`original`/`caricatured`/`originalGhost`/`caricaturedGhost`, the
+    latter two only when the operator has cameo enabled) and
+    `applyPhotoSelection(goofy, ghost)` picks between them instantly on
+    either toggle, with no re-compositing. Defaults to Spookify-on whenever
+    the operator has "My Cameo" enabled.
+  - Verified: isolated compositing check (confirms the cameo image itself
+    renders correctly, ghostly-styled, at the right position) plus two
+    end-to-end headless-Chromium runs: one comparing a full capture flow
+    with the toggle on vs. off, and one clicking through all four
+    goofy/ghost combinations and pixel-diffing adjacent pairs to confirm
+    each button only changes its own region/effect, independent of the
+    other's state.
+  - **Explicit follow-up requested by the user and not yet built**: a
+    "random chance per photo" mode instead of a flat always-available
+    toggle — the settings type is already shaped for this.
 - Operator panel: reachable by **tapping** the ghost logo (not the spec's
   5-second hold — that gesture wasn't registering reliably in iPhone Safari,
   swapped to a plain tap "for now"; `HoldToActivate.tsx` still exists unused,

@@ -15,9 +15,16 @@ interface ResultScreenProps {
    * the caricature engine is built on top of it. */
   debugMode: boolean;
   /** Whether the currently-displayed/printable photo is the caricatured
-   * ("spookified") version or the plain candid capture. */
-  spookifyOn: boolean;
-  onToggleSpookify: () => void;
+   * ("goofy filter") version or the plain candid capture. Independent of
+   * the ghost toggle below -- either can be combined with either. */
+  goofyFilterOn: boolean;
+  onToggleGoofyFilter: () => void;
+  /** Whether the booth owner's ghostly cameo ("Spookify") is layered onto
+   * whichever photo (candid or goofy) is currently showing. Only rendered
+   * when the operator has the cameo feature enabled at all. */
+  ghostOn: boolean;
+  onToggleGhost: () => void;
+  ghostAvailable: boolean;
 }
 
 /**
@@ -31,8 +38,11 @@ export function ResultScreen({
   onRetake,
   faces,
   debugMode,
-  spookifyOn,
-  onToggleSpookify,
+  goofyFilterOn,
+  onToggleGoofyFilter,
+  ghostOn,
+  onToggleGhost,
+  ghostAvailable,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [renderedSize, setRenderedSize] = useState<{ width: number; height: number } | null>(null);
@@ -67,14 +77,27 @@ export function ResultScreen({
           {faces.length === 0 ? "0 faces detected" : `${faces.length} face${faces.length > 1 ? "s" : ""} detected`}
         </p>
       )}
-      <button
-        type="button"
-        className={`big-button spookify-toggle ${spookifyOn ? "" : "secondary"}`}
-        onClick={onToggleSpookify}
-        aria-pressed={spookifyOn}
-      >
-        {spookifyOn ? "🎃 SPOOKIFY: ON" : "🙂 SPOOKIFY: OFF"}
-      </button>
+      <div className="result-toggles">
+        <button
+          type="button"
+          className={`big-button result-toggle ${goofyFilterOn ? "" : "secondary"}`}
+          onClick={onToggleGoofyFilter}
+          aria-pressed={goofyFilterOn}
+        >
+          {goofyFilterOn ? "🎃 GOOFY FILTER: ON" : "🙂 GOOFY FILTER: OFF"}
+        </button>
+
+        {ghostAvailable && (
+          <button
+            type="button"
+            className={`big-button result-toggle ${ghostOn ? "" : "secondary"}`}
+            onClick={onToggleGhost}
+            aria-pressed={ghostOn}
+          >
+            {ghostOn ? "👻 SPOOKIFY: ON" : "👻 SPOOKIFY: OFF"}
+          </button>
+        )}
+      </div>
 
       <div className="result-controls">
         <button className="big-button" onClick={onPrint}>

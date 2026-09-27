@@ -65,19 +65,24 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   rather than leaving them to chance, and the default Caricature Strength is 1.0 (full
   intensity) — the effect is prominent out of the box, with the operator panel's strength
   slider and preset picker there to pull it back if wanted.
-- **Spookify on/off toggle**: the result screen now shows a "🎃 SPOOKIFY: ON/OFF" button. Both
-  the candid original and the caricatured photo are kept in memory after processing, so
-  toggling swaps which one is displayed/printed instantly, with no re-detection or re-warping
-  — for a group that wants one normal photo alongside the silly ones. Defaults to on for
-  every fresh capture.
-- **"My Cameo" (beta)**: an operator-only toggle (Effects section of the operator panel) that
-  composites the booth owner's own photo (`public/cameo/nic-cutout.png`, a bundled cutout, not
-  anything captured from a guest) into every photo as a recurring ghostly photobomb — blurred,
-  desaturated, brightened, and translucent (`src/effects/OwnerCameoEngine.ts`), the same visual
-  language the guest ghost effect will eventually use. Off by default. Applied only to the
-  caricatured ("Spookify on") version of the photo, never the candid, so toggling Spookify off
-  still gives a clean cameo-free photo. A fixed always-on/off toggle for now; a "random chance
-  per photo" mode is planned as a follow-up once the toggle version is confirmed working.
+- **Goofy Filter on/off toggle**: the result screen shows a "🎃 GOOFY FILTER: ON/OFF" button
+  controlling the caricature effect. Both the candid original and the caricatured photo are
+  kept in memory after processing, so toggling swaps which one is displayed/printed instantly,
+  with no re-detection or re-warping — for a group that wants one normal photo alongside the
+  silly ones. Defaults to on for every fresh capture. (This button was originally called
+  "Spookify" — renamed once the ghost cameo below got its own independent toggle of that name.)
+- **"My Cameo" (beta) + Spookify toggle**: an operator-only "My Cameo (beta)" checkbox (Effects
+  section of the operator panel) enables the booth owner's own photo
+  (`public/cameo/nic-cutout.png`, a bundled cutout, not anything captured from a guest) as a
+  recurring ghostly photobomb — blurred, desaturated, brightened, and translucent
+  (`src/effects/OwnerCameoEngine.ts`), the same visual language the guest ghost effect will
+  eventually use. When enabled, the result screen shows a second "👻 SPOOKIFY: ON/OFF" button,
+  independent of Goofy Filter — the ghost can be layered onto either the candid or the goofy
+  version, in any combination of the two toggles. Both toggles are instant swaps between four
+  pre-computed cached bitmaps (candid, goofy, candid+ghost, goofy+ghost), no re-processing.
+  Defaults to on (ghost visible) whenever the operator has "My Cameo" enabled. A fixed
+  always-available/off toggle for now; a "random chance per photo" mode is planned as a
+  follow-up once this version is confirmed working.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 

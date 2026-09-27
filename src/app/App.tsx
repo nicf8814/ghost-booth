@@ -41,18 +41,27 @@ export default function App() {
   const [printStatus, setPrintStatus] = useState<"printing" | "success" | "failed">("printing");
   const [faces, setFaces] = useState<FaceModel[]>([]);
   // Whether the result screen is currently showing the caricatured
-  // ("spookified") photo or the plain candid capture. Defaults to on
+  // ("Goofy Filter") photo or the plain candid capture. Defaults to on
   // (maxed-out effect front and center) every fresh photo; the guest can
-  // flip it off if they want a normal candid instead.
-  const [spookifyOn, setSpookifyOn] = useState(true);
+  // flip it off if they want a normal candid instead. Independent of
+  // ghostOn below -- either can be combined with either.
+  const [goofyFilterOn, setGoofyFilterOn] = useState(true);
+  // Whether the booth owner's ghostly cameo ("Spookify") is layered onto
+  // whichever photo is currently showing. Only meaningful/shown when the
+  // operator has "My Cameo" enabled at all; defaults to on for a fresh
+  // photo when the operator has it enabled, off otherwise.
+  const [ghostOn, setGhostOn] = useState(false);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
-  // Both versions of the current photo are kept after processing so the
-  // Spookify toggle is instant (swap which cached bitmap is displayed/
-  // printed) rather than re-running detection + the mesh warp.
+  // All four combinations (goofy x ghost) of the current photo are kept
+  // after processing so the two toggles are instant (swap which cached
+  // bitmap is displayed/printed) rather than re-running detection, the mesh
+  // warp, or the cameo composite.
   const originalBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedBitmapRef = useRef<ImageBitmap | null>(null);
+  const originalGhostBitmapRef = useRef<ImageBitmap | null>(null);
+  const caricaturedGhostBitmapRef = useRef<ImageBitmap | null>(null);
   const settingsLoadedRef = useRef(false);
 
   // Load persisted operator settings once on startup.
@@ -106,12 +115,17 @@ export default function App() {
     dispatch({ kind: "booth", event: { type: "START_COUNTDOWN" } });
   }, [dispatch]);
 
-  // Swaps which cached bitmap (candid vs. caricatured) is currently shown
-  // on the result screen and would be sent to the printer, without
-  // touching detection or the mesh warp — both versions of the current
-  // photo already exist by the time this is called.
-  const applyPhotoSelection = useCallback(async (useSpookify: boolean) => {
-    const bitmap = useSpookify ? caricaturedBitmapRef.current : originalBitmapRef.current;
+  // Swaps which cached bitmap (candid vs. goofy, ghost on vs. off) is
+  // currently shown on the result screen and would be sent to the printer,
+  // without touching detection, the mesh warp, or the cameo composite —
+  // all four combinations already exist by the time this is called. Falls
+  // back to the plain (non-ghost) variant if a ghost version wasn't
+  // computed (cameo feature disabled), so a stray ghostOn=true can never
+  // show a missing photo.
+  const applyPhotoSelection = useCallback(async (goofy: boolean, ghost: boolean) => {
+    const base = goofy ? caricaturedBitmapRef.current : originalBitmapRef.current;
+    const ghostVariant = goofy ? caricaturedGhostBitmapRef.current : originalGhostBitmapRef.current;
+    const bitmap = (ghost && ghostVariant) || base;
     if (!bitmap) return;
     masterBitmapRef.current = bitmap;
     const blob = await imageBitmapToBlob(bitmap);
@@ -122,13 +136,17 @@ export default function App() {
     });
   }, []);
 
-  const handleToggleSpookify = useCallback(() => {
-    setSpookifyOn((prev) => {
-      const next = !prev;
-      void applyPhotoSelection(next);
-      return next;
-    });
-  }, [applyPhotoSelection]);
+  const handleToggleGoofyFilter = useCallback(() => {
+    const next = !goofyFilterOn;
+    setGoofyFilterOn(next);
+    void applyPhotoSelection(next, ghostOn);
+  }, [goofyFilterOn, ghostOn, applyPhotoSelection]);
+
+  const handleToggleGhost = useCallback(() => {
+    const next = !ghostOn;
+    setGhostOn(next);
+    void applyPhotoSelection(goofyFilterOn, next);
+  }, [goofyFilterOn, ghostOn, applyPhotoSelection]);
 
   const handleCountdownComplete = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "COUNTDOWN_COMPLETE" } });
@@ -173,25 +191,36 @@ export default function App() {
         }
       }
 
-      // "My Cameo" (operator beta toggle): composites the booth owner's own
-      // ghostly cameo into the Spookify version only, never the candid
-      // original -- toggling Spookify off on the result screen still gives
-      // a clean, cameo-free photo. Applied after the caricature warp so the
-      // cameo itself never gets warped by anyone's face landmarks.
-      if (state.settings.ownerCameoMode !== "off") {
-        working = await ownerCameoEngine.composite(working);
-      }
-
-      // Ghost/composition pipeline (Phases 6-8) isn't built yet, so the
-      // "caricatured" photo is the working bitmap (or the plain master
-      // frame, when no faces were detected). Both the candid original and
-      // the caricatured version are kept so the guest can toggle Spookify
-      // on the result screen without redoing detection/warping; every
-      // fresh photo starts with Spookify on (maxed-out effect by default).
+      // Ghost/composition pipeline (Phases 6-8) proper isn't built yet, so
+      // the "goofy" photo is the working (warped) bitmap, or the plain
+      // master frame when no faces were detected. Both the candid original
+      // and the goofy version are kept so the guest can toggle Goofy
+      // Filter on the result screen without redoing detection/warping.
       originalBitmapRef.current = master;
       caricaturedBitmapRef.current = working;
-      setSpookifyOn(true);
-      await applyPhotoSelection(true);
+
+      // "My Cameo" (operator beta toggle): composites the booth owner's own
+      // ghostly cameo onto BOTH the candid and goofy versions, so the
+      // guest's "Spookify" toggle can layer the ghost onto whichever photo
+      // (candid or goofy) they're currently viewing, independent of the
+      // Goofy Filter toggle. Only computed when the operator has the
+      // feature enabled at all -- composite() doesn't mutate its input, so
+      // `master`/`working` stay valid for the non-ghost variants above.
+      const ghostAvailable = state.settings.ownerCameoMode !== "off";
+      if (ghostAvailable) {
+        originalGhostBitmapRef.current = await ownerCameoEngine.composite(master);
+        caricaturedGhostBitmapRef.current = await ownerCameoEngine.composite(working);
+      } else {
+        originalGhostBitmapRef.current = null;
+        caricaturedGhostBitmapRef.current = null;
+      }
+
+      // Every fresh photo starts with Goofy Filter on (maxed-out effect by
+      // default) and Spookify on whenever the operator has the cameo
+      // feature enabled (the guest can flip either off independently).
+      setGoofyFilterOn(true);
+      setGhostOn(ghostAvailable);
+      await applyPhotoSelection(true, ghostAvailable);
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
       dispatch({
@@ -227,13 +256,15 @@ export default function App() {
 
   const handleRetake = useCallback(() => {
     setFaces([]);
-    setSpookifyOn(true);
+    setGoofyFilterOn(true);
+    setGhostOn(false);
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
   }, [dispatch]);
 
   const handleDone = useCallback(() => {
     setFaces([]);
-    setSpookifyOn(true);
+    setGoofyFilterOn(true);
+    setGhostOn(false);
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch]);
 
@@ -270,7 +301,9 @@ export default function App() {
             printStatus,
             faces,
             debugMode: state.settings.debugMode,
-            spookifyOn,
+            goofyFilterOn,
+            ghostOn,
+            ghostAvailable: state.settings.ownerCameoMode !== "off",
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -280,7 +313,8 @@ export default function App() {
             onRetake: handleRetake,
             onDone: handleDone,
             onRetry: handleRetry,
-            onToggleSpookify: handleToggleSpookify,
+            onToggleGoofyFilter: handleToggleGoofyFilter,
+            onToggleGhost: handleToggleGhost,
           })}
 
           {operatorPanelOpen && (
@@ -315,7 +349,9 @@ interface RenderScreenArgs {
   printStatus: "printing" | "success" | "failed";
   faces: FaceModel[];
   debugMode: boolean;
-  spookifyOn: boolean;
+  goofyFilterOn: boolean;
+  ghostOn: boolean;
+  ghostAvailable: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -325,7 +361,8 @@ interface RenderScreenArgs {
   onRetake: () => void;
   onDone: () => void;
   onRetry: () => void;
-  onToggleSpookify: () => void;
+  onToggleGoofyFilter: () => void;
+  onToggleGhost: () => void;
 }
 
 function renderScreen(args: RenderScreenArgs) {
@@ -366,8 +403,11 @@ function renderScreen(args: RenderScreenArgs) {
           onRetake={args.onRetake}
           faces={args.faces}
           debugMode={args.debugMode}
-          spookifyOn={args.spookifyOn}
-          onToggleSpookify={args.onToggleSpookify}
+          goofyFilterOn={args.goofyFilterOn}
+          onToggleGoofyFilter={args.onToggleGoofyFilter}
+          ghostOn={args.ghostOn}
+          onToggleGhost={args.onToggleGhost}
+          ghostAvailable={args.ghostAvailable}
         />
       );
     case "printing":
