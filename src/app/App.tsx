@@ -35,9 +35,19 @@ export default function App() {
   const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<"printing" | "success" | "failed">("printing");
   const [faces, setFaces] = useState<FaceModel[]>([]);
+  // Whether the result screen is currently showing the caricatured
+  // ("spookified") photo or the plain candid capture. Defaults to on
+  // (maxed-out effect front and center) every fresh photo; the guest can
+  // flip it off if they want a normal candid instead.
+  const [spookifyOn, setSpookifyOn] = useState(true);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
+  // Both versions of the current photo are kept after processing so the
+  // Spookify toggle is instant (swap which cached bitmap is displayed/
+  // printed) rather than re-running detection + the mesh warp.
+  const originalBitmapRef = useRef<ImageBitmap | null>(null);
+  const caricaturedBitmapRef = useRef<ImageBitmap | null>(null);
   const settingsLoadedRef = useRef(false);
 
   // Load persisted operator settings once on startup.
@@ -91,6 +101,30 @@ export default function App() {
     dispatch({ kind: "booth", event: { type: "START_COUNTDOWN" } });
   }, [dispatch]);
 
+  // Swaps which cached bitmap (candid vs. caricatured) is currently shown
+  // on the result screen and would be sent to the printer, without
+  // touching detection or the mesh warp — both versions of the current
+  // photo already exist by the time this is called.
+  const applyPhotoSelection = useCallback(async (useSpookify: boolean) => {
+    const bitmap = useSpookify ? caricaturedBitmapRef.current : originalBitmapRef.current;
+    if (!bitmap) return;
+    masterBitmapRef.current = bitmap;
+    const blob = await imageBitmapToBlob(bitmap);
+    const url = URL.createObjectURL(blob);
+    setResultImageUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+  }, []);
+
+  const handleToggleSpookify = useCallback(() => {
+    setSpookifyOn((prev) => {
+      const next = !prev;
+      void applyPhotoSelection(next);
+      return next;
+    });
+  }, [applyPhotoSelection]);
+
   const handleCountdownComplete = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "COUNTDOWN_COMPLETE" } });
     const camera = cameraRef.current;
@@ -135,17 +169,15 @@ export default function App() {
       }
 
       // Ghost/composition pipeline (Phases 6-8) isn't built yet, so the
-      // "processed" photo is the caricatured working bitmap (or the plain
-      // master frame, when no faces were detected). This becomes the
-      // photo shown on the result screen *and* the one sent to the
-      // printer, so print output actually reflects the effect.
-      masterBitmapRef.current = working;
-      const blob = await imageBitmapToBlob(working);
-      const url = URL.createObjectURL(blob);
-      setResultImageUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
+      // "caricatured" photo is the working bitmap (or the plain master
+      // frame, when no faces were detected). Both the candid original and
+      // the caricatured version are kept so the guest can toggle Spookify
+      // on the result screen without redoing detection/warping; every
+      // fresh photo starts with Spookify on (maxed-out effect by default).
+      originalBitmapRef.current = master;
+      caricaturedBitmapRef.current = working;
+      setSpookifyOn(true);
+      await applyPhotoSelection(true);
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
       dispatch({
@@ -153,7 +185,7 @@ export default function App() {
         event: { type: "CAPTURE_ERROR", message: err instanceof Error ? err.message : "Capture failed" },
       });
     }
-  }, [dispatch, state.settings.preset, state.settings.caricatureStrength]);
+  }, [dispatch, state.settings.preset, state.settings.caricatureStrength, applyPhotoSelection]);
 
   const handlePrintRequested = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "PRINT_REQUESTED" } });
@@ -175,11 +207,13 @@ export default function App() {
 
   const handleRetake = useCallback(() => {
     setFaces([]);
+    setSpookifyOn(true);
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
   }, [dispatch]);
 
   const handleDone = useCallback(() => {
     setFaces([]);
+    setSpookifyOn(true);
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch]);
 
@@ -216,6 +250,7 @@ export default function App() {
             printStatus,
             faces,
             debugMode: state.settings.debugMode,
+            spookifyOn,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -225,6 +260,7 @@ export default function App() {
             onRetake: handleRetake,
             onDone: handleDone,
             onRetry: handleRetry,
+            onToggleSpookify: handleToggleSpookify,
           })}
 
           {operatorPanelOpen && (
@@ -259,6 +295,7 @@ interface RenderScreenArgs {
   printStatus: "printing" | "success" | "failed";
   faces: FaceModel[];
   debugMode: boolean;
+  spookifyOn: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -268,6 +305,7 @@ interface RenderScreenArgs {
   onRetake: () => void;
   onDone: () => void;
   onRetry: () => void;
+  onToggleSpookify: () => void;
 }
 
 function renderScreen(args: RenderScreenArgs) {
@@ -308,6 +346,8 @@ function renderScreen(args: RenderScreenArgs) {
           onRetake={args.onRetake}
           faces={args.faces}
           debugMode={args.debugMode}
+          spookifyOn={args.spookifyOn}
+          onToggleSpookify={args.onToggleSpookify}
         />
       );
     case "printing":

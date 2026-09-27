@@ -14,6 +14,10 @@ interface ResultScreenProps {
    * and landmarks on top of the photo so detection can be verified before
    * the caricature engine is built on top of it. */
   debugMode: boolean;
+  /** Whether the currently-displayed/printable photo is the caricatured
+   * ("spookified") version or the plain candid capture. */
+  spookifyOn: boolean;
+  onToggleSpookify: () => void;
 }
 
 /**
@@ -21,7 +25,15 @@ interface ResultScreenProps {
  * yet (Phases 4-8), so imageUrl is the plain captured photo; the debug
  * overlay is the only visible sign that vision analysis (Phase 3) ran.
  */
-export function ResultScreen({ imageUrl, onPrint, onRetake, faces, debugMode }: ResultScreenProps) {
+export function ResultScreen({
+  imageUrl,
+  onPrint,
+  onRetake,
+  faces,
+  debugMode,
+  spookifyOn,
+  onToggleSpookify,
+}: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [renderedSize, setRenderedSize] = useState<{ width: number; height: number } | null>(null);
 
@@ -55,6 +67,15 @@ export function ResultScreen({ imageUrl, onPrint, onRetake, faces, debugMode }: 
           {faces.length === 0 ? "0 faces detected" : `${faces.length} face${faces.length > 1 ? "s" : ""} detected`}
         </p>
       )}
+      <button
+        type="button"
+        className={`big-button spookify-toggle ${spookifyOn ? "" : "secondary"}`}
+        onClick={onToggleSpookify}
+        aria-pressed={spookifyOn}
+      >
+        {spookifyOn ? "🎃 SPOOKIFY: ON" : "🙂 SPOOKIFY: OFF"}
+      </button>
+
       <div className="result-controls">
         <button className="big-button" onClick={onPrint}>
           PRINT

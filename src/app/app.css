@@ -190,6 +190,12 @@
   font-weight: 700;
 }
 
+.spookify-toggle {
+  margin: 16px 0;
+  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+  padding: 16px 40px;
+}
+
 .result-controls {
   display: flex;
   gap: 24px;

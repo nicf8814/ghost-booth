@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildEarControlPoints,
+  buildEyeControlPoints,
+  buildJawControlPoint,
   buildNoseControlPoint,
   generateGridMesh,
   warpMeshPositions,
@@ -189,5 +192,101 @@ describe("buildNoseControlPoint", () => {
   it("returns null when there is neither a nose contour nor a nose point", () => {
     const face = makeFace({ noseContour: [], nose: undefined });
     expect(buildNoseControlPoint(face, { noseScale: 1.5 })).toBeNull();
+  });
+});
+
+/**
+ * A synthetic but shape-plausible 17-point dlib jaw contour: index 0 and
+ * 16 sit at "ear height" on the left/right, index 8 (the middle one) is
+ * the chin, lower (larger y) than the ends, with a smooth curve between.
+ */
+function makeJawContour(): Point[] {
+  const points: Point[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = i / 16;
+    points.push({ x: 0.32 + 0.36 * t, y: 0.55 + 0.17 * Math.sin(Math.PI * t) });
+  }
+  return points;
+}
+
+describe("buildEyeControlPoints", () => {
+  it("returns one control point per eye, centered on each eye's given point", () => {
+    const face = makeFace({ leftEye: { x: 0.4, y: 0.35 }, rightEye: { x: 0.6, y: 0.35 } });
+    const points = buildEyeControlPoints(face, { eyeScale: 1.5 });
+    expect(points).toHaveLength(2);
+    expect(points.map((p) => p.center)).toEqual(
+      expect.arrayContaining([{ x: 0.4, y: 0.35 }, { x: 0.6, y: 0.35 }]),
+    );
+    for (const p of points) {
+      expect(p.scale).toBe(1.5);
+      expect(p.radiusX).toBeGreaterThan(0);
+      expect(p.radiusY).toBeGreaterThan(0);
+    }
+  });
+
+  it("sizes the radius from interocular distance, not a fixed constant", () => {
+    const close = buildEyeControlPoints(
+      makeFace({ leftEye: { x: 0.48, y: 0.35 }, rightEye: { x: 0.52, y: 0.35 } }),
+      { eyeScale: 1.5 },
+    );
+    const far = buildEyeControlPoints(
+      makeFace({ leftEye: { x: 0.3, y: 0.35 }, rightEye: { x: 0.7, y: 0.35 } }),
+      { eyeScale: 1.5 },
+    );
+    expect(far[0].radiusX).toBeGreaterThan(close[0].radiusX);
+  });
+
+  it("returns an empty array when neither eye was detected", () => {
+    expect(buildEyeControlPoints(makeFace(), { eyeScale: 1.5 })).toEqual([]);
+  });
+
+  it("returns a single control point when only one eye was detected", () => {
+    const face = makeFace({ leftEye: { x: 0.4, y: 0.35 } });
+    const points = buildEyeControlPoints(face, { eyeScale: 1.5 });
+    expect(points).toHaveLength(1);
+    expect(points[0].center).toEqual({ x: 0.4, y: 0.35 });
+  });
+});
+
+describe("buildJawControlPoint", () => {
+  it("centers on the chin (contour index 8)", () => {
+    const contour = makeJawContour();
+    const face = makeFace({ faceContour: contour });
+    const result = buildJawControlPoint(face, { jawScale: 1.6 });
+    expect(result).not.toBeNull();
+    expect(result!.center).toEqual(contour[8]);
+    expect(result!.scale).toBe(1.6);
+    expect(result!.radiusX).toBeGreaterThan(0);
+    expect(result!.radiusY).toBeGreaterThan(0);
+  });
+
+  it("returns null when the face contour doesn't have the full 17 jaw points", () => {
+    const face = makeFace({ faceContour: [{ x: 0.5, y: 0.5 }] });
+    expect(buildJawControlPoint(face, { jawScale: 1.6 })).toBeNull();
+  });
+});
+
+describe("buildEarControlPoints", () => {
+  it("returns two control points, pushed outward from the face center", () => {
+    const contour = makeJawContour();
+    const face = makeFace({ faceContour: contour });
+    const points = buildEarControlPoints(face, { earScale: 1.7 });
+    expect(points).toHaveLength(2);
+
+    const faceCenterX = face.boundingBox.x + face.boundingBox.width / 2;
+    const [left, right] = [...points].sort((a, b) => a.center.x - b.center.x);
+    expect(left.center.x).toBeLessThan(contour[0].x);
+    expect(right.center.x).toBeGreaterThan(contour[16].x);
+    expect(left.center.x).toBeLessThan(faceCenterX);
+    expect(right.center.x).toBeGreaterThan(faceCenterX);
+    for (const p of points) {
+      expect(p.scale).toBe(1.7);
+      expect(p.radiusX).toBeGreaterThan(0);
+    }
+  });
+
+  it("returns an empty array when the face contour doesn't have the full 17 jaw points", () => {
+    const face = makeFace({ faceContour: [] });
+    expect(buildEarControlPoints(face, { earScale: 1.7 })).toEqual([]);
   });
 });

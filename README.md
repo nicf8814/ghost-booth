@@ -3,19 +3,21 @@
 A full-screen, unattended Halloween photobooth web app for iPad Safari. See `CLAUDE.md` for
 the full product spec and phased build plan this project follows.
 
-## Status: Phase 1 + 2 + 3 + 4 (step 1) complete (beta)
+## Status: Phase 1 + 2 + 3 + 4 (nose/eyes/jaw/ears) complete (beta)
 
-Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and the first step of Phase 4
-("Caricature") from `CLAUDE.md` are implemented and working:
+Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
+("Caricature") deformations from `CLAUDE.md` are implemented and working:
 
 - Vite + React + TypeScript project, with the directory structure the spec calls for.
 - A single authoritative `BoothState` state machine (`src/state/BoothStateMachine.ts`),
   with a pure reducer, no scattered booleans, and 13 passing unit tests.
 - Full-screen attract screen with rotating taglines.
-- Hidden operator panel (press-and-hold the ghost logo for 5s) exposing every setting from
-  the spec (countdown, auto start, caricature/ghost strength, preset, frame, caption mode,
-  auto print, copies, volume, retention, debug mode) plus the operator test tools
-  (test camera/capture/effect/printer, discover printer, clear queue/photos, reset settings).
+- Hidden operator panel (tap the ghost logo — originally a 5-second hold per the spec, but
+  that gesture wasn't registering reliably in iPhone Safari, so it's a plain tap for now)
+  exposing every setting from the spec (countdown, auto start, caricature/ghost strength,
+  preset, frame, caption mode, auto print, copies, volume, retention, debug mode) plus the
+  operator test tools (test camera/capture/effect/printer, discover printer, clear
+  queue/photos, reset settings).
 - `getUserMedia`-based camera manager and live preview, with permission/hardware error
   handling (denied, not found, in use, unsupported) and a deliberate un-mirroring step so
   captured/printed photos are never horizontally reversed.
@@ -46,25 +48,35 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and the first step of
   it. Detection never throws — a failed/slow model load or a photo with no visible face just
   falls back to 0 faces (CLAUDE.md section 49's "no face detected → plain Halloween photo"),
   it does not error out the booth.
-- **Caricature mesh warp — nose enlargement** (Phase 4, first deformation per section 59): a
-  real `CaricatureEngine` (`MeshWarpCaricatureEngine`) now runs. Each detected face's nose
-  contour becomes a control point, and a radial "spherize" deformation (`MeshWarp.ts`,
-  renderer-agnostic, unit tested) is rendered through a WebGL2 mesh warp
-  (`rendering/WebGLRenderer.ts`) with a Canvas2D fallback (`rendering/CanvasRenderer.ts`) for
-  when WebGL2 is unavailable or fails, per section 11. The warp is mathematically guaranteed
-  not to fold the mesh (strictly monotonic radial remap) on top of the existing
-  `SAFE_MIN/MAX_SCALE` clamp. The operator's Preset and Caricature Strength settings both
-  feed into it now (`scaleTowardNeutral` in `Presets.ts`); a per-photo seed drives the
-  "Random"/WTF preset per section 20. The warped photo — not the plain capture — is what now
-  shows on the result screen and gets sent to the printer.
+- **Caricature mesh warp — nose, eyes, jaw, ears** (Phase 4, section 59's incremental build
+  order): a real `CaricatureEngine` (`MeshWarpCaricatureEngine`) now runs. Each detected
+  face's landmarks become a set of control points — nose contour centroid, each eye's point
+  (sized from interocular distance, since the detector gives eye centroids, not contours),
+  the chin (jaw contour index 8), and the two jaw-contour ends pushed outward as an
+  approximate ear position (the 68-point landmark scheme has no ear landmarks at all) — and a
+  radial "spherize" deformation (`MeshWarp.ts`, renderer-agnostic, unit tested) is rendered
+  through a WebGL2 mesh warp (`rendering/WebGLRenderer.ts`) with a Canvas2D fallback
+  (`rendering/CanvasRenderer.ts`) for when WebGL2 is unavailable or fails, per section 11. The
+  warp is mathematically guaranteed not to fold the mesh (strictly monotonic radial remap) on
+  top of a `SAFE_MIN/MAX_SCALE` clamp (0.5–2.4, a taste ceiling rather than a fold-safety
+  limit). Every named preset now drives all four wired features (leaning toward the
+  goofy/scary-witch end of the range by design — Witch, for instance, goes heavy on nose and
+  eyebrows for the classic silhouette), Random/WTF mode always maxes out nose/eyes/jaw/ears
+  rather than leaving them to chance, and the default Caricature Strength is 1.0 (full
+  intensity) — the effect is prominent out of the box, with the operator panel's strength
+  slider and preset picker there to pull it back if wanted.
+- **Spookify on/off toggle**: the result screen now shows a "🎃 SPOOKIFY: ON/OFF" button. Both
+  the candid original and the caricatured photo are kept in memory after processing, so
+  toggling swaps which one is displayed/printed instantly, with no re-detection or re-warping
+  — for a group that wants one normal photo alongside the silly ones. Defaults to on for
+  every fresh capture.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 
-- **The rest of the caricature engine** (Phase 4/5) — eyes, mouth, forehead, jaw, cheeks, and
-  ears are next, built the same incremental way nose enlargement was (one
-  `buildXControlPoint` function added to `MeshWarp.ts` at a time; the renderers and
-  `CaricatureEngine` don't need to change shape for each one). Body caricature (Phase 4:
-  huge head, giant shoulders, etc.) also isn't wired up yet.
+- **The rest of the caricature engine** (Phase 4/5) — mouth, forehead, cheeks are next, built
+  the same incremental way (one `buildXControlPoint` function added to `MeshWarp.ts` at a
+  time; the renderers and `CaricatureEngine` don't need to change shape for each one). Body
+  caricature (Phase 4: huge head, giant shoulders, etc.) also isn't wired up yet.
 - **Person segmentation & ghost effect** (Phases 6–7) — `PersonSegmenter`/`GhostEngine` are
   stubs; no ghosts are composited yet.
 - **Full composition** (Phase 8) — backgrounds, overlays, captions, and frames aren't
@@ -88,7 +100,7 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and the first step of
 ```bash
 npm install
 npm run dev       # http://localhost:5173, camera works on localhost without HTTPS
-npm run test      # 43 passing unit tests (state machine, landmark normalization, mesh warp math)
+npm run test      # 51 passing unit tests (state machine, landmark normalization, mesh warp math)
 npm run build     # type-checks (tsc -b) and produces dist/
 ```
 
@@ -100,18 +112,20 @@ open the app in Safari; "Add to Home Screen" gives you the standalone/full-scree
 attract → tap → live camera preview → BOO → 3-2-1-BOO countdown (camera stays live behind
 it) → capture → result photo displayed → Print → mock printer succeeds → back to result
 (printComplete) — with zero console errors, plus the operator panel opening correctly on a
-5-second hold and print-failure recovery buttons all present.
+tap and print-failure recovery buttons all present.
 
 Face detection was separately verified by feeding Chromium a real photo (containing 3 faces)
 as a fake camera stream (`--use-file-for-fake-video-capture`) and confirming, with Debug Mode
 on, that all 3 faces were correctly boxed and landmarked on the result screen.
 
-The nose-enlargement warp was verified two ways: end-to-end through the same fake-camera
-flow with the operator panel forced to the "Goblin" preset at full strength (all 3 faces
-warp correctly, no console errors), and in isolation by warping a synthetic checkerboard test
-image through both the WebGL2 and Canvas2D code paths directly in a real browser — both
+The mesh warp was verified three ways: end-to-end through the same fake-camera flow (all 3
+faces warp correctly, no console errors); in isolation by warping a synthetic checkerboard
+test image through both the WebGL2 and Canvas2D code paths directly in a real browser — both
 produce the expected smooth center-magnifying bulge with a perfectly fixed center point, and
-are visually identical to each other, confirming the fallback path matches the primary one.
+are visually identical to each other, confirming the fallback matches the primary renderer;
+and with a pixel-level diff between a Spookify-on and Spookify-off screenshot of the same
+captured photo, confirming the toggle actually swaps the displayed bitmap (not just its
+label) and that toggling back reproduces the original cached result.
 
 ## Live deployment
 
@@ -121,8 +135,3 @@ Hosted on GitHub Pages from the `gh-pages` branch. To redeploy after a change on
 npm run build
 # copy dist/ into a gh-pages worktree, commit, push — see git history for the exact steps
 ```
-
-**Note:** the result photo itself still looks unchanged from the plain capture — that's
-expected for Phase 3. The only visible sign face detection ran is the debug overlay, which
-is off by default. To see it: hold the ghost logo for 5 seconds → enable "Debug Mode" in the
-operator panel → take a photo.

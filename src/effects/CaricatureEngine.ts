@@ -5,19 +5,26 @@
 // fallback for environments where GPU features fail", section 49's
 // "never crash - degrade gracefully").
 //
-// Only nose enlargement is wired up so far, per the spec's incremental
-// build order ("Implement one deformation first: nose enlargement. Then
-// add: eyes, mouth, forehead, jaw, ears."). The other *Scale fields on
-// CaricatureConfiguration already exist (Presets.ts) and are accepted
-// here, but only noseScale currently produces a control point. Adding the
-// next feature is a matter of writing a buildXControlPoint (MeshWarp.ts)
-// and pushing its result into `controlPoints` below - this engine, both
-// renderers, and the tests don't need to change shape to support it.
+// Nose, eyes, jaw, and ears are wired up so far, per the spec's
+// incremental build order ("Implement one deformation first: nose
+// enlargement. Then add: eyes, mouth, forehead, jaw, ears."). mouthScale/
+// foreheadScale/cheekScale/eyebrowScale already exist on
+// CaricatureConfiguration (Presets.ts) and are accepted here, but don't
+// yet produce a control point. Adding the next feature is a matter of
+// writing a buildXControlPoint (MeshWarp.ts) and pushing its result into
+// `controlPoints` below - this engine, both renderers, and the tests
+// don't need to change shape to support it.
 
 import type { CaricatureEngine } from "./EffectEngine";
 import type { CaricatureConfiguration } from "./Presets";
 import type { FaceModel } from "../vision/VisionTypes";
-import { buildNoseControlPoint, type ControlPoint } from "./MeshWarp";
+import {
+  buildEarControlPoints,
+  buildEyeControlPoints,
+  buildJawControlPoint,
+  buildNoseControlPoint,
+  type ControlPoint,
+} from "./MeshWarp";
 import { WebGL2MeshWarpRenderer } from "../rendering/WebGLRenderer";
 import { Canvas2DMeshWarpRenderer } from "../rendering/CanvasRenderer";
 import { logger } from "../utils/logger";
@@ -69,5 +76,9 @@ function buildControlPoints(face: FaceModel, config: CaricatureConfiguration): C
   const points: ControlPoint[] = [];
   const nose = buildNoseControlPoint(face, config);
   if (nose) points.push(nose);
+  points.push(...buildEyeControlPoints(face, config));
+  const jaw = buildJawControlPoint(face, config);
+  if (jaw) points.push(jaw);
+  points.push(...buildEarControlPoints(face, config));
   return points;
 }

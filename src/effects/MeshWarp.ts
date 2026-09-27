@@ -183,6 +183,99 @@ export function buildNoseControlPoint(
   };
 }
 
+/**
+ * Builds control points for eye enlargement (CLAUDE.md section 59's second
+ * deformation). FaceModel only carries a single centroid point per eye
+ * (`leftEye`/`rightEye`), not an eye contour, so the radius is derived
+ * geometrically instead of from a bounding box: interocular distance (the
+ * gap between the two eyes) scales with face size regardless of camera
+ * distance, so it's a stable proxy for "how big should the eye region be"
+ * without needing per-eye contour points.
+ */
+export function buildEyeControlPoints(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "eyeScale">,
+): ControlPoint[] {
+  const { leftEye, rightEye } = face;
+  if (!leftEye && !rightEye) return [];
+
+  const interocular =
+    leftEye && rightEye ? distance(leftEye, rightEye) : face.boundingBox.width * 0.45;
+  const radiusX = Math.max(interocular * 0.32, 0.01);
+  const radiusY = Math.max(interocular * 0.24, 0.01); // eyes are wider than tall
+
+  const points: ControlPoint[] = [];
+  for (const center of [leftEye, rightEye]) {
+    if (!center) continue;
+    points.push({ center, radiusX, radiusY, scale: config.eyeScale });
+  }
+  return points;
+}
+
+/**
+ * Builds the control point for jaw/chin enlargement from the face contour
+ * (the dlib 68-point scheme's jaw curve: 17 points from ear to ear, with
+ * index 8 -- the middle one -- at the chin). Centering on the chin and
+ * sizing from the jaw curve's own span keeps the effect anchored to the
+ * lower face rather than bleeding up into the cheeks/mouth.
+ */
+export function buildJawControlPoint(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "jawScale">,
+): ControlPoint | null {
+  const contour = face.faceContour;
+  if (contour.length < 17) return null;
+
+  const chin = contour[8];
+  const jawLeft = contour[0];
+  const jawRight = contour[16];
+  const halfWidth = Math.abs(jawRight.x - jawLeft.x) / 2;
+  // The jaw curve only spans ear-to-ear at chin height, so its own height
+  // is ~0; use a fraction of the face's bounding box instead for radiusY.
+  const halfHeight = face.boundingBox.height * 0.16;
+
+  return {
+    center: chin,
+    radiusX: Math.max(halfWidth * 1.15, 0.01),
+    radiusY: Math.max(halfHeight * 1.6, 0.01),
+    scale: config.jawScale,
+  };
+}
+
+/**
+ * Builds (approximate) control points for ear enlargement. The dlib
+ * 68-point scheme this project's detector uses has no ear landmarks at
+ * all, so ears can't be located precisely -- instead, the two ends of the
+ * jaw contour (indices 0 and 16, roughly at ear height) are pushed
+ * further outward from the face's horizontal center as a stand-in anchor.
+ * This is an approximation in service of a cartoonish "outward bulge near
+ * the side of the head" (CLAUDE.md section 13's "apply controlled
+ * outward deformation"), not a precise ear location.
+ */
+export function buildEarControlPoints(
+  face: FaceModel,
+  config: Pick<CaricatureConfiguration, "earScale">,
+): ControlPoint[] {
+  const contour = face.faceContour;
+  if (contour.length < 17) return [];
+
+  const faceCenterX = face.boundingBox.x + face.boundingBox.width / 2;
+  const radius = Math.max(face.boundingBox.width * 0.13, 0.01);
+
+  return [contour[0], contour[16]].map((anchor) => {
+    const direction = anchor.x >= faceCenterX ? 1 : -1;
+    const center: Point = {
+      x: anchor.x + direction * face.boundingBox.width * 0.09,
+      y: anchor.y - face.boundingBox.height * 0.02,
+    };
+    return { center, radiusX: radius, radiusY: radius * 1.3, scale: config.earScale };
+  });
+}
+
+function distance(a: Point, b: Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
 function centroid(points: readonly Point[]): Point {
   const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
   return { x: sum.x / points.length, y: sum.y / points.length };
