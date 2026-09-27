@@ -3,10 +3,10 @@
 A full-screen, unattended Halloween photobooth web app for iPad Safari. See `CLAUDE.md` for
 the full product spec and phased build plan this project follows.
 
-## Status: Phase 1 + 2 + 3 complete (beta)
+## Status: Phase 1 + 2 + 3 + 4 (step 1) complete (beta)
 
-Phase 1 ("Shell"), Phase 2 ("Camera"), and Phase 3 ("Vision") from `CLAUDE.md` are
-implemented and working:
+Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and the first step of Phase 4
+("Caricature") from `CLAUDE.md` are implemented and working:
 
 - Vite + React + TypeScript project, with the directory structure the spec calls for.
 - A single authoritative `BoothState` state machine (`src/state/BoothStateMachine.ts`),
@@ -46,11 +46,25 @@ implemented and working:
   it. Detection never throws — a failed/slow model load or a photo with no visible face just
   falls back to 0 faces (CLAUDE.md section 49's "no face detected → plain Halloween photo"),
   it does not error out the booth.
+- **Caricature mesh warp — nose enlargement** (Phase 4, first deformation per section 59): a
+  real `CaricatureEngine` (`MeshWarpCaricatureEngine`) now runs. Each detected face's nose
+  contour becomes a control point, and a radial "spherize" deformation (`MeshWarp.ts`,
+  renderer-agnostic, unit tested) is rendered through a WebGL2 mesh warp
+  (`rendering/WebGLRenderer.ts`) with a Canvas2D fallback (`rendering/CanvasRenderer.ts`) for
+  when WebGL2 is unavailable or fails, per section 11. The warp is mathematically guaranteed
+  not to fold the mesh (strictly monotonic radial remap) on top of the existing
+  `SAFE_MIN/MAX_SCALE` clamp. The operator's Preset and Caricature Strength settings both
+  feed into it now (`scaleTowardNeutral` in `Presets.ts`); a per-photo seed drives the
+  "Random"/WTF preset per section 20. The warped photo — not the plain capture — is what now
+  shows on the result screen and gets sent to the printer.
 
 ### What is NOT yet implemented (by design — later phases per CLAUDE.md)
 
-- **Caricature mesh warp** (Phases 4–5) — `CaricatureEngine` is a pass-through stub. The
-  now-available face landmarks are the input this phase will consume.
+- **The rest of the caricature engine** (Phase 4/5) — eyes, mouth, forehead, jaw, cheeks, and
+  ears are next, built the same incremental way nose enlargement was (one
+  `buildXControlPoint` function added to `MeshWarp.ts` at a time; the renderers and
+  `CaricatureEngine` don't need to change shape for each one). Body caricature (Phase 4:
+  huge head, giant shoulders, etc.) also isn't wired up yet.
 - **Person segmentation & ghost effect** (Phases 6–7) — `PersonSegmenter`/`GhostEngine` are
   stubs; no ghosts are composited yet.
 - **Full composition** (Phase 8) — backgrounds, overlays, captions, and frames aren't
@@ -74,7 +88,7 @@ implemented and working:
 ```bash
 npm install
 npm run dev       # http://localhost:5173, camera works on localhost without HTTPS
-npm run test      # 21 passing unit tests (state machine + landmark normalization)
+npm run test      # 43 passing unit tests (state machine, landmark normalization, mesh warp math)
 npm run build     # type-checks (tsc -b) and produces dist/
 ```
 
@@ -91,6 +105,13 @@ it) → capture → result photo displayed → Print → mock printer succeeds �
 Face detection was separately verified by feeding Chromium a real photo (containing 3 faces)
 as a fake camera stream (`--use-file-for-fake-video-capture`) and confirming, with Debug Mode
 on, that all 3 faces were correctly boxed and landmarked on the result screen.
+
+The nose-enlargement warp was verified two ways: end-to-end through the same fake-camera
+flow with the operator panel forced to the "Goblin" preset at full strength (all 3 faces
+warp correctly, no console errors), and in isolation by warping a synthetic checkerboard test
+image through both the WebGL2 and Canvas2D code paths directly in a real browser — both
+produce the expected smooth center-magnifying bulge with a perfectly fixed center point, and
+are visually identical to each other, confirming the fallback path matches the primary one.
 
 ## Live deployment
 
