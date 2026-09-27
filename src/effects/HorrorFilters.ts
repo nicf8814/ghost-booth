@@ -20,9 +20,9 @@
 // Applied as a pre-pass on the source bitmap *before* it reaches
 // CompositionEngine.compose() (see CapturePipeline.ts's composeSelectedBitmap),
 // so frame/overlays/caption can still be layered on top of a filtered photo.
-// Mutually exclusive with Poster Mode for the same reason Frame/Overlays are
-// (PosterEffect.ts is already a full color grade of its own -- stacking two
-// grades would just look muddy), enforced by the caller, not this module.
+// Also runs *before* PosterEffect.ts's grade when a poster tint is picked
+// too -- filter then poster then compose(), so the two stack rather than
+// being mutually exclusive (only Frame stays exclusive with Poster).
 
 export type FilterKey = "vhs" | "noir" | "bloodMoon" | "vintage";
 

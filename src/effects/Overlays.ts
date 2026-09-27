@@ -41,6 +41,12 @@ export const OVERLAY_KEYS: OverlayKey[] = [
   "scratches",
   "filmGrain",
   "vignette",
+  "pumpkins",
+  "witchHat",
+  "lightning",
+  "ravens",
+  "hauntedTrees",
+  "handprint",
 ];
 
 /** Human-readable labels for the operator panel's checkbox grid and the guest-facing customize panel. */
@@ -61,6 +67,12 @@ export const OVERLAY_LABELS: Record<OverlayKey, string> = {
   scratches: "Scratches",
   filmGrain: "Film Grain",
   vignette: "Vignette",
+  pumpkins: "Pumpkins",
+  witchHat: "Witch Hat",
+  lightning: "Lightning",
+  ravens: "Ravens",
+  hauntedTrees: "Haunted Trees",
+  handprint: "Bloody Handprint",
 };
 
 /** Draws every requested overlay, in a fixed order so layering is stable regardless of the order the operator picked them in. */
@@ -124,6 +136,18 @@ function drawOverlay(
       return drawFilmGrain(ctx, width, height, rng);
     case "vignette":
       return drawVignette(ctx, width, height);
+    case "pumpkins":
+      return drawPumpkins(ctx, width, height, rng);
+    case "witchHat":
+      return drawWitchHat(ctx, width, height, rng);
+    case "lightning":
+      return drawLightning(ctx, width, height, rng);
+    case "ravens":
+      return drawRavens(ctx, width, height, rng);
+    case "hauntedTrees":
+      return drawHauntedTrees(ctx, width, height, rng);
+    case "handprint":
+      return drawHandprint(ctx, width, height, rng);
   }
 }
 
@@ -277,35 +301,76 @@ function drawBat(ctx: OffscreenCanvasRenderingContext2D, cx: number, cy: number,
   ctx.fill();
 }
 
-/** A handful of irregular dark-red blobs with satellite droplets and drip trails, biased toward the edges/corners so they're less likely to sit over a face (no segmentation to check against). */
+/** Several irregular dark-red blobs with satellite droplets, long drip trails, and a fine speckled mist around each cluster, biased toward the edges/corners so they're less likely to sit over a face (no segmentation to check against). Enhanced from the original single-tone version: two blood shades (a darker "old" tone and a brighter "fresh" tone) for depth, longer/more varied drips that sometimes run all the way to the frame edge, and an occasional single dramatic "big hit" cluster in addition to the usual corner splatters. */
 function drawBloodSplatter(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, rng: () => number): void {
-  const count = 2 + Math.floor(rng() * 3); // 2-4 splatter clusters
-  ctx.fillStyle = "rgba(120, 8, 12, 0.82)";
+  const count = 3 + Math.floor(rng() * 3); // 3-5 splatter clusters (was 2-4)
+  const unit = Math.min(width, height);
+
   for (let i = 0; i < count; i++) {
+    const isBigHit = i === 0 && rng() < 0.4;
     const { sx, sy } = randomCorner(rng);
-    const cx = width * (sx > 0 ? range(rng, 0, 0.22) : range(rng, 0.78, 1));
-    const cy = height * (sy > 0 ? range(rng, 0, 0.22) : range(rng, 0.78, 1));
-    const size = Math.min(width, height) * range(rng, 0.035, 0.07);
+    const cx = isBigHit
+      ? range(rng, width * 0.25, width * 0.75)
+      : width * (sx > 0 ? range(rng, 0, 0.22) : range(rng, 0.78, 1));
+    const cy = isBigHit
+      ? range(rng, height * 0.15, height * 0.4)
+      : height * (sy > 0 ? range(rng, 0, 0.22) : range(rng, 0.78, 1));
+    const size = unit * (isBigHit ? range(rng, 0.08, 0.12) : range(rng, 0.035, 0.075));
+
+    // Fresh (brighter, more saturated) vs. older (darker, browner) blood --
+    // alternating by cluster reads as more varied than one flat tone.
+    const fresh = rng() < 0.5;
+    ctx.fillStyle = fresh ? "rgba(150, 10, 14, 0.85)" : "rgba(95, 12, 14, 0.8)";
     drawBlob(ctx, cx, cy, size, rng);
 
     // Smaller satellite droplets scattered around the main blob.
-    const satellites = 3 + Math.floor(rng() * 4);
+    const satellites = 4 + Math.floor(rng() * 5); // was 3-6, now 4-8
     for (let s = 0; s < satellites; s++) {
       const angle = range(rng, 0, Math.PI * 2);
-      const dist = range(rng, size * 0.8, size * 2.4);
-      const dropSize = size * range(rng, 0.12, 0.32);
+      const dist = range(rng, size * 0.8, size * 2.8);
+      const dropSize = size * range(rng, 0.1, 0.3);
       ctx.beginPath();
       ctx.arc(cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist, dropSize, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Drip trail(s) below the main blob.
-    const drips = 1 + Math.floor(rng() * 3);
-    for (let d = 0; d < drips; d++) {
-      const dx = cx + range(rng, -size * 0.6, size * 0.6);
-      const dripLen = range(rng, size * 1.2, size * 3);
+    // A fine speckled mist ringing the cluster -- the tiny secondary spray
+    // real splatter leaves that a handful of round satellites alone misses.
+    const mist = 10 + Math.floor(rng() * 14);
+    for (let m = 0; m < mist; m++) {
+      const angle = range(rng, 0, Math.PI * 2);
+      const dist = range(rng, size * 1.5, size * 4);
+      const speck = size * range(rng, 0.02, 0.07);
+      ctx.globalAlpha = range(rng, 0.3, 0.7);
       ctx.beginPath();
-      ctx.ellipse(dx, cy + size * 0.3 + dripLen * 0.5, size * 0.16, dripLen * 0.5, 0, 0, Math.PI * 2);
+      ctx.arc(cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist, speck, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Drip trail(s) below the main blob -- longer and more numerous than
+    // before, and occasionally long enough to run to the bottom of the
+    // frame for a more dramatic "dripping down the whole photo" look.
+    const drips = 2 + Math.floor(rng() * 3); // was 1-3, now 2-4
+    for (let d = 0; d < drips; d++) {
+      const dx = cx + range(rng, -size * 0.7, size * 0.7);
+      const runsToEdge = rng() < 0.25;
+      const dripLen = runsToEdge ? height - cy : range(rng, size * 1.5, size * 4.5);
+      const dripW = size * range(rng, 0.1, 0.2);
+      const startY = cy + size * 0.3;
+
+      // A tapering teardrop shape rather than a plain ellipse: wider at the
+      // top (still attached to the blob), narrowing toward a rounded tip.
+      ctx.beginPath();
+      ctx.moveTo(dx - dripW * 0.5, startY);
+      ctx.quadraticCurveTo(dx - dripW * 0.3, startY + dripLen * 0.7, dx, startY + dripLen);
+      ctx.quadraticCurveTo(dx + dripW * 0.3, startY + dripLen * 0.7, dx + dripW * 0.5, startY);
+      ctx.closePath();
+      ctx.fill();
+
+      // A small pooled bead at the tip -- reads as a drop about to fall.
+      ctx.beginPath();
+      ctx.arc(dx, startY + dripLen, dripW * 0.55, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -621,4 +686,251 @@ function drawVignette(ctx: OffscreenCanvasRenderingContext2D, width: number, hei
   vignette.addColorStop(1, "rgba(0, 0, 0, 0.55)");
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, width, height);
+}
+
+/** A couple of simple jack-o'-lantern silhouettes (ribbed pumpkin body + triangle eyes/nose + jagged grin) sitting along the bottom edge. */
+function drawPumpkins(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, rng: () => number): void {
+  const count = 2 + Math.floor(rng() * 2);
+  for (let i = 0; i < count; i++) {
+    const size = Math.min(width, height) * range(rng, 0.08, 0.13);
+    const x = range(rng, size, width - size);
+    const y = height - size * range(rng, 0.55, 0.75);
+    drawPumpkin(ctx, x, y, size, rng);
+  }
+}
+
+function drawPumpkin(ctx: OffscreenCanvasRenderingContext2D, cx: number, cy: number, size: number, rng: () => number): void {
+  ctx.fillStyle = "rgba(200, 90, 10, 0.85)";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, size * 0.7, size * 0.55, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Ribs: a few vertical shading arcs across the body.
+  ctx.strokeStyle = "rgba(140, 55, 5, 0.5)";
+  ctx.lineWidth = Math.max(1, size * 0.03);
+  for (let r = -2; r <= 2; r++) {
+    ctx.beginPath();
+    ctx.ellipse(cx + r * size * 0.22, cy, size * 0.16, size * 0.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Stem.
+  ctx.fillStyle = "rgba(70, 110, 40, 0.85)";
+  ctx.fillRect(cx - size * 0.06, cy - size * 0.75, size * 0.12, size * 0.25);
+
+  // Glowing carved face.
+  const glow = range(rng, 0.75, 0.95);
+  ctx.fillStyle = `rgba(255, 200, 60, ${glow.toFixed(2)})`;
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.28, cy - size * 0.12);
+  ctx.lineTo(cx - size * 0.12, cy - size * 0.28);
+  ctx.lineTo(cx - size * 0.02, cy - size * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + size * 0.28, cy - size * 0.12);
+  ctx.lineTo(cx + size * 0.12, cy - size * 0.28);
+  ctx.lineTo(cx + size * 0.02, cy - size * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx - size * 0.07, cy + size * 0.1);
+  ctx.lineTo(cx + size * 0.07, cy + size * 0.1);
+  ctx.closePath();
+  ctx.fill();
+
+  // Jagged grin.
+  const teeth = 5;
+  const mouthW = size * 0.55;
+  const mouthY = cy + size * 0.22;
+  ctx.beginPath();
+  ctx.moveTo(cx - mouthW / 2, mouthY);
+  for (let t = 0; t <= teeth; t++) {
+    const tx = cx - mouthW / 2 + (mouthW / teeth) * t;
+    const ty = t % 2 === 0 ? mouthY : mouthY + size * 0.12;
+    ctx.lineTo(tx, ty);
+  }
+  ctx.lineTo(cx + mouthW / 2, mouthY);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** A witch's hat silhouette perched in a top corner, brim tilted like it's sitting on an unseen head just out of frame. */
+function drawWitchHat(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, rng: () => number): void {
+  const { sx } = randomCorner(rng);
+  const cx = width * (sx > 0 ? range(rng, 0.12, 0.22) : range(rng, 0.78, 0.88));
+  const cy = height * range(rng, 0.04, 0.1);
+  const size = Math.min(width, height) * range(rng, 0.11, 0.16);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(sx * range(rng, 0.08, 0.2));
+
+  ctx.fillStyle = "rgba(20, 15, 25, 0.88)";
+  // Brim.
+  ctx.beginPath();
+  ctx.ellipse(0, size * 0.35, size * 0.75, size * 0.16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Cone.
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.28, size * 0.3);
+  ctx.quadraticCurveTo(-size * 0.05, -size * 0.1, size * 0.06, -size * 0.95);
+  ctx.quadraticCurveTo(size * 0.12, -size * 0.1, size * 0.28, size * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  // Buckle band.
+  ctx.fillStyle = "rgba(140, 20, 20, 0.8)";
+  ctx.fillRect(-size * 0.24, size * 0.16, size * 0.4, size * 0.09);
+  ctx.restore();
+}
+
+/** A jagged bolt of lightning cracking down one side of the frame, with a brief glow flash. */
+function drawLightning(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, rng: () => number): void {
+  const { sx } = randomCorner(rng);
+  const startX = width * (sx > 0 ? range(rng, 0.55, 0.75) : range(rng, 0.25, 0.45));
+
+  // A soft glow flash behind the bolt.
+  const glow = ctx.createRadialGradient(startX, height * 0.3, 0, startX, height * 0.3, Math.max(width, height) * 0.35);
+  glow.addColorStop(0, "rgba(220, 230, 255, 0.18)");
+  glow.addColorStop(1, "rgba(220, 230, 255, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = "rgba(230, 240, 255, 0.85)";
+  ctx.lineWidth = Math.max(1.5, width * 0.006);
+  const segments = 6 + Math.floor(rng() * 3);
+  let x = startX;
+  let y = 0;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  for (let s = 0; s < segments; s++) {
+    y += height / segments;
+    x += range(rng, -width * 0.05, width * 0.05);
+    ctx.lineTo(x, y);
+    // An occasional short branch fork.
+    if (rng() < 0.4) {
+      const bx = x + range(rng, -width * 0.08, width * 0.08) * (rng() < 0.5 ? 1 : -1);
+      const by = y + height * 0.08;
+      ctx.lineTo(bx, by);
+      ctx.moveTo(x, y);
+    }
+  }
+  ctx.stroke();
+}
+
+/** A few raven silhouettes in flight, similar construction to drawBats but larger, fewer, and V-winged rather than scalloped. */
+function drawRavens(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, rng: () => number): void {
+  const count = 1 + Math.floor(rng() * 3);
+  ctx.fillStyle = "rgba(8, 6, 10, 0.8)";
+  for (let i = 0; i < count; i++) {
+    const cx = range(rng, width * 0.1, width * 0.9);
+    const cy = range(rng, height * 0.04, height * 0.25);
+    const size = Math.min(width, height) * range(rng, 0.035, 0.06);
+    drawRaven(ctx, cx, cy, size);
+  }
+}
+
+function drawRaven(ctx: OffscreenCanvasRenderingContext2D, cx: number, cy: number, size: number): void {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.quadraticCurveTo(cx - size * 0.6, cy - size * 0.3, cx - size * 2, cy - size * 0.9);
+  ctx.quadraticCurveTo(cx - size * 1.1, cy - size * 0.25, cx - size * 0.2, cy + size * 0.05);
+  ctx.quadraticCurveTo(cx + size * 0.2, cy + size * 0.05, cx + size * 1.1, cy - size * 0.25);
+  ctx.quadraticCurveTo(cx + size * 2, cy - size * 0.9, cx + size * 0.6, cy - size * 0.3);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** A row of bare, gnarled dead-tree silhouettes along the bottom edge, evoking a graveyard/forest tree line. */
+function drawHauntedTrees(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, rng: () => number): void {
+  const count = 2 + Math.floor(rng() * 2);
+  ctx.fillStyle = "rgba(10, 8, 10, 0.6)";
+  for (let i = 0; i < count; i++) {
+    const x = range(rng, width * 0.05, width * 0.95);
+    const h = height * range(rng, 0.22, 0.38);
+    drawHauntedTree(ctx, x, height, h, rng);
+  }
+}
+
+function drawHauntedTree(ctx: OffscreenCanvasRenderingContext2D, x: number, groundY: number, h: number, rng: () => number): void {
+  const trunkW = h * 0.06;
+  ctx.beginPath();
+  ctx.moveTo(x - trunkW, groundY);
+  ctx.lineTo(x - trunkW * 0.4, groundY - h * 0.6);
+  ctx.lineTo(x + trunkW * 0.4, groundY - h * 0.6);
+  ctx.lineTo(x + trunkW, groundY);
+  ctx.closePath();
+  ctx.fill();
+
+  // A handful of gnarled branches forking off the upper trunk.
+  const branches = 4 + Math.floor(rng() * 3);
+  for (let b = 0; b < branches; b++) {
+    const startY = groundY - h * range(rng, 0.55, 0.95);
+    const side = rng() < 0.5 ? -1 : 1;
+    const len = h * range(rng, 0.15, 0.3);
+    const angle = -Math.PI / 2 + side * range(rng, 0.3, 0.9);
+    ctx.lineWidth = Math.max(1, trunkW * 0.35);
+    ctx.strokeStyle = ctx.fillStyle as string;
+    ctx.beginPath();
+    ctx.moveTo(x, startY);
+    const midX = x + Math.cos(angle) * len * 0.5;
+    const midY = startY + Math.sin(angle) * len * 0.5;
+    const endX = x + Math.cos(angle) * len;
+    const endY = startY + Math.sin(angle) * len;
+    ctx.quadraticCurveTo(midX, midY, endX, endY);
+    ctx.stroke();
+  }
+}
+
+/** A single bloody handprint pressed onto the frame, off to one side, as if someone dragged themselves across the photo. */
+function drawHandprint(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number, rng: () => number): void {
+  const { sx, sy } = randomCorner(rng);
+  const cx = width * (sx > 0 ? range(rng, 0.06, 0.2) : range(rng, 0.8, 0.94));
+  const cy = height * (sy > 0 ? range(rng, 0.55, 0.75) : range(rng, 0.25, 0.45));
+  const size = Math.min(width, height) * range(rng, 0.09, 0.13);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(range(rng, -0.4, 0.4));
+  ctx.fillStyle = "rgba(130, 10, 14, 0.75)";
+
+  // Palm.
+  ctx.beginPath();
+  ctx.ellipse(0, size * 0.15, size * 0.32, size * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Thumb + four fingers, each a slim rounded rect fanning out from the palm.
+  const fingers = [
+    { angle: -1.35, len: 0.55, w: 0.16 }, // thumb, short and angled off to the side
+    { angle: -0.55, len: 0.85, w: 0.13 },
+    { angle: -0.2, len: 0.95, w: 0.13 },
+    { angle: 0.15, len: 0.92, w: 0.13 },
+    { angle: 0.5, len: 0.8, w: 0.13 },
+  ];
+  for (const f of fingers) {
+    ctx.save();
+    ctx.rotate(f.angle);
+    ctx.beginPath();
+    const w = size * f.w;
+    const len = size * f.len;
+    ctx.moveTo(-w / 2, 0);
+    ctx.lineTo(-w / 2, -len);
+    ctx.quadraticCurveTo(-w / 2, -len - w * 0.6, 0, -len - w * 0.6);
+    ctx.quadraticCurveTo(w / 2, -len - w * 0.6, w / 2, -len);
+    ctx.lineTo(w / 2, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // A couple of drip streaks trailing down from the print.
+  for (let d = 0; d < 2; d++) {
+    const dx = range(rng, -size * 0.2, size * 0.2);
+    const len = size * range(rng, 0.4, 0.9);
+    ctx.beginPath();
+    ctx.ellipse(dx, size * 0.55 + len * 0.5, size * 0.045, len * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }

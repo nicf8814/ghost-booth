@@ -6,14 +6,33 @@
 // decoration drawn within the existing canvas bounds, not a canvas resize,
 // so it never shifts the coordinate system debug landmark overlays rely on.
 
-export type FrameKey = "none" | "classic" | "filmStrip";
+export type FrameKey =
+  | "none"
+  | "classic"
+  | "filmStrip"
+  | "polaroid"
+  | "spooky"
+  | "torn"
+  | "heisterkamp";
 
-export const FRAME_KEYS: FrameKey[] = ["none", "classic", "filmStrip"];
+export const FRAME_KEYS: FrameKey[] = [
+  "none",
+  "classic",
+  "filmStrip",
+  "polaroid",
+  "spooky",
+  "torn",
+  "heisterkamp",
+];
 
 export const FRAME_LABELS: Record<FrameKey, string> = {
   none: "No Frame",
   classic: "Classic",
   filmStrip: "Film Strip",
+  polaroid: "Polaroid",
+  spooky: "Spooky Border",
+  torn: "Torn Edge",
+  heisterkamp: "Heisterkamp Halloween",
 };
 
 const ACCENT_ORANGE = "#ff7a1a";
@@ -31,6 +50,18 @@ export function drawFrame(
       break;
     case "filmStrip":
       drawFilmStripFrame(ctx, width, height);
+      break;
+    case "polaroid":
+      drawPolaroidFrame(ctx, width, height);
+      break;
+    case "spooky":
+      drawSpookyFrame(ctx, width, height);
+      break;
+    case "torn":
+      drawTornFrame(ctx, width, height);
+      break;
+    case "heisterkamp":
+      drawHeisterkampFrame(ctx, width, height);
       break;
     case "none":
     default:
@@ -76,4 +107,191 @@ function drawFilmStripFrame(ctx: OffscreenCanvasRenderingContext2D, width: numbe
     ctx.fillRect(x, holeY2, holeSize, holeSize);
   }
   ctx.restore();
+}
+
+/** Thick white border, extra-deep on the bottom, mimicking a classic instant-film print. */
+function drawPolaroidFrame(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number): void {
+  const side = Math.round(width * 0.05);
+  const top = Math.round(height * 0.05);
+  const bottom = Math.round(height * 0.16);
+
+  ctx.save();
+  ctx.fillStyle = "#f5f2e8";
+  // Four separate rects rather than one border stroke so the bottom band
+  // can be deeper than the other three sides (the instant-film tell).
+  ctx.fillRect(0, 0, width, top);
+  ctx.fillRect(0, height - bottom, width, bottom);
+  ctx.fillRect(0, 0, side, height);
+  ctx.fillRect(width - side, 0, side, height);
+
+  // A faint inner shadow line where the border meets the photo, so the
+  // border reads as sitting in front of the image rather than painted flat.
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.12)";
+  ctx.lineWidth = Math.max(1, side * 0.15);
+  ctx.strokeRect(side, top, width - side * 2, height - top - bottom);
+  ctx.restore();
+}
+
+/** Ornate black/orange Halloween border with a scalloped inner edge and corner bat silhouettes. */
+function drawSpookyFrame(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number): void {
+  const outer = Math.round(width * 0.035);
+
+  ctx.save();
+  ctx.fillStyle = "#0a0508";
+  ctx.fillRect(0, 0, width, outer);
+  ctx.fillRect(0, height - outer, width, outer);
+  ctx.fillRect(0, 0, outer, height);
+  ctx.fillRect(width - outer, 0, outer, height);
+
+  // Scalloped orange line just inside the black border -- a row of small
+  // overlapping arcs instead of a straight stroke.
+  const scallopR = outer * 0.55;
+  ctx.fillStyle = ACCENT_ORANGE;
+  for (let x = outer + scallopR; x < width - outer; x += scallopR * 1.7) {
+    ctx.beginPath();
+    ctx.arc(x, outer * 0.55, scallopR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, height - outer * 0.55, scallopR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (let y = outer + scallopR; y < height - outer; y += scallopR * 1.7) {
+    ctx.beginPath();
+    ctx.arc(outer * 0.55, y, scallopR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(width - outer * 0.55, y, scallopR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // A small bat silhouette tucked into each corner.
+  const batSize = outer * 0.85;
+  drawTinyBat(ctx, outer * 1.4, outer * 1.4, batSize);
+  drawTinyBat(ctx, width - outer * 1.4, outer * 1.4, batSize);
+  drawTinyBat(ctx, outer * 1.4, height - outer * 1.4, batSize);
+  drawTinyBat(ctx, width - outer * 1.4, height - outer * 1.4, batSize);
+  ctx.restore();
+}
+
+/** A small bat glyph for drawSpookyFrame's corners -- simpler than Overlays.ts's drawBat since it just needs to read at corner-icon scale, not as a full decorative overlay. */
+function drawTinyBat(ctx: OffscreenCanvasRenderingContext2D, cx: number, cy: number, size: number): void {
+  ctx.fillStyle = "#150500";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.quadraticCurveTo(cx - size, cy - size * 0.6, cx - size * 1.4, cy);
+  ctx.quadraticCurveTo(cx - size * 0.5, cy + size * 0.15, cx, cy + size * 0.1);
+  ctx.quadraticCurveTo(cx + size * 0.5, cy + size * 0.15, cx + size * 1.4, cy);
+  ctx.quadraticCurveTo(cx + size, cy - size * 0.6, cx, cy);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** A jagged, hand-torn-paper edge instead of a clean rectangle border. */
+function drawTornFrame(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number): void {
+  const depth = width * 0.02;
+  const step = width * 0.035;
+
+  ctx.save();
+  ctx.fillStyle = "#fdfaf2";
+  // A jagged ring: draw the outer rect, then punch a jagged-edged hole
+  // through it (even-odd fill rule) so only a torn-looking border remains.
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+
+  const inset = depth * 2.5;
+  jaggedRectPath(ctx, inset, inset, width - inset * 2, height - inset * 2, step, depth);
+  ctx.fill("evenodd");
+  ctx.restore();
+}
+
+/** Traces a rectangle whose edge wanders by up to `depth` at every `step`, giving a torn-paper silhouette. Deterministic (no rng) so a frame preview never shifts between renders of the same size. */
+function jaggedRectPath(
+  ctx: OffscreenCanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  step: number,
+  depth: number,
+): void {
+  const wobble = (i: number) => (Math.sin(i * 12.9898) * 43758.5453) % 1;
+  const jag = (base: number, i: number) => base + (wobble(i) - 0.5) * depth * 2;
+
+  ctx.beginPath();
+  let i = 0;
+  ctx.moveTo(x, jag(y, i++));
+  for (let px = x; px < x + w; px += step) ctx.lineTo(px, jag(y, i++));
+  ctx.lineTo(x + w, jag(y, i++));
+  for (let py = y; py < y + h; py += step) ctx.lineTo(jag(x + w, i++), py);
+  ctx.lineTo(jag(x + w, i++), y + h);
+  for (let px = x + w; px > x; px -= step) ctx.lineTo(px, jag(y + h, i++));
+  ctx.lineTo(x, jag(y + h, i++));
+  for (let py = y + h; py > y; py -= step) ctx.lineTo(jag(x, i++), py);
+  ctx.closePath();
+}
+
+/** The named event frame: a black banner across the bottom reading "HEISTERKAMP HALLOWEEN 2027" in a dripping-blood horror lettering style, plus a thin dripping-blood accent along the top edge. */
+function drawHeisterkampFrame(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number): void {
+  ctx.save();
+
+  // Thin blood-drip accent along the very top edge, ahead of the banner
+  // text below so the whole frame reads as one "dripping" motif rather
+  // than the banner being the only place blood shows up.
+  drawBloodDrips(ctx, width, 0, width * 0.02, "rgba(120, 8, 12, 0.85)");
+
+  // Bottom banner.
+  const bannerH = Math.round(height * 0.11);
+  const bannerY = height - bannerH;
+  ctx.fillStyle = "#0a0508";
+  ctx.fillRect(0, bannerY, width, bannerH);
+
+  const fontSize = Math.round(bannerH * 0.52);
+  ctx.font = `900 ${fontSize}px Impact, "Arial Black", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const textY = bannerY + bannerH * 0.5;
+  const text = "HEISTERKAMP HALLOWEEN 2027";
+
+  ctx.fillStyle = "#8a0d10";
+  ctx.fillText(text, width / 2 + 2, textY + 2);
+  ctx.fillStyle = "#f4e6c8";
+  ctx.fillText(text, width / 2, textY);
+
+  // Blood dripping down from the banner's text baseline into the photo
+  // above it (drips hang "up" into the frame since the banner sits at the
+  // bottom, so visually they drip from the top edge of the black bar).
+  drawBloodDrips(ctx, width, bannerY, bannerH * 0.9, "rgba(150, 10, 14, 0.88)");
+
+  ctx.restore();
+}
+
+/** A deterministic row of uneven blood-drip streaks hanging down from `y` -- shared by drawHeisterkampFrame's top accent and its banner edge. No rng (frames must render identically every time for a given size), so drip lengths/positions come from a fixed trig-based wobble instead. */
+function drawBloodDrips(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  y: number,
+  maxDripLen: number,
+  color: string,
+): void {
+  const count = Math.max(6, Math.round(width / 42));
+  ctx.fillStyle = color;
+  for (let i = 0; i < count; i++) {
+    const t = i / count;
+    const x = t * width + Math.sin(i * 7.13) * 6;
+    const wobble = (Math.sin(i * 3.71) + 1) / 2; // 0..1, deterministic per index
+    const dripLen = maxDripLen * (0.25 + wobble * 0.75);
+    const dripW = maxDripLen * (0.14 + wobble * 0.1);
+
+    // A rounded "bead" at the drip's base, tapering into a thin trail.
+    ctx.beginPath();
+    ctx.moveTo(x - dripW * 0.5, y);
+    ctx.quadraticCurveTo(x - dripW * 0.5, y + dripLen * 0.6, x, y + dripLen);
+    ctx.quadraticCurveTo(x + dripW * 0.5, y + dripLen * 0.6, x + dripW * 0.5, y);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y + dripLen, dripW * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }

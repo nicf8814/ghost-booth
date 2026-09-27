@@ -15,13 +15,24 @@
 // prefer fast/offline/predictable over a fancier generative pipeline) and
 // can be revisited once Phase 6 segmentation exists.
 //
-// Applied as an alternative to the regular frame+overlay composition
-// (CompositionEngine), not layered on top of it -- the poster's own
-// vignette already fills a similar role and a frame border on top would
-// clutter it. The caption toggle is independent of Poster Mode and applies
-// on top of either treatment (see App.tsx's applyPhotoSelection).
+// Applied to the source bitmap *before* it reaches the regular
+// frame+overlay composition (CompositionEngine) -- CapturePipeline.ts's
+// composeSelectedBitmap grades with this effect first, then hands the
+// graded bitmap to compose() for overlays/caption. Frame stays mutually
+// exclusive with Poster (its own vignette already fills a similar role and
+// a frame border on top would clutter it), but overlays, the caption, and
+// a horror filter (graded in even earlier, see HorrorFilters.ts) can all
+// now layer on top of a poster-graded photo.
 
-export type PosterTint = "crimson" | "teal" | "moonlight";
+export type PosterTint =
+  | "crimson"
+  | "teal"
+  | "moonlight"
+  | "toxicGreen"
+  | "violetHaze"
+  | "amberInferno"
+  | "grimGrey"
+  | "bubblegumGore";
 
 export interface PosterConfig {
   tint: PosterTint;
@@ -34,14 +45,40 @@ const TINTS: Record<PosterTint, { multiply: string; vignette: string }> = {
   teal: { multiply: "rgba(60, 130, 130, 0.5)", vignette: "rgba(0, 12, 12, 0.7)" },
   // Fright Night's moonlit sky.
   moonlight: { multiply: "rgba(80, 100, 160, 0.5)", vignette: "rgba(2, 5, 15, 0.7)" },
+  // A sickly radioactive/toxic-slime green -- 80s creature-feature poster.
+  toxicGreen: { multiply: "rgba(70, 150, 60, 0.5)", vignette: "rgba(2, 10, 2, 0.72)" },
+  // A purple/magenta haunted-carnival grade.
+  violetHaze: { multiply: "rgba(120, 60, 150, 0.5)", vignette: "rgba(8, 2, 15, 0.72)" },
+  // A hot orange/red "burning" grade, hotter and more saturated than crimson.
+  amberInferno: { multiply: "rgba(190, 90, 30, 0.55)", vignette: "rgba(12, 3, 0, 0.72)" },
+  // A near-desaturated grey grade for a stark, old-horror-film look.
+  grimGrey: { multiply: "rgba(110, 110, 115, 0.45)", vignette: "rgba(3, 3, 4, 0.75)" },
+  // A campy hot-pink/red "slasher party" grade -- the odd one out on
+  // purpose, leaning into the booth's "trashy/absurd" personality rather
+  // than every tint being a somber horror-movie grade.
+  bubblegumGore: { multiply: "rgba(220, 40, 110, 0.45)", vignette: "rgba(15, 0, 8, 0.68)" },
 };
 
-export const POSTER_TINTS: PosterTint[] = ["crimson", "teal", "moonlight"];
+export const POSTER_TINTS: PosterTint[] = [
+  "crimson",
+  "teal",
+  "moonlight",
+  "toxicGreen",
+  "violetHaze",
+  "amberInferno",
+  "grimGrey",
+  "bubblegumGore",
+];
 
 export const POSTER_TINT_LABELS: Record<PosterTint, string> = {
   crimson: "Crimson",
   teal: "Teal",
   moonlight: "Moonlight",
+  toxicGreen: "Toxic Green",
+  violetHaze: "Violet Haze",
+  amberInferno: "Amber Inferno",
+  grimGrey: "Grim Grey",
+  bubblegumGore: "Bubblegum Gore",
 };
 
 /**

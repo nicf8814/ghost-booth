@@ -611,3 +611,66 @@ what's shipped; the code exists in git history (see the commit that added
 future attempt wants a starting point, but the layering approach and the
 MediaPipe single-mask-per-frame limitation are both worth reconsidering
 rather than just restoring as-is.
+
+## Filter/overlay-over-poster, more frames/overlays/tints, per-face variation — done
+
+A batch of smaller feature requests, landed together:
+
+- **Filter and Overlays now layer over Poster Mode.** Frame is still
+  mutually exclusive with Poster (a border still visually clashes with its
+  vignette), but `CapturePipeline.ts`'s `composeSelectedBitmap` no longer
+  bypasses `CompositionEngine.compose()` when a poster tint is picked.
+  New pipeline order: horror filter (if any) grades the source first,
+  then the poster tint (if any) grades on top of *that*, then the
+  poster-graded bitmap becomes `compose()`'s foreground with `frame`
+  forced to `"none"` but `overlays`/`caption` passed through normally.
+  `drawCaptionOnBitmap` (rendering/CompositionEngine.ts) is no longer
+  called from this pipeline (poster-graded photos get their caption from
+  `compose()`'s own caption layer now, same as any other photo) but is
+  kept as a standalone utility with its own tests. `FeatureCarousel.tsx`
+  updated so only the Frame tab grays out while Poster is on; Overlays and
+  Filter stay fully interactive.
+- **More frames** (`effects/Frames.ts`): `polaroid` (deep white bottom
+  border), `spooky` (black/orange scalloped border with corner bat
+  silhouettes), `torn` (jagged hand-torn-paper edge, deterministic wobble
+  so it doesn't shift between renders), and `heisterkamp` -- the requested
+  "Heisterkamp Halloween 2027" frame: a black bottom banner with that text
+  in dripping-blood-style lettering, plus a thin blood-drip accent along
+  the top edge so the drip motif isn't confined to the banner alone.
+- **More overlays** (`effects/Overlays.ts`/`HalloweenEffects.ts`):
+  `pumpkins`, `witchHat`, `lightning`, `ravens`, `hauntedTrees`,
+  `handprint` (a bloody handprint with drip streaks). `bloodSplatter`
+  itself was reworked to be more dramatic: 3-5 clusters instead of 2-4,
+  alternating "fresh"/"older" blood tones, more satellite droplets, a new
+  fine speckled mist ring around each cluster, longer tapering drip
+  trails (occasionally running all the way to the bottom edge), and an
+  occasional larger "big hit" cluster.
+- **More poster gradient tints** (`effects/PosterEffect.ts`): added
+  `toxicGreen`, `violetHaze`, `amberInferno`, `grimGrey`, and
+  `bubblegumGore` alongside the original crimson/teal/moonlight, each with
+  its own multiply-tint + vignette color pair.
+- **Multi-person: each face now gets its own effect parameters**
+  (CLAUDE.md section 10, previously not actually true despite face
+  detection already handling 1-6 faces fine). `analyzeAndWarpPhoto`
+  resolves the operator's preset once per photo as before, but now calls
+  a new `Presets.ts` function, `varyConfigForFace(base, faceIndex, rng)`,
+  once per detected face before warping it: every `*Scale` field gets a
+  small ±15% random jitter, and each face's position in the group
+  (sorted left-to-right for stability) guarantees one "signature" feature
+  boosted to a clearly-exaggerated floor -- eyes/nose/forehead/jaw/ears/
+  cheeks in that order, cycling for a 5th/6th guest -- straight out of
+  CLAUDE.md section 10's own example (Person 1 -> giant eyes, Person 2 ->
+  giant nose, etc.). A group photo with one preset now reads as several
+  differently-distorted people instead of one effect stamped on everyone.
+  Face/detector/warp-per-face plumbing itself needed no changes -- it
+  already looped per detected face independently; the shared, static
+  `config` object was the only actual gap.
+  Verified: `tests/CapturePipeline.test.ts` updated for the new
+  filter/overlay/poster pipeline order and the expanded frame/tint lists;
+  new `varyConfigForFace` tests added to `tests/Presets.test.ts` (safe
+  range regardless of face index, correct signature feature per index,
+  cycling past 6 faces, determinism). Full suite: 182 tests, all green;
+  `tsc -b`, `oxlint`, `npm run build` all clean.
+  - Deliberately not started this round (explicit user direction: revisit
+    after these smaller items land): the ghost feature. See "Ghost effect
+    (Phase 6/7) — tried, reverted" above for where that stands.

@@ -77,4 +77,10 @@ export type OverlayKey =
   | "crackedGlass"
   | "scratches"
   | "filmGrain"
-  | "vignette";
+  | "vignette"
+  | "pumpkins"
+  | "witchHat"
+  | "lightning"
+  | "ravens"
+  | "hauntedTrees"
+  | "handprint";

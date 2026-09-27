@@ -164,6 +164,64 @@ export function randomWtfConfig(rng: () => number): CaricatureConfiguration {
   return clampToSafeLimits(config);
 }
 
+// CLAUDE.md section 10: "Every face gets its own effect parameters... Do
+// not apply one deformation uniformly to every face." One `feature per
+// person" example straight from that section: Person 1 -> giant eyes,
+// Person 2 -> giant nose, Person 3 -> giant forehead, Person 4 -> enormous
+// jaw -- extended here with ears/cheeks for a 5th/6th guest (CLAUDE.md
+// section 10's 1-6 person target).
+const SIGNATURE_FEATURES: Array<keyof CaricatureConfiguration> = [
+  "eyeScale",
+  "noseScale",
+  "foreheadScale",
+  "jawScale",
+  "earScale",
+  "cheekScale",
+];
+
+/**
+ * Derives one face's caricature config from the photo's shared base preset
+ * (CapturePipeline.ts resolves the preset once per photo, then calls this
+ * once per detected face). Two things differentiate a face from its
+ * neighbors sharing the same preset: a small random jitter on every *Scale
+ * field, so two Goblins standing next to each other don't come out
+ * pixel-identical, and a guaranteed "signature" feature -- boosted to a
+ * clearly-exaggerated floor regardless of what the base preset set it to --
+ * cycling through the list above by the face's position in the group so a
+ * group photo reads as several different distorted people rather than one
+ * effect stamped onto everyone. Always clamped back into the safe range.
+ */
+export function varyConfigForFace(
+  base: CaricatureConfiguration,
+  faceIndex: number,
+  rng: () => number,
+): CaricatureConfiguration {
+  const jitterable: Array<keyof CaricatureConfiguration> = [
+    "eyeScale",
+    "noseScale",
+    "mouthScale",
+    "foreheadScale",
+    "jawScale",
+    "cheekScale",
+    "earScale",
+    "eyebrowScale",
+    "faceWidth",
+    "faceHeight",
+    "shoulderScale",
+    "bodyScale",
+  ];
+  const varied = { ...base };
+  for (const key of jitterable) {
+    const jitter = 1 + (rng() - 0.5) * 0.3; // +/- 15%
+    varied[key] = varied[key] * jitter;
+  }
+
+  const signature = SIGNATURE_FEATURES[faceIndex % SIGNATURE_FEATURES.length];
+  varied[signature] = Math.max(varied[signature], 1.6 + rng() * 0.5);
+
+  return clampToSafeLimits(varied);
+}
+
 function shuffle<T>(arr: T[], rng: () => number): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {

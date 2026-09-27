@@ -8,6 +8,7 @@ import {
   randomWtfConfig,
   resolvePreset,
   scaleTowardNeutral,
+  varyConfigForFace,
   type CaricatureConfiguration,
 } from "../src/effects/Presets";
 
@@ -253,6 +254,59 @@ describe("randomWtfConfig", () => {
     const values = [0.11, 0.22, 0.33, 0.44, 0.55, 0.66, 0.77, 0.88, 0.99, 0.12, 0.34, 0.56];
     const a = randomWtfConfig(sequenceRng(values));
     const b = randomWtfConfig(sequenceRng(values));
+    expect(a).toEqual(b);
+  });
+});
+
+describe("varyConfigForFace", () => {
+  const base = resolvePreset("Goblin", sequenceRng([0]));
+
+  it("stays within the safe scale range and full randomness range regardless of face index", () => {
+    for (let i = 0; i < 6; i++) {
+      const varied = varyConfigForFace(base, i, sequenceRng([0.3, 0.6, 0.9, 0.1, 0.5]));
+      for (const field of SCALE_FIELDS) {
+        expect(varied[field]).toBeGreaterThanOrEqual(SAFE_MIN_SCALE);
+        expect(varied[field]).toBeLessThanOrEqual(SAFE_MAX_SCALE);
+      }
+    }
+  });
+
+  it("boosts a different signature feature depending on faceIndex (CLAUDE.md section 10)", () => {
+    // rng() = 0.5 for every draw -> jitter is a no-op (1 + (0.5-0.5)*0.3 = 1)
+    // and the signature boost is 1.6 + 0.5*0.5 = 1.85. Goblin's own
+    // noseScale (2.1) already exceeds that floor, so index 1 (noseScale)
+    // is skipped here -- index 2 (foreheadScale, Goblin base 1.35) isn't.
+    const rng = () => 0.5;
+    const person0 = varyConfigForFace(base, 0, rng); // eyeScale
+    const person2 = varyConfigForFace(base, 2, rng); // foreheadScale
+    const person3 = varyConfigForFace(base, 3, rng); // jawScale
+
+    expect(person0.eyeScale).toBeCloseTo(1.85, 10);
+    expect(person2.foreheadScale).toBeCloseTo(1.85, 10);
+    expect(person3.jawScale).toBeCloseTo(1.85, 10);
+  });
+
+  it("cycles the signature feature list rather than running out past 6 faces", () => {
+    const rng = () => 0.5;
+    const person0 = varyConfigForFace(base, 0, rng);
+    const person6 = varyConfigForFace(base, 6, rng); // wraps back to eyeScale
+    expect(person6.eyeScale).toBeCloseTo(person0.eyeScale, 10);
+  });
+
+  it("never lowers the signature feature below its boosted floor even if the base preset already exceeds it", () => {
+    // Witch's noseScale (2.15) is already above the 1.6-2.1 boost range --
+    // varyConfigForFace must never *reduce* a feature the base preset
+    // already exaggerated further than the guaranteed floor.
+    const witch = resolvePreset("Witch", sequenceRng([0]));
+    const rng = () => 0; // jitter -15%, boost floor at its minimum (1.6)
+    const varied = varyConfigForFace(witch, 1, rng); // signature = noseScale
+    expect(varied.noseScale).toBeGreaterThanOrEqual(witch.noseScale * 0.85 - 1e-9);
+  });
+
+  it("is deterministic for a given rng sequence and face index", () => {
+    const values = [0.11, 0.22, 0.33, 0.44, 0.55, 0.66, 0.77, 0.88, 0.99, 0.12, 0.34, 0.56];
+    const a = varyConfigForFace(base, 2, sequenceRng(values));
+    const b = varyConfigForFace(base, 2, sequenceRng(values));
     expect(a).toEqual(b);
   });
 });

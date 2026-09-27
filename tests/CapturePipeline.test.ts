@@ -200,9 +200,18 @@ describe("analyzeAndWarpPhoto", () => {
     expect(CAPTIONS).toContain(result.recipe.caption);
     expect(result.recipe.overlaySeed).toEqual(expect.any(String));
 
-    expect(result.options.frameOptions).toEqual(["none", "classic", "filmStrip"]);
+    expect(result.options.frameOptions).toEqual(["none", "classic", "filmStrip", "polaroid", "spooky", "torn", "heisterkamp"]);
     expect(result.options.overlayOptions).toEqual(["bats", "cobwebs"]);
-    expect(result.options.posterTints).toEqual(["crimson", "teal", "moonlight"]);
+    expect(result.options.posterTints).toEqual([
+      "crimson",
+      "teal",
+      "moonlight",
+      "toxicGreen",
+      "violetHaze",
+      "amberInferno",
+      "grimGrey",
+      "bubblegumGore",
+    ]);
     expect(result.options.filterOptions).toEqual(["vhs", "noir"]);
 
     expect(result.defaults.frameKey).toBe("classic");
@@ -232,7 +241,7 @@ describe("analyzeAndWarpPhoto", () => {
     expect(result.options).toEqual({
       ghost: false,
       caption: false,
-      frameOptions: ["none", "classic", "filmStrip"],
+      frameOptions: ["none", "classic", "filmStrip", "polaroid", "spooky", "torn", "heisterkamp"],
       overlayOptions: [],
       posterTints: [],
       filterOptions: [],
@@ -321,7 +330,7 @@ describe("composeSelectedBitmap", () => {
     });
   });
 
-  it("uses Poster Mode instead of compose() when a posterTint is picked, and never calls compose()", async () => {
+  it("still routes through compose() when a posterTint is picked, but forces frame to \"none\"", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const b = base();
 
@@ -332,7 +341,14 @@ describe("composeSelectedBitmap", () => {
       { compositionEngine: { compose } },
     );
 
-    expect(compose).not.toHaveBeenCalled();
+    // Poster grades the source before compose() runs (via the faked
+    // OffscreenCanvas, always resolving to "canvas-output"), so compose()
+    // receives the poster-graded bitmap, not the plain caricatured one --
+    // and frame is forced off even though "classic" was picked, while
+    // overlays still pass through untouched.
+    expect(compose).toHaveBeenCalledTimes(1);
+    expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
+    expect(compose.mock.calls[0][0]).toMatchObject({ frame: "none", overlays: ["bats"] });
     expect(bitmap).not.toBeNull();
   });
 
@@ -350,7 +366,7 @@ describe("composeSelectedBitmap", () => {
     expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
   });
 
-  it("skips the horror filter when a posterTint is also picked (both are whole-photo grades)", async () => {
+  it("stacks the horror filter and Poster Mode instead of treating them as mutually exclusive", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const b = base();
 
@@ -358,9 +374,11 @@ describe("composeSelectedBitmap", () => {
       compositionEngine: { compose },
     });
 
-    // Poster Mode replaces compose() entirely, so it should still never be
-    // called even though a filterKey is also picked.
-    expect(compose).not.toHaveBeenCalled();
+    // Both grades run (filter first, then poster on top) and compose()
+    // still receives the result -- filter is no longer skipped just
+    // because a poster tint is also picked.
+    expect(compose).toHaveBeenCalledTimes(1);
+    expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
   });
 
   it("returns null when there is no base bitmap yet (nothing captured)", async () => {

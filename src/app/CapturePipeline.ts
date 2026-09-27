@@ -30,13 +30,12 @@ import type { FaceModel } from "../vision/VisionTypes";
 import type { FaceDetector } from "../vision/FaceDetector";
 import type { CaricatureEngine } from "../effects/EffectEngine";
 import type { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
-import { resolvePreset, scaleTowardNeutral } from "../effects/Presets";
+import { resolvePreset, scaleTowardNeutral, varyConfigForFace } from "../effects/Presets";
 import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
 import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
 import { applyPosterEffect, POSTER_TINTS, type PosterTint } from "../effects/PosterEffect";
 import { applyHorrorFilter, type FilterKey } from "../effects/HorrorFilters";
 import type { CompositionEngine } from "../rendering/CompositionEngine";
-import { drawCaptionOnBitmap } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import type { CaptionMode, CaricaturePreset, OwnerCameoMode } from "./Settings";
 
@@ -129,13 +128,21 @@ export async function analyzeAndWarpPhoto(
   // section 20).
   const seed = createSeed();
   const rng = seededRandom(seed);
-  const config = scaleTowardNeutral(resolvePreset(settings.preset, rng), settings.caricatureStrength);
+  const baseConfig = resolvePreset(settings.preset, rng);
 
   // Each detected face is warped in turn against the same working bitmap
   // -- faces don't overlap in a normal group photo, so sequential per-face
   // warps on one bitmap are equivalent to warping them independently.
+  // Sorted left-to-right first so "Person 1/2/3..." (and their signature
+  // feature below) is stable for a given photo rather than depending on
+  // whatever order the face detector happened to return -- CLAUDE.md
+  // section 10's 1-6 person target says every face gets its own effect
+  // parameters, not one config stamped onto everyone in the group.
+  const orderedFaces = [...faces].sort((a, b) => a.boundingBox.x - b.boundingBox.x);
   let working: ImageBitmap = master;
-  for (const face of faces) {
+  for (let i = 0; i < orderedFaces.length; i++) {
+    const face = orderedFaces[i];
+    const config = scaleTowardNeutral(varyConfigForFace(baseConfig, i, rng), settings.caricatureStrength);
     const warped = await deps.caricatureEngine.warp(working, face, config);
     if (warped !== working) {
       working = warped;
@@ -213,16 +220,15 @@ export interface ComposeSelectionDeps {
 
 /**
  * Composes the guest's current picks into the one bitmap that should be
- * shown/printed. A non-null posterTint replaces the regular
- * frame+overlay+filter composition entirely (its own vignette would clash
- * with a frame border, and stacking a color grade on top of a filter's own
- * color grade would look muddy) -- otherwise the chosen filter (if any)
- * grades the source first, then frame/overlays (if any) are drawn on top of
- * that via the regular composition. The caption toggle is independent of
- * that choice and, when on, is drawn on top of either path -- compose()'s
- * own caption layer for the regular treatment, or drawCaptionOnBitmap for
- * the poster-graded one, since Poster Mode itself is pure color
- * grade/gradient with no text of its own. Returns null only when the base
+ * shown/printed. Pipeline order: the chosen filter (if any) grades the
+ * source first, then the chosen poster tint (if any) grades on top of that
+ * -- Filter and Poster can now both be live on the same photo, stacking as
+ * two color grades rather than being mutually exclusive. Frame stays
+ * mutually exclusive with Poster (a frame border on top of Poster's own
+ * vignette still clutters it the way the original design avoided), so a
+ * poster tint forces the frame off regardless of what the guest picked
+ * there; overlays and the caption are unaffected by Poster and always draw
+ * on top via the regular composition. Returns null only when the base
  * bitmaps aren't ready yet (no photo captured), which callers should treat
  * as "nothing to display", not an error.
  */
@@ -242,24 +248,19 @@ export async function composeSelectedBitmap(
 
   const postered = selection.posterTint !== null;
 
-  const filteredSource =
-    selection.filterKey && !postered
-      ? await applyHorrorFilter(source, { key: selection.filterKey })
-      : source;
+  const filteredSource = selection.filterKey
+    ? await applyHorrorFilter(source, { key: selection.filterKey })
+    : source;
 
-  let bitmap = postered
-    ? await applyPosterEffect(source, { tint: selection.posterTint as PosterTint })
-    : await deps.compositionEngine.compose({
-        foreground: filteredSource,
-        caption: selection.captioned ? recipe.caption : undefined,
-        frame: selection.frameKey,
-        overlays: selection.overlayKeys,
-        overlaySeed: recipe.overlaySeed,
-      });
+  const gradedSource = postered
+    ? await applyPosterEffect(filteredSource, { tint: selection.posterTint as PosterTint })
+    : filteredSource;
 
-  if (postered && selection.captioned && recipe.caption) {
-    bitmap = await drawCaptionOnBitmap(bitmap, recipe.caption);
-  }
-
-  return bitmap;
+  return deps.compositionEngine.compose({
+    foreground: gradedSource,
+    caption: selection.captioned ? recipe.caption : undefined,
+    frame: postered ? "none" : selection.frameKey,
+    overlays: selection.overlayKeys,
+    overlaySeed: recipe.overlaySeed,
+  });
 }

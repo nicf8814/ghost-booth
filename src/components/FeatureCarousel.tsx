@@ -55,11 +55,12 @@ interface Category {
  * whichever one is active; every tap calls straight back into App.tsx's
  * applyPhotoSelection so the photo behind this carousel updates live.
  *
- * Poster is a full color-grade replacement for the regular frame/overlay/
- * filter treatment, so those three categories' chips gray out (not hide --
- * the guest can still see what they'd picked) whenever a poster tint is
- * selected, with a short note explaining why, rather than silently doing
- * nothing when tapped.
+ * Frame is a full-border treatment that visually clashes with Poster's own
+ * vignette, so Frame's chips gray out (not hide -- the guest can still see
+ * what they'd picked) whenever a poster tint is selected, with a short note
+ * explaining why. Overlays and Filter both now layer on top of a
+ * poster-graded photo (CapturePipeline.ts's composeSelectedBitmap), so they
+ * stay fully interactive regardless of Poster.
  */
 export function FeatureCarousel({
   frameOptions,
@@ -100,12 +101,12 @@ export function FeatureCarousel({
       key: "overlays",
       label: "Overlays",
       hasSelection: overlayKeys.length > 0,
-      disabledByPoster: posterActive,
+      disabledByPoster: false,
       chips: overlayOptions.map((key) => ({
         key,
         label: OVERLAY_LABELS[key],
         active: overlayKeys.includes(key),
-        disabled: posterActive,
+        disabled: false,
         onClick: () => onToggleOverlay(key),
       })),
     });
@@ -116,20 +117,20 @@ export function FeatureCarousel({
       key: "filter",
       label: "Filter",
       hasSelection: filterKey !== null,
-      disabledByPoster: posterActive,
+      disabledByPoster: false,
       chips: [
         {
           key: "off",
           label: "Off",
           active: filterKey === null,
-          disabled: posterActive,
+          disabled: false,
           onClick: () => onSelectFilter(null),
         },
         ...filterOptions.map((key) => ({
           key,
           label: FILTER_LABELS[key],
           active: filterKey === key,
-          disabled: posterActive,
+          disabled: false,
           onClick: () => onSelectFilter(key),
         })),
       ],
@@ -208,7 +209,7 @@ export function FeatureCarousel({
       </div>
 
       {active.disabledByPoster && (
-        <p className="feature-carousel-hint">Off while Poster is on -- Poster is its own full-photo look.</p>
+        <p className="feature-carousel-hint">Off while Poster is on -- a border would clash with Poster's vignette.</p>
       )}
 
       <div className="feature-carousel-chip-row">
