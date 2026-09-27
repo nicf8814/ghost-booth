@@ -7,25 +7,28 @@
 // -- so OwnerCameoEngine's default sizing covers the whole photo rather
 // than tucking a small image into a corner.
 //
-// Only the booth owner's own cutout is listed here. Five stock
-// horror/creature images were briefly added and then removed: the user
-// confirmed they don't hold a license for that stock photography, and
-// CLAUDE.md's own privacy/reliability priorities don't cover "ship
-// unlicensed commercial images on a public site," so they came back out
-// rather than staying live pending a license. Add a new key here plus its
-// file under public/cameo/ to add another choosable ghost once there's
-// artwork with clear rights to use it -- nothing else needs to change
-// (App.tsx builds the key->URL map from this list).
+// Five stock horror/creature images were briefly added and then removed:
+// the user confirmed they didn't hold a license for that stock
+// photography, so they came back out rather than staying live pending a
+// license. "geminiReacher" replaces one of them with art the user
+// generated themselves via Gemini (Google's generative AI terms give the
+// user usage rights to what they generate, and this is for the user's own
+// personal, non-commercial booth) -- see PROJECT_LOG.md for the fuller
+// licensing note. Add a new key here plus its file under public/cameo/ to
+// add another choosable ghost -- nothing else needs to change (App.tsx
+// builds the key->URL map from this list).
 
-export type CameoKey = "nicCutout";
+export type CameoKey = "nicCutout" | "geminiReacher";
 
-export const CAMEO_KEYS: CameoKey[] = ["nicCutout"];
+export const CAMEO_KEYS: CameoKey[] = ["nicCutout", "geminiReacher"];
 
 export const CAMEO_LABELS: Record<CameoKey, string> = {
   nicCutout: "My Cameo",
+  geminiReacher: "The Reacher",
 };
 
 /** Filename under public/cameo/ for each cameo key. */
 export const CAMEO_FILENAMES: Record<CameoKey, string> = {
   nicCutout: "nic-cutout.png",
+  geminiReacher: "gemini-reacher.jpg",
 };

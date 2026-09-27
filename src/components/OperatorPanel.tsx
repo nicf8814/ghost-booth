@@ -132,7 +132,7 @@ export function OperatorPanel({
             />
           </label>
           <label>
-            Ghost Strength
+            Ghost Strength (opacity)
             <input
               type="range"
               min={0}

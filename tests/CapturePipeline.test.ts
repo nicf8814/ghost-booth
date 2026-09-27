@@ -97,6 +97,7 @@ function baseSelection(overrides: Partial<PhotoSelection> = {}): PhotoSelection 
   return {
     goofy: false,
     ghostKey: null,
+    ghostOpacity: 0.5,
     captioned: false,
     frameKey: "none",
     overlayKeys: [],
@@ -279,7 +280,7 @@ describe("composeSelectedBitmap", () => {
       compositionEngine: { compose },
       ownerCameoEngine: { composite },
     });
-    expect(composite).toHaveBeenCalledWith(b.original, "nicCutout");
+    expect(composite).toHaveBeenCalledWith(b.original, "nicCutout", { opacity: 0.5 });
     expect(compose.mock.calls[0][0].foreground).not.toBe(b.original);
 
     composite.mockClear();
@@ -287,7 +288,7 @@ describe("composeSelectedBitmap", () => {
       compositionEngine: { compose },
       ownerCameoEngine: { composite },
     });
-    expect(composite).toHaveBeenCalledWith(b.original, null);
+    expect(composite).toHaveBeenCalledWith(b.original, null, { opacity: 0.5 });
   });
 
   it("passes frame/overlays/caption through to compose() with the picked keys", async () => {

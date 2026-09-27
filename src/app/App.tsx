@@ -254,6 +254,7 @@ export default function App() {
     (overrides: Partial<PhotoSelection> = {}): PhotoSelection => ({
       goofy: goofyFilterOn,
       ghostKey,
+      ghostOpacity: state.settings.ghostStrength,
       captioned: captionOn,
       frameKey,
       overlayKeys,
@@ -261,8 +262,20 @@ export default function App() {
       filterKey,
       ...overrides,
     }),
-    [goofyFilterOn, ghostKey, captionOn, frameKey, overlayKeys, posterTint, filterKey],
+    [goofyFilterOn, ghostKey, state.settings.ghostStrength, captionOn, frameKey, overlayKeys, posterTint, filterKey],
   );
+
+  // "Ghost Strength" is meant to be adjustable live (the user's explicit
+  // ask: adjust ghost transparency on the fly, not just at capture time) --
+  // recompose the currently-shown photo whenever the operator drags that
+  // slider while a ghost is actually picked, same as any other guest pick
+  // changing. A no-op when there's no photo yet or no ghost active (the
+  // dependency on ghostKey guards the latter).
+  useEffect(() => {
+    if (!ghostKey) return;
+    void applyPhotoSelection(currentSelection());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.settings.ghostStrength]);
 
   const handleToggleGoofyFilter = useCallback(() => {
     const next = !goofyFilterOn;
@@ -337,13 +350,14 @@ export default function App() {
     void applyPhotoSelection({
       goofy: false,
       ghostKey: null,
+      ghostOpacity: state.settings.ghostStrength,
       captioned: false,
       frameKey: "none",
       overlayKeys: [],
       posterTint: null,
       filterKey: null,
     });
-  }, [applyPhotoSelection]);
+  }, [applyPhotoSelection, state.settings.ghostStrength]);
 
   const handleCountdownComplete = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "COUNTDOWN_COMPLETE" } });
@@ -403,6 +417,7 @@ export default function App() {
       await applyPhotoSelection({
         goofy: true,
         ghostKey: defaults.ghostKey,
+        ghostOpacity: state.settings.ghostStrength,
         captioned: options.caption,
         frameKey: defaults.frameKey,
         overlayKeys: defaults.overlayKeys,
@@ -427,6 +442,7 @@ export default function App() {
     state.settings.overlays,
     state.settings.posterMode,
     state.settings.filters,
+    state.settings.ghostStrength,
     applyPhotoSelection,
   ]);
 

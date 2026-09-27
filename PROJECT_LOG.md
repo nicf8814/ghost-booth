@@ -790,3 +790,31 @@ Three fixes/features from user-reported screenshots and a new explicit ask
   artwork with clear rights to use, just add a key + file, same as
   before. Verified: `tsc -b --force`, `oxlint`, `npm run build`, and the
   full suite (180 tests) all clean.
+
+## Ghost Strength wired to live opacity, plus a new licensed cameo -- done
+
+- **"Ghost Strength" (Operator Panel) now actually does something.** It
+  existed as a settings field and a slider already, but nothing read it --
+  `OwnerCameoEngine.composite()` always used its fixed default opacity.
+  `PhotoSelection` gained `ghostOpacity`, threaded from
+  `state.settings.ghostStrength` through `composeSelectedBitmap` into the
+  cameo's `opacity` option. A new `useEffect` in `App.tsx` recomposes the
+  currently-shown photo whenever the operator drags the slider while a
+  ghost is picked, so it's adjustable live on the photo already on screen
+  (the user's explicit ask), not just for the next capture. Label updated
+  to "Ghost Strength (opacity)" so it's clear what it controls.
+- **New cameo: `geminiReacher`.** The user generated a bald, reaching
+  humanoid apparition themselves with Gemini and confirmed it's for their
+  own personal, non-commercial booth (not for sale/distribution).
+  Licensing note for the record: Google's generative AI terms give the
+  user usage rights to what they generate; the design leans on "The Rake"
+  creepypasta aesthetic, which is community internet folklore with no
+  single corporate rights-holder, and combined with personal/non-commercial
+  use the practical risk here is low. Added as
+  `public/cameo/gemini-reacher.jpg` plus a `geminiReacher` key in
+  `Cameos.ts` (label "The Reacher") -- the five earlier unlicensed stock
+  images stay removed; only `nicCutout` and `geminiReacher` are in the
+  catalog now.
+  Verified: `tsc -b --force`, `oxlint`, `npm run build`, and the full
+  suite (180 tests, `tests/CapturePipeline.test.ts` updated for the new
+  `ghostOpacity` field) all clean.

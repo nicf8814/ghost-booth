@@ -196,6 +196,11 @@ export interface PhotoSelection {
   goofy: boolean;
   /** Which specific cameo (if any) is composited in -- null means no ghost. */
   ghostKey: CameoKey | null;
+  /** 0..1 - how visible the ghost cameo is, straight from the operator's
+   * "Ghost Strength" setting (CLAUDE.md section 47) so it can be adjusted
+   * live on the current photo, not baked in at capture time. Ignored when
+   * ghostKey is null. */
+  ghostOpacity: number;
   captioned: boolean;
   frameKey: FrameKey;
   overlayKeys: OverlayKey[];
@@ -232,7 +237,9 @@ export async function composeSelectedBitmap(
   const source = selection.goofy ? base.caricatured : base.original;
   if (!source) return null;
 
-  const ghosted = await deps.ownerCameoEngine.composite(source, selection.ghostKey);
+  const ghosted = await deps.ownerCameoEngine.composite(source, selection.ghostKey, {
+    opacity: selection.ghostOpacity,
+  });
 
   const postered = selection.posterTint !== null;
 
