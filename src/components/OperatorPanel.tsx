@@ -1,6 +1,7 @@
 import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind } from "../app/Settings";
 import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
 import { CAPTIONS } from "../effects/HalloweenEffects";
+import { PRINT_LAYOUTS, PRINT_LAYOUT_LABELS, type PrintLayout } from "../printing/PrintLayout";
 
 interface OperatorPanelProps {
   settings: BoothSettings;
@@ -226,6 +227,19 @@ export function OperatorPanel({
               value={settings.copies}
               onChange={(e) => onChange({ copies: Number(e.target.value) })}
             />
+          </label>
+          <label>
+            Print Layout
+            <select
+              value={settings.printLayout}
+              onChange={(e) => onChange({ printLayout: e.target.value as PrintLayout })}
+            >
+              {PRINT_LAYOUTS.map((l) => (
+                <option key={l} value={l}>
+                  {PRINT_LAYOUT_LABELS[l]}
+                </option>
+              ))}
+            </select>
           </label>
         </section>
 

@@ -3,6 +3,9 @@
 
 import type { FrameKey } from "../effects/Frames";
 import { CAPTIONS } from "../effects/HalloweenEffects";
+import type { PrintLayout } from "../printing/PrintLayout";
+
+export type { PrintLayout } from "../printing/PrintLayout";
 
 export type CaricaturePreset =
   | "Goblin"
@@ -17,7 +20,6 @@ export type CaricaturePreset =
   | "Random";
 
 export type CaptionMode = "off" | "random" | "fixed";
-export type PrintLayout = "4x6" | "square" | "2x6strip";
 // Which PhotoPrinter adapter (src/printing/) actually handles Print taps.
 // CLAUDE.md sections 37-39 require this to be operator-configurable rather
 // than assumed, since the exact printer/browser combination decides what's
@@ -71,6 +73,12 @@ export interface BoothSettings {
   printerAdapter: PrinterAdapterKind;
   autoPrint: boolean;
   copies: number;
+  /** Physical shape to crop the photo to right before printing (see
+   * printing/PrintLayout.ts) -- doesn't affect what the guest sees on the
+   * result screen, only the copy actually handed to the printer adapter.
+   * "2x3" and "4x6" are the same aspect ratio (2:3), just different
+   * physical sizes -- "2x3" is the default since that's what the connected
+   * Kodak Mini 2 Retro actually outputs. */
   printLayout: PrintLayout;
 
   // Misc
@@ -97,7 +105,7 @@ export const defaultSettings: BoothSettings = {
   printerAdapter: "shareSheet",
   autoPrint: false,
   copies: 1,
-  printLayout: "4x6",
+  printLayout: "2x3",
 
   soundVolume: 0.7,
   photoRetentionMinutes: 30,

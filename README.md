@@ -100,10 +100,14 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   mode) — and a frame is drawn procedurally with Canvas 2D (`effects/Frames.ts`, no raster
   assets): `none`, `classic` (an orange/near-black double-line border matching the app's
   palette), or `filmStrip` (black sprocket-hole bars top and bottom). Both are composited
-  onto all four cached bitmap variants (candid/goofy × ghost-on/off), so every combination
-  the guest can toggle to on the result screen shows the same caption/frame. Operator picks
-  Frame and Caption Mode from dropdowns in the operator panel (previously Frame was a
-  freeform, unwired text box).
+  onto every cached bitmap variant, so every combination the guest can toggle to on the
+  result screen shows the same caption/frame. Operator picks Frame (which border, or none)
+  and Caption Mode from dropdowns in the operator panel (previously Frame was a freeform,
+  unwired text box). Captions are always baked in, but the frame has its own guest-facing
+  "🖼️ FRAME" toggle on the result screen (only rendered when the operator has a frame
+  configured, hidden when Poster Mode is on) — same instant-swap pattern as Goofy Filter and
+  Spookify, so all three toggles bake eight cached bitmap variants per photo (candid/goofy ×
+  ghost-on/off × frame-on/off) up front.
 - **"Poster Mode" (beta)**: an operator-only checkbox that grades every photo like a
   horror movie poster instead of the regular caption+frame look — desaturated/contrast
   color grade, a radial vignette pooling light around the subject, and a small
@@ -113,6 +117,17 @@ Phase 1 ("Shell"), Phase 2 ("Camera"), Phase 3 ("Vision"), and four of Phase 4's
   lifting the guest onto a separate background — that would want person segmentation,
   which was explored (see below) but isn't currently in the app. An operator-wide style
   choice for the event, not a per-photo guest toggle.
+- **Print layout / crop-to-paper** (Phase 9/CLAUDE.md section 40-41): the connected Kodak
+  Mini 2 Retro actually outputs 2x3 prints, not the spec's 4x6 default — but 2x3 and 4x6
+  are the same aspect ratio (2:3), so this only needed an accurately-named layout option,
+  not new crop math. `printing/PrintLayout.ts`'s `cropToPrintLayout()` runs once, right
+  before the currently-selected result photo is handed to the printer adapter — it never
+  touches what's cached/displayed on the result screen, which stays at the camera's native
+  aspect ratio. A "cover" center-crop trims whichever dimension is proportionally longer
+  while keeping the source's own landscape orientation, rather than forcing portrait.
+  Operator picks the shape from a new "Print Layout" dropdown: `2x3` (default, matches the
+  connected printer), `4x6`, `square`, `2x6strip` (the crop shape only — an actual 4-shot
+  strip layout, CLAUDE.md section 42, is still unbuilt).
 
 ### Tried and reverted
 

@@ -39,14 +39,22 @@ Phases complete (per `CLAUDE.md`'s numbering):
   the operator's Caption Mode: off/random/fixed, using the same per-photo
   seeded rng as the caricature preset) and a frame (`effects/Frames.ts`,
   procedurally drawn Canvas 2D — `classic` double-line border or `filmStrip`
-  sprocket-hole bars, no raster assets to source/license) composited onto
-  all four cached bitmap variants (candid/goofy × ghost-on/off), so every
-  toggle combination the guest can hit on the result screen shows the same
-  caption/frame. Operator picks Frame and Caption Mode (+ Fixed Caption text
-  when in "fixed" mode) from the operator panel. Halloween overlays
-  (cobwebs/bats/blood splatter/etc., spec section 24) are still unbuilt —
-  `OverlayKey` type exists but no assets or layering logic. **Current focus
-  candidates**: overlays, or the "melted face" caricature overlap issue.
+  sprocket-hole bars, no raster assets to source/license). The caption is
+  always baked in (not guest-toggleable), but the frame is now its own
+  guest-facing "🖼️ FRAME" toggle on the result screen (same instant-swap
+  pattern as Goofy Filter/Spookify) — only rendered when the operator has a
+  frame configured (and hidden when Poster Mode is on, which has its own
+  border/vignette and no separate frame concept). Combined with the
+  existing Goofy/Spookify toggles this now bakes **eight** combinations per
+  photo (candid/goofy × ghost-on/off × frame-on/off) up front so all three
+  toggles stay instant swaps with no recompute. Operator still picks the
+  Frame style itself (which border, if any) and Caption Mode (+ Fixed
+  Caption text when in "fixed" mode) from the operator panel — the new
+  guest toggle is "show/hide whatever frame the operator picked," not a
+  style choice. Halloween overlays (cobwebs/bats/blood splatter/etc., spec
+  section 24) are still unbuilt — `OverlayKey` type exists but no assets or
+  layering logic. **Current focus candidates**: overlays, or the "melted
+  face" caricature overlap issue.
 - **Poster Mode (beta)** — a new operator toggle (`effects/PosterEffect.ts`),
   requested after analyzing reference horror-movie posters (Evil Dead Rise,
   IT, Fright Night). Grades the whole photo like a poster -- desaturate/
@@ -86,6 +94,25 @@ Phases complete (per `CLAUDE.md`'s numbering):
     HCI snoop-log capture); a used/renewed Canon SELPHY CP1300/1500 would
     have given guaranteed one-tap-via-AirPrint printing with zero custom
     code, but the user chose the Kodak on price.
+  - **Print layout / crop-to-paper (CLAUDE.md section 40-41) — built.** The
+    Kodak Mini 2 Retro actually outputs 2x3 prints, not the spec's 4x6
+    default — but 2x3 and 4x6 are the same aspect ratio (2:3), so no new
+    crop math was needed, just an accurately-named layout option.
+    `printing/PrintLayout.ts`'s `cropToPrintLayout()` runs once, immediately
+    before handing the currently-selected result bitmap to the printer
+    adapter in `App.tsx`'s `handlePrintRequested` — it does NOT touch what's
+    cached/displayed on the result screen (that stays at the camera's
+    native aspect ratio, matching the earlier fix that removed a forced
+    aspect box from the result-screen display). A "cover" center-crop
+    (`computeCoverCropRect`, unit tested in `tests/PrintLayout.test.ts`)
+    trims whichever dimension is proportionally longer, preserving the
+    source's own landscape orientation rather than forcing portrait.
+    `settings.printLayout` now actually does something (previously declared
+    but unused) and is operator-editable via a new "Print Layout" dropdown;
+    default changed from `"4x6"` to `"2x3"` to match the connected hardware.
+    Layout options: `2x3` (default), `4x6`, `square`, `2x6strip` (2x6 strip
+    mode itself — CLAUDE.md section 42 — is still unbuilt; this is just the
+    crop shape for a single photo).
 - **Phase 10 (Booth mode / auto-detection)** — not started.
 
 ## Architecture as built

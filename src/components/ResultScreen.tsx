@@ -25,6 +25,13 @@ interface ResultScreenProps {
   ghostOn: boolean;
   onToggleGhost: () => void;
   ghostAvailable: boolean;
+  /** Whether the decorative border (operator's "Frame" setting) is drawn
+   * around whichever photo is currently showing. Only rendered when the
+   * operator has a frame configured (and Poster Mode is off, which has its
+   * own border/vignette and no separate frame). */
+  frameOn: boolean;
+  onToggleFrame: () => void;
+  frameAvailable: boolean;
 }
 
 /**
@@ -43,6 +50,9 @@ export function ResultScreen({
   ghostOn,
   onToggleGhost,
   ghostAvailable,
+  frameOn,
+  onToggleFrame,
+  frameAvailable,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [renderedSize, setRenderedSize] = useState<{ width: number; height: number } | null>(null);
@@ -125,6 +135,19 @@ export function ResultScreen({
           >
             <span className="icon-button-glyph" aria-hidden="true">👻</span>
             <span className="icon-button-label">SPOOKY</span>
+          </button>
+        )}
+
+        {frameAvailable && (
+          <button
+            type="button"
+            className={`icon-button ${frameOn ? "icon-button-active" : ""}`}
+            onClick={onToggleFrame}
+            aria-pressed={frameOn}
+            aria-label="Toggle photo frame"
+          >
+            <span className="icon-button-glyph" aria-hidden="true">🖼️</span>
+            <span className="icon-button-label">FRAME</span>
           </button>
         )}
       </div>

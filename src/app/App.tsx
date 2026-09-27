@@ -11,6 +11,7 @@ import { GetUserMediaCameraManager } from "../camera/CameraManager";
 import { captureMasterFrame } from "../camera/CaptureService";
 import { imageBitmapToBlob } from "../utils/image";
 import { PrinterManager } from "../printing/PrinterManager";
+import { cropToPrintLayout } from "../printing/PrintLayout";
 import { MockPrinterAdapter } from "../printing/MockPrinterAdapter";
 import { ShareSheetPrinterAdapter } from "../printing/ShareSheetPrinterAdapter";
 import { BrowserPrintAdapter } from "../printing/BrowserPrintAdapter";
@@ -94,17 +95,28 @@ export default function App() {
   // operator has "My Cameo" enabled at all; defaults to on for a fresh
   // photo when the operator has it enabled, off otherwise.
   const [ghostOn, setGhostOn] = useState(false);
+  // Whether the decorative border (operator's "Frame" setting) is drawn on
+  // whichever photo is currently showing. Only meaningful/shown when the
+  // operator has a frame other than "none" selected (and Poster Mode is
+  // off, since Poster Mode has its own vignette/border treatment and
+  // doesn't use the frame setting at all); defaults to on for a fresh photo
+  // when a frame is available.
+  const [frameOn, setFrameOn] = useState(false);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
-  // All four combinations (goofy x ghost) of the current photo are kept
-  // after processing so the two toggles are instant (swap which cached
-  // bitmap is displayed/printed) rather than re-running detection, the mesh
-  // warp, or the cameo composite.
+  // All eight combinations (goofy x ghost x frame) of the current photo are
+  // kept after processing so the three toggles are instant (swap which
+  // cached bitmap is displayed/printed) rather than re-running detection,
+  // the mesh warp, the cameo composite, or the frame draw.
   const originalBitmapRef = useRef<ImageBitmap | null>(null);
+  const originalFramedBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedBitmapRef = useRef<ImageBitmap | null>(null);
+  const caricaturedFramedBitmapRef = useRef<ImageBitmap | null>(null);
   const originalGhostBitmapRef = useRef<ImageBitmap | null>(null);
+  const originalGhostFramedBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedGhostBitmapRef = useRef<ImageBitmap | null>(null);
+  const caricaturedGhostFramedBitmapRef = useRef<ImageBitmap | null>(null);
   const settingsLoadedRef = useRef(false);
 
   // Load persisted operator settings once on startup.
@@ -165,16 +177,29 @@ export default function App() {
     dispatch({ kind: "booth", event: { type: "START_COUNTDOWN" } });
   }, [dispatch]);
 
-  // Swaps which cached bitmap (candid vs. goofy, ghost on vs. off) is
-  // currently shown on the result screen and would be sent to the printer,
-  // without touching detection, the mesh warp, or the cameo composite —
-  // all four combinations already exist by the time this is called. Falls
-  // back to the plain (non-ghost) variant if a ghost version wasn't
-  // computed (cameo feature disabled), so a stray ghostOn=true can never
-  // show a missing photo.
-  const applyPhotoSelection = useCallback(async (goofy: boolean, ghost: boolean) => {
-    const base = goofy ? caricaturedBitmapRef.current : originalBitmapRef.current;
-    const ghostVariant = goofy ? caricaturedGhostBitmapRef.current : originalGhostBitmapRef.current;
+  // Swaps which cached bitmap (candid vs. goofy, ghost on vs. off, framed
+  // vs. not) is currently shown on the result screen and would be sent to
+  // the printer, without touching detection, the mesh warp, the cameo
+  // composite, or the frame draw — all eight combinations already exist by
+  // the time this is called. Falls back to the plain (non-ghost/unframed)
+  // variant if a given version wasn't computed (cameo/frame not available
+  // for this photo), so a stray ghostOn/frameOn=true can never show a
+  // missing photo.
+  const applyPhotoSelection = useCallback(async (goofy: boolean, ghost: boolean, framed: boolean) => {
+    const base = framed
+      ? goofy
+        ? caricaturedFramedBitmapRef.current
+        : originalFramedBitmapRef.current
+      : goofy
+        ? caricaturedBitmapRef.current
+        : originalBitmapRef.current;
+    const ghostVariant = framed
+      ? goofy
+        ? caricaturedGhostFramedBitmapRef.current
+        : originalGhostFramedBitmapRef.current
+      : goofy
+        ? caricaturedGhostBitmapRef.current
+        : originalGhostBitmapRef.current;
     const bitmap = (ghost && ghostVariant) || base;
     if (!bitmap) return;
     masterBitmapRef.current = bitmap;
@@ -189,14 +214,20 @@ export default function App() {
   const handleToggleGoofyFilter = useCallback(() => {
     const next = !goofyFilterOn;
     setGoofyFilterOn(next);
-    void applyPhotoSelection(next, ghostOn);
-  }, [goofyFilterOn, ghostOn, applyPhotoSelection]);
+    void applyPhotoSelection(next, ghostOn, frameOn);
+  }, [goofyFilterOn, ghostOn, frameOn, applyPhotoSelection]);
 
   const handleToggleGhost = useCallback(() => {
     const next = !ghostOn;
     setGhostOn(next);
-    void applyPhotoSelection(goofyFilterOn, next);
-  }, [goofyFilterOn, ghostOn, applyPhotoSelection]);
+    void applyPhotoSelection(goofyFilterOn, next, frameOn);
+  }, [goofyFilterOn, ghostOn, frameOn, applyPhotoSelection]);
+
+  const handleToggleFrame = useCallback(() => {
+    const next = !frameOn;
+    setFrameOn(next);
+    void applyPhotoSelection(goofyFilterOn, ghostOn, next);
+  }, [goofyFilterOn, ghostOn, frameOn, applyPhotoSelection]);
 
   const handleCountdownComplete = useCallback(async () => {
     dispatch({ kind: "booth", event: { type: "COUNTDOWN_COMPLETE" } });
@@ -265,29 +296,57 @@ export default function App() {
       // same four bitmaps, picked once per photo from the same seeded rng
       // used for the caricature preset above (section 20's reproducibility).
       // Poster Mode supplies its own title/tagline text and vignette, so
-      // running both would double up on text/border treatments.
+      // running both would double up on text/border treatments -- and has
+      // no separate "frame" concept, so its framed/unframed outputs are
+      // identical (the guest-facing Frame toggle is hidden in that case,
+      // see frameAvailable below).
       const caption = pickCaption(state.settings.captionMode, state.settings.fixedCaption, rng);
       const frame = state.settings.frame;
+      const frameAvailable = frame !== "none" && !state.settings.posterMode;
 
-      const finish = state.settings.posterMode
-        ? (bitmap: ImageBitmap) =>
-            applyPosterEffect(bitmap, {
-              tagline: caption,
-              tint: POSTER_TINTS[Math.floor(rng() * POSTER_TINTS.length)],
-            })
-        : (bitmap: ImageBitmap) => compositionEngine.compose({ foreground: bitmap, ghosts: [], caption, frame });
+      // Produces both the framed and unframed version of one bitmap so the
+      // guest-facing Frame toggle is an instant swap too, same pattern as
+      // Goofy Filter/Spookify. When there's no frame to toggle (operator
+      // set "none", or Poster Mode is on) both come back identical, and the
+      // second compose() is skipped since there'd be nothing to add.
+      const finishPair = async (bitmap: ImageBitmap): Promise<{ framed: ImageBitmap; unframed: ImageBitmap }> => {
+        if (state.settings.posterMode) {
+          const poster = await applyPosterEffect(bitmap, {
+            tagline: caption,
+            tint: POSTER_TINTS[Math.floor(rng() * POSTER_TINTS.length)],
+          });
+          return { framed: poster, unframed: poster };
+        }
+        const framedResult = await compositionEngine.compose({ foreground: bitmap, ghosts: [], caption, frame });
+        const unframedResult =
+          frame === "none"
+            ? framedResult
+            : await compositionEngine.compose({ foreground: bitmap, ghosts: [], caption, frame: "none" });
+        return { framed: framedResult, unframed: unframedResult };
+      };
 
-      originalBitmapRef.current = await finish(master);
-      caricaturedBitmapRef.current = await finish(working);
-      originalGhostBitmapRef.current = ghostOriginal ? await finish(ghostOriginal) : null;
-      caricaturedGhostBitmapRef.current = ghostCaricatured ? await finish(ghostCaricatured) : null;
+      const masterVariant = await finishPair(master);
+      const workingVariant = await finishPair(working);
+      const ghostOriginalVariant = ghostOriginal ? await finishPair(ghostOriginal) : null;
+      const ghostCaricaturedVariant = ghostCaricatured ? await finishPair(ghostCaricatured) : null;
+
+      originalBitmapRef.current = masterVariant.unframed;
+      originalFramedBitmapRef.current = masterVariant.framed;
+      caricaturedBitmapRef.current = workingVariant.unframed;
+      caricaturedFramedBitmapRef.current = workingVariant.framed;
+      originalGhostBitmapRef.current = ghostOriginalVariant?.unframed ?? null;
+      originalGhostFramedBitmapRef.current = ghostOriginalVariant?.framed ?? null;
+      caricaturedGhostBitmapRef.current = ghostCaricaturedVariant?.unframed ?? null;
+      caricaturedGhostFramedBitmapRef.current = ghostCaricaturedVariant?.framed ?? null;
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
-      // default) and Spookify on whenever the operator has the cameo
-      // feature enabled (the guest can flip either off independently).
+      // default), Spookify on whenever the operator has the cameo feature
+      // enabled, and Frame on whenever the operator has a frame configured
+      // (the guest can flip any of these off independently).
       setGoofyFilterOn(true);
       setGhostOn(ghostAvailable);
-      await applyPhotoSelection(true, ghostAvailable);
+      setFrameOn(frameAvailable);
+      await applyPhotoSelection(true, ghostAvailable, frameAvailable);
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
       dispatch({
@@ -312,7 +371,12 @@ export default function App() {
     setPrintStatus("printing");
     try {
       if (masterBitmapRef.current) {
-        await printerManager.print(masterBitmapRef.current, state.settings.copies);
+        // Crop to the physical print shape (CLAUDE.md section 40's "master
+        // image -> crop/fit to paper" step) once, right here, right before
+        // handing off to the printer adapter -- doesn't touch what's cached
+        // for the result screen or affect any of the on-screen toggles.
+        const printReady = await cropToPrintLayout(masterBitmapRef.current, state.settings.printLayout);
+        await printerManager.print(printReady, state.settings.copies);
       }
       setPrintStatus("success");
       dispatch({ kind: "booth", event: { type: "PRINT_SUCCESS" } });
@@ -323,12 +387,13 @@ export default function App() {
         event: { type: "PRINT_FAILED", message: err instanceof Error ? err.message : "Print failed" },
       });
     }
-  }, [dispatch, state.settings.copies]);
+  }, [dispatch, state.settings.copies, state.settings.printLayout]);
 
   const handleRetake = useCallback(() => {
     setFaces([]);
     setGoofyFilterOn(true);
     setGhostOn(false);
+    setFrameOn(false);
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
   }, [dispatch]);
 
@@ -336,6 +401,7 @@ export default function App() {
     setFaces([]);
     setGoofyFilterOn(true);
     setGhostOn(false);
+    setFrameOn(false);
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch]);
 
@@ -375,6 +441,8 @@ export default function App() {
             goofyFilterOn,
             ghostOn,
             ghostAvailable: state.settings.ownerCameoMode !== "off",
+            frameOn,
+            frameAvailable: state.settings.frame !== "none" && !state.settings.posterMode,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -386,6 +454,7 @@ export default function App() {
             onRetry: handleRetry,
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onToggleGhost: handleToggleGhost,
+            onToggleFrame: handleToggleFrame,
           })}
 
           {operatorPanelOpen && (
@@ -423,6 +492,8 @@ interface RenderScreenArgs {
   goofyFilterOn: boolean;
   ghostOn: boolean;
   ghostAvailable: boolean;
+  frameOn: boolean;
+  frameAvailable: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -434,6 +505,7 @@ interface RenderScreenArgs {
   onRetry: () => void;
   onToggleGoofyFilter: () => void;
   onToggleGhost: () => void;
+  onToggleFrame: () => void;
 }
 
 function renderScreen(args: RenderScreenArgs) {
@@ -479,6 +551,9 @@ function renderScreen(args: RenderScreenArgs) {
           ghostOn={args.ghostOn}
           onToggleGhost={args.onToggleGhost}
           ghostAvailable={args.ghostAvailable}
+          frameOn={args.frameOn}
+          onToggleFrame={args.onToggleFrame}
+          frameAvailable={args.frameAvailable}
         />
       );
     case "printing":
