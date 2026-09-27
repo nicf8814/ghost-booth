@@ -160,17 +160,29 @@
 }
 
 /* ---- Result ---- */
+.result-screen {
+  /* Tighter than the default .screen gap -- this screen stacks a photo plus
+     two rows of buttons, and the generic 32px gap left the whole thing
+     feeling sparse/oversized on a phone-width viewport. */
+  gap: 16px;
+  padding: 24px 20px;
+}
+
 .result-photo-frame {
+  /* Sized to fit the viewport, not to a fixed aspect ratio -- the composed
+     photo (see effects/Frames.ts) already has its own baked-in frame at its
+     real aspect ratio, so forcing a second, different aspect box here just
+     re-cropped it via object-fit: cover, cutting off heads/cameos (the bug
+     reported: "photo booth window cuts a lot of the image off"). Letting
+     the box size to the image's natural ratio and using `contain` below
+     means the whole photo is always visible. */
   position: relative;
-  width: min(70vw, 60vh);
-  aspect-ratio: 2 / 3;
-  border: 6px solid #ff7a1a;
+  display: inline-flex;
+  max-width: min(85vw, 70vh);
+  max-height: 52vh;
   border-radius: 16px;
   overflow: hidden;
   background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .debug-face-count {
@@ -180,34 +192,66 @@
 }
 
 .result-photo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
 }
 
 .result-photo-placeholder {
   color: #666;
   font-weight: 700;
+  padding: 40px;
 }
 
 .result-toggles {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
   justify-content: center;
-  margin: 16px 0;
 }
 
 .result-toggle {
-  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
-  padding: 16px 40px;
+  /* Smaller, pill-style secondary controls -- these are optional
+     refinements (goofy filter / spookify), not the primary action, so they
+     shouldn't compete visually with Print. */
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border-width: 2px;
+  box-shadow: 0 3px 0 #7a2c00, 0 6px 14px rgba(0, 0, 0, 0.4);
+}
+
+.result-toggle.secondary {
+  box-shadow: 0 3px 0 #14141a, 0 6px 14px rgba(0, 0, 0, 0.4);
+}
+
+.result-toggle:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #7a2c00, 0 3px 8px rgba(0, 0, 0, 0.4);
 }
 
 .result-controls {
   display: flex;
-  gap: 24px;
+  align-items: center;
+  gap: 16px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+/* Print stays the clear primary action; Retake reads as the secondary,
+   smaller option next to it instead of matching it button-for-button. */
+.result-controls .big-button:not(.secondary) {
+  font-size: clamp(1.3rem, 2.6vw, 2rem);
+  padding: 18px 48px;
+}
+
+.result-controls .big-button.secondary {
+  font-size: clamp(1rem, 2vw, 1.4rem);
+  padding: 14px 32px;
 }
 
 /* ---- Debug landmark overlay (operator debug mode only) ---- */
