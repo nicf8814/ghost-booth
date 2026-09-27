@@ -14,15 +14,24 @@ import { imageBitmapToBlob } from "../utils/image";
 import { PrinterManager } from "../printing/PrinterManager";
 import { MockPrinterAdapter } from "../printing/MockPrinterAdapter";
 import { loadSettings, saveSettings } from "../storage/SettingsStore";
+import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
+import type { FaceModel } from "../vision/VisionTypes";
 import "./app.css";
 
 const printerManager = new PrinterManager(new MockPrinterAdapter({ failRate: 0 }));
+
+// Resolved against document.baseURI (not a bare relative path) so the
+// worker's model fetches still land on /models/ correctly even when the
+// app is served from a subpath, e.g. GitHub Pages at
+// https://<user>.github.io/ghost-booth/ rather than a domain root.
+const faceDetector = new WorkerFaceDetector(new URL("models/", document.baseURI).href);
 
 export default function App() {
   const [state, dispatch] = useAppReducer();
   const [operatorPanelOpen, setOperatorPanelOpen] = useState(false);
   const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
   const [printStatus, setPrintStatus] = useState<"printing" | "success" | "failed">("printing");
+  const [faces, setFaces] = useState<FaceModel[]>([]);
 
   const cameraRef = useRef<GetUserMediaCameraManager | null>(null);
   const masterBitmapRef = useRef<ImageBitmap | null>(null);
@@ -36,6 +45,17 @@ export default function App() {
       dispatch({ kind: "settings", patch: settings });
     });
   }, [dispatch]);
+
+  // Load the face-detection model during booth setup, not while a guest is
+  // waiting mid-flow (mirrors CLAUDE.md section 2's rule for camera
+  // permission). A failed/slow load degrades gracefully: detect() just
+  // returns no faces until/unless init succeeds (section 49).
+  useEffect(() => {
+    faceDetector.init().catch((err) => {
+      console.warn("Face detection model failed to load; falling back to no-face-detected.", err);
+    });
+    return () => faceDetector.dispose();
+  }, []);
 
   // Persist settings whenever they change (debounced by React batching).
   useEffect(() => {
@@ -80,10 +100,19 @@ export default function App() {
       masterBitmapRef.current = master;
       dispatch({ kind: "booth", event: { type: "FRAME_CAPTURED" } });
 
-      // Phase 1: no vision/effects pipeline yet, so the "processed" photo
-      // is the master frame itself. Phases 3-8 slot in here without
-      // changing this screen's contract (CLAUDE.md sections 27, 49 —
-      // "no face detected -> use normal Halloween photo").
+      // Vision analysis (Phase 3) runs during "processing". detect() never
+      // throws (CLAUDE.md section 49) — 0 faces just means the rest of the
+      // pipeline falls back to a plain Halloween photo, which is exactly
+      // what happens today since Phases 4-8 aren't built yet. detect()
+      // takes ownership of the bitmap it's given (transferred into the
+      // worker), so we hand it a clone and keep `master` intact for the
+      // result photo and printing.
+      const detectionCopy = await createImageBitmap(master);
+      const detectedFaces = await faceDetector.detect(detectionCopy);
+      setFaces(detectedFaces);
+
+      // No caricature/ghost/composition pipeline yet (Phases 4-8), so the
+      // "processed" photo is the master frame itself.
       const blob = await imageBitmapToBlob(master);
       const url = URL.createObjectURL(blob);
       setResultImageUrl((prev) => {
@@ -118,10 +147,12 @@ export default function App() {
   }, [dispatch, state.settings.copies]);
 
   const handleRetake = useCallback(() => {
+    setFaces([]);
     dispatch({ kind: "booth", event: { type: "RETAKE" } });
   }, [dispatch]);
 
   const handleDone = useCallback(() => {
+    setFaces([]);
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch]);
 
@@ -145,6 +176,8 @@ export default function App() {
             countdownSeconds: state.settings.countdownSeconds,
             resultImageUrl,
             printStatus,
+            faces,
+            debugMode: state.settings.debugMode,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -186,6 +219,8 @@ interface RenderScreenArgs {
   countdownSeconds: number;
   resultImageUrl: string | null;
   printStatus: "printing" | "success" | "failed";
+  faces: FaceModel[];
+  debugMode: boolean;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -228,7 +263,15 @@ function renderScreen(args: RenderScreenArgs) {
       return <ProcessingScreen />;
     case "result":
     case "printComplete":
-      return <ResultScreen imageUrl={args.resultImageUrl} onPrint={args.onPrint} onRetake={args.onRetake} />;
+      return (
+        <ResultScreen
+          imageUrl={args.resultImageUrl}
+          onPrint={args.onPrint}
+          onRetake={args.onRetake}
+          faces={args.faces}
+          debugMode={args.debugMode}
+        />
+      );
     case "printing":
       return (
         <PrintingScreen

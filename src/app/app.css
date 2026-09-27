@@ -161,6 +161,7 @@
 
 /* ---- Result ---- */
 .result-photo-frame {
+  position: relative;
   width: min(70vw, 60vh);
   aspect-ratio: 2 / 3;
   border: 6px solid #ff7a1a;
@@ -170,6 +171,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.debug-face-count {
+  font-family: monospace;
+  color: #39ff88;
+  font-size: 0.9rem;
 }
 
 .result-photo {
@@ -188,6 +195,44 @@
   gap: 24px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+/* ---- Debug landmark overlay (operator debug mode only) ---- */
+.debug-landmark-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.debug-box {
+  fill: none;
+  stroke: #39ff88;
+  stroke-width: 2;
+}
+
+.debug-contour,
+.debug-nose {
+  fill: none;
+  stroke: #ffd23f;
+  stroke-width: 1.5;
+}
+
+.debug-lips {
+  fill: rgba(255, 43, 43, 0.15);
+  stroke: #ff2b2b;
+  stroke-width: 1.5;
+}
+
+.debug-eye,
+.debug-brow,
+.debug-mouth {
+  fill: #39ff88;
+}
+
+.debug-no-face-text {
+  fill: #ff7a1a;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 /* ---- Printing / error ---- */
