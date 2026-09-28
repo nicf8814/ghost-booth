@@ -1135,3 +1135,53 @@ orchestration glue), `oxlint`, `npm run build` all clean. Also visually
 confirmed the new test card renders correctly (readable text, intact
 border, no stretching) via a Playwright screenshot of the exact draw
 calls against the real built app.
+
+## Confirmed on the real device: Kodak Photo Printer isn't reachable from the share sheet -- copy fixed
+
+The user tested TEST PRINTER on the actual iPad with the printer set up.
+Result: the Kodak Photo Printer app does not appear as a row in the share
+sheet at all, and there's no way to add it there either -- confirming
+this is a platform limitation, not a bug in the code. The Kodak app is
+not a registered iOS share extension (so `navigator.share()` can never
+list it, regardless of the file/MIME type) and it's not AirPrint-
+compatible either (so the system Print dialog can't reach it either).
+There is no web-page mechanism -- Web Share API, `<a download>`, iframe
+print, anything -- that can hand a photo directly to an app that hasn't
+registered as a share target. This isn't something more code can fix.
+
+The actual working path, confirmed against what "Save Image" already
+does in that same share sheet: save the photo to the Photos library, then
+the operator opens the Kodak Photo Printer app themselves and picks it
+from the camera roll there. A real two-tap, two-app handoff, not the
+one-tap print the app's copy had been implying.
+
+Fixed the copy across the app so it stops promising something that can't
+happen and tells the operator the real next step instead:
+- `ShareSheetPrinterAdapter.ts`: `name` and the share sheet's own `text`
+  now say "Save Image, then open Kodak Photo Printer" instead of "pick a
+  printer app to print this photo" -- the class/mechanism itself is
+  unchanged (it was always just triggering the OS share sheet, which is
+  still the only way to get a photo into Photos from a web page), only
+  what it tells the guest/operator to do with what they see changed.
+- `OperatorPanel.tsx`'s printer dropdown label updated to match.
+- `PrintingScreen.tsx`'s "success" state used to unconditionally say "YOUR
+  PHOTO HAS BEEN CONJURED" -- implying the print itself finished, which
+  for the Share Sheet adapter was never something this app could actually
+  confirm. It now takes a `printerAdapter` prop and shows adapter-specific
+  copy: "PHOTO SAVED TO YOUR PHOTOS. Open the Kodak Photo Printer app to
+  print it from there." for `shareSheet`, keeping the original "conjured"
+  message for `browserPrint`/`airPrint`/`mock` where "success" does mean
+  the print dialog/mock actually ran. Threaded `printerAdapter` through
+  `App.tsx`'s existing `RenderScreenArgs` pattern (same as `onSavePhoto`
+  earlier this session).
+
+No behavior change to the actual mechanism -- this is a documentation/UX
+fix once the real constraint was confirmed, not a new code path. The
+booth is still fully functional end to end; the printing step just
+requires the operator to do one more manual switch-to-Kodak-app tap than
+the app's copy previously implied, which is now stated plainly instead of
+promised away.
+
+Verified: `tsc -b --force`, `npx vitest run` (178 tests, all green -- no
+test exercises PrintingScreen/ShareSheetPrinterAdapter copy directly, so
+none needed changes), `oxlint`, `npm run build` all clean.

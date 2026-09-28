@@ -15,11 +15,19 @@ import { imageBitmapToBlob } from "../utils/image";
  * also has no published SDK or documented protocol of its own (only its
  * own "Kodak Photo Printer" app talks to it), so there's nothing to
  * reverse-engineer into a VendorPrinterAdapter here even if Web Bluetooth
- * existed. The operator explicitly confirmed a single tap per photo is
- * acceptable, so this adapter uses the Web Share API (`navigator.share`)
- * to open the native iOS share sheet with the finished photo already
- * attached -- the operator picks the printer's own app from that sheet
- * and finishes the print there. Zero Bluetooth code, zero extra hardware.
+ * existed.
+ *
+ * **Confirmed on the real device (see PROJECT_LOG.md)**: the Kodak Photo
+ * Printer app is NOT a registered iOS share extension, so it never
+ * appears as a row in the share sheet no matter what's shared to it, and
+ * it isn't AirPrint-compatible either -- there is no web mechanism, this
+ * one included, that can hand a photo to it directly. The only working
+ * path is: this adapter saves the photo to the Photos library via the
+ * share sheet's built-in "Save Image" action, and the operator then opens
+ * the Kodak app themselves and picks the photo from their camera roll to
+ * print it. That's a real two-app handoff, not a one-tap print -- the
+ * share-sheet text and the result screen's copy are written to make that
+ * expectation clear rather than implying the print itself finished.
  *
  * This same mechanism doubles as a way for a guest to get the photo onto
  * their own phone (AirDrop, Messages, Save to Photos) without any
@@ -27,7 +35,7 @@ import { imageBitmapToBlob } from "../utils/image";
  * handoff (AirDrop), unlike a QR code, which was intentionally deferred.
  */
 export class ShareSheetPrinterAdapter implements PhotoPrinter {
-  name = "Share Sheet (print via printer's own app)";
+  name = "Share Sheet (Save Image, then print from the Kodak app)";
 
   async discover(): Promise<PrinterDevice[]> {
     // There's no discoverable "device" here -- the share sheet lists
@@ -62,7 +70,7 @@ export class ShareSheetPrinterAdapter implements PhotoPrinter {
       await navigator.share({
         files: [file],
         title: "Ghost Booth Photo",
-        text: "Pick a printer app (e.g. Kodak Photo Printer) to print this photo, or share it to a phone.",
+        text: "Tap Save Image, then open the Kodak Photo Printer app to print it -- Kodak's app can't be picked directly from this sheet.",
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {

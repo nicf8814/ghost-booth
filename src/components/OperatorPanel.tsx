@@ -35,7 +35,7 @@ const CAPTION_MODES: CaptionMode[] = ["off", "random", "fixed"];
 
 const PRINTER_ADAPTERS: { value: PrinterAdapterKind; label: string }[] = [
   { value: "mock", label: "Mock (testing, no hardware)" },
-  { value: "shareSheet", label: "Share Sheet (Kodak Photo Printer app, AirDrop, etc.)" },
+  { value: "shareSheet", label: "Share Sheet (Save Image, then print from Kodak app)" },
   { value: "browserPrint", label: "Browser/System Print Dialog" },
   { value: "airPrint", label: "AirPrint (via system print dialog)" },
 ];

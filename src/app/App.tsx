@@ -569,6 +569,7 @@ export default function App() {
             countdownSeconds: state.settings.countdownSeconds,
             resultImageUrl,
             printStatus,
+            printerAdapter: state.settings.printerAdapter,
             faces,
             debugMode: state.settings.debugMode,
             goofyFilterOn,
@@ -633,6 +634,7 @@ interface RenderScreenArgs {
   countdownSeconds: number;
   resultImageUrl: string | null;
   printStatus: "printing" | "success" | "failed";
+  printerAdapter: PrinterAdapterKind;
   faces: FaceModel[];
   debugMode: boolean;
   goofyFilterOn: boolean;
@@ -721,6 +723,7 @@ function renderScreen(args: RenderScreenArgs) {
       return (
         <PrintingScreen
           status={args.printStatus}
+          printerAdapter={args.printerAdapter}
           onRetry={args.onPrint}
           onSavePhoto={args.onSavePhoto}
           onContinueWithoutPrinting={args.onDone}

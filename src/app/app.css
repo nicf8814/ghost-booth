@@ -172,6 +172,18 @@
   max-width: 80%;
 }
 
+/* PrintingScreen's follow-up line under the "success" message, used when
+   the printer adapter's "success" only means "saved" rather than "printed"
+   (the Share Sheet adapter, since the Kodak app can't be reached directly
+   -- see PrintingScreen.tsx). Smaller/dimmer than the main message since
+   it's a secondary instruction, not the headline. */
+.processing-submessage {
+  font-size: clamp(1rem, 2.2vw, 1.4rem);
+  color: #c9a97a;
+  max-width: 80%;
+  margin-top: 4px;
+}
+
 /* ---- Result ---- */
 .result-screen {
   /* Overrides .screen's center/center flex. Laid out as a row now: a
