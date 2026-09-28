@@ -1,19 +1,14 @@
 import { useState } from "react";
-import type { PosterTint } from "../effects/PosterEffect";
-import { POSTER_TINT_LABELS } from "../effects/PosterEffect";
-import type { FilterKey } from "../effects/HorrorFilters";
-import { FILTER_LABELS } from "../effects/HorrorFilters";
+import type { StyleKey } from "../effects/Styles";
+import { STYLE_LABELS } from "../effects/Styles";
 import type { CameoKey } from "../effects/Cameos";
 import { CAMEO_LABELS } from "../effects/Cameos";
 
 interface FeatureCarouselProps {
-  posterTints: PosterTint[];
-  posterTint: PosterTint | null;
-  onSelectPoster: (tint: PosterTint | null) => void;
-
-  filterOptions: FilterKey[];
-  filterKey: FilterKey | null;
-  onSelectFilter: (key: FilterKey | null) => void;
+  /** The merged Filters list (horror filters + poster tints, see effects/Styles.ts) the operator made available for this event. */
+  filterOptions: StyleKey[];
+  styleKey: StyleKey | null;
+  onSelectStyle: (key: StyleKey | null) => void;
 
   ghostOptions: CameoKey[];
   ghostKey: CameoKey | null;
@@ -29,7 +24,7 @@ interface Chip {
 }
 
 interface Category {
-  key: "filter" | "poster" | "ghost";
+  key: "filters" | "ghost";
   label: string;
   chips: Chip[];
   hasSelection: boolean;
@@ -39,24 +34,21 @@ interface Category {
  * Guest-facing "pick exactly what you want on this photo" carousel --
  * embedded directly in ResultScreen (not a separate screen/modal) so the
  * whole flow -- see the photo, pick features, print -- stays on one
- * screen. A small tab strip lets the guest jump between Ghost/Filter/
- * Poster, with a horizontally scrollable row of chip options for
- * whichever one is active; every tap calls straight back into App.tsx's
- * applyPhotoSelection so the photo behind this carousel updates live.
+ * screen. A small tab strip lets the guest jump between Ghost/Filters,
+ * with a horizontally scrollable row of chip options for whichever one is
+ * active; every tap calls straight back into App.tsx's applyPhotoSelection
+ * so the photo behind this carousel updates live. Filters merges what used
+ * to be two separate categories (Filter/Poster) into one, per direction --
+ * see effects/Styles.ts.
  */
 export function FeatureCarousel({
-  posterTints,
-  posterTint,
-  onSelectPoster,
   filterOptions,
-  filterKey,
-  onSelectFilter,
+  styleKey,
+  onSelectStyle,
   ghostOptions,
   ghostKey,
   onSelectGhost,
 }: FeatureCarouselProps) {
-  const posterActive = posterTint !== null;
-
   const categories: Category[] = [];
 
   if (ghostOptions.length > 0) {
@@ -85,47 +77,23 @@ export function FeatureCarousel({
 
   if (filterOptions.length > 0) {
     categories.push({
-      key: "filter",
-      label: "Filter",
-      hasSelection: filterKey !== null,
+      key: "filters",
+      label: "Filters",
+      hasSelection: styleKey !== null,
       chips: [
         {
           key: "off",
           label: "Off",
-          active: filterKey === null,
+          active: styleKey === null,
           disabled: false,
-          onClick: () => onSelectFilter(null),
+          onClick: () => onSelectStyle(null),
         },
         ...filterOptions.map((key) => ({
           key,
-          label: FILTER_LABELS[key],
-          active: filterKey === key,
+          label: STYLE_LABELS[key],
+          active: styleKey === key,
           disabled: false,
-          onClick: () => onSelectFilter(key),
-        })),
-      ],
-    });
-  }
-
-  if (posterTints.length > 0) {
-    categories.push({
-      key: "poster",
-      label: "Poster",
-      hasSelection: posterActive,
-      chips: [
-        {
-          key: "off",
-          label: "Off",
-          active: posterTint === null,
-          disabled: false,
-          onClick: () => onSelectPoster(null),
-        },
-        ...posterTints.map((tint) => ({
-          key: tint,
-          label: POSTER_TINT_LABELS[tint],
-          active: posterTint === tint,
-          disabled: false,
-          onClick: () => onSelectPoster(tint),
+          onClick: () => onSelectStyle(key),
         })),
       ],
     });

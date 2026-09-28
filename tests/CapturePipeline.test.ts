@@ -92,8 +92,7 @@ const baseSettings: CapturePipelineSettings = {
   ownerCameoMode: "off",
   captionMode: "random",
   fixedCaption: CAPTIONS[0],
-  posterMode: true,
-  filters: ["vhs", "noir"],
+  filters: ["vhs", "noir", "crimson"],
 };
 
 function baseSelection(overrides: Partial<PhotoSelection> = {}): PhotoSelection {
@@ -102,8 +101,7 @@ function baseSelection(overrides: Partial<PhotoSelection> = {}): PhotoSelection 
     ghostKey: null,
     ghostOpacity: 0.5,
     captioned: false,
-    posterTint: null,
-    filterKey: null,
+    styleKey: null,
     ...overrides,
   };
 }
@@ -162,7 +160,7 @@ describe("analyzeAndWarpPhoto", () => {
     expect(on.defaults.ghostKey).toBeNull();
   });
 
-  it("builds a recipe respecting the operator's caption mode, and exposes the available poster/filter options and defaults", async () => {
+  it("builds a recipe respecting the operator's caption mode, and exposes the available Filters options and defaults", async () => {
     const master = fakeBitmap("master");
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
@@ -173,20 +171,12 @@ describe("analyzeAndWarpPhoto", () => {
 
     expect(CAPTIONS).toContain(result.recipe.caption);
 
-    expect(result.options.posterTints).toEqual([
-      "crimson",
-      "teal",
-      "moonlight",
-      "toxicGreen",
-      "violetHaze",
-      "amberInferno",
-      "grimGrey",
-      "bubblegumGore",
-    ]);
-    expect(result.options.filterOptions).toEqual(["vhs", "noir"]);
+    // filterOptions is just whatever settings.filters the operator
+    // enabled, passed straight through -- both horror-filter and
+    // poster-tint keys live in the one merged list now (effects/Styles.ts).
+    expect(result.options.filterOptions).toEqual(["vhs", "noir", "crimson"]);
 
-    expect(result.defaults.posterTint).toBeNull();
-    expect(result.defaults.filterKey).toBeNull();
+    expect(result.defaults.styleKey).toBeNull();
     expect(result.defaults.ghostKey).toBeNull();
   });
 
@@ -200,7 +190,6 @@ describe("analyzeAndWarpPhoto", () => {
     const result = await analyzeAndWarpPhoto(master, deps, {
       ...baseSettings,
       captionMode: "off",
-      posterMode: false,
       filters: [],
     });
 
@@ -208,7 +197,6 @@ describe("analyzeAndWarpPhoto", () => {
     expect(result.options).toEqual({
       ghostOptions: [],
       caption: false,
-      posterTints: [],
       filterOptions: [],
     });
   });
@@ -301,7 +289,7 @@ describe("composeSelectedBitmap", () => {
     });
   });
 
-  it("still routes through compose() when a posterTint is picked", async () => {
+  it("still routes through compose() when a poster-tint styleKey is picked", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const ownerCameoEngine = noopCameoEngine();
     const b = base();
@@ -309,48 +297,32 @@ describe("composeSelectedBitmap", () => {
     const bitmap = await composeSelectedBitmap(
       b,
       recipe,
-      baseSelection({ posterTint: "crimson" }),
+      baseSelection({ styleKey: "crimson" }),
       { compositionEngine: { compose }, ownerCameoEngine },
     );
 
-    // Poster grades the source before compose() runs (via the faked
+    // The poster-tint grade runs before compose() (via the faked
     // OffscreenCanvas, always resolving to "canvas-output"), so compose()
-    // receives the poster-graded bitmap, not the plain caricatured one.
+    // receives the graded bitmap, not the plain caricatured one.
     expect(compose).toHaveBeenCalledTimes(1);
     expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
     expect(bitmap).not.toBeNull();
   });
 
-  it("grades the source through the horror filter before compose() when a filterKey is picked", async () => {
+  it("grades the source through the horror filter before compose() when a filter-key styleKey is picked", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const ownerCameoEngine = noopCameoEngine();
     const b = base();
 
-    await composeSelectedBitmap(b, recipe, baseSelection({ filterKey: "vhs" }), {
+    await composeSelectedBitmap(b, recipe, baseSelection({ styleKey: "vhs" }), {
       compositionEngine: { compose },
       ownerCameoEngine,
     });
 
-    // applyHorrorFilter runs through the faked OffscreenCanvas and always
-    // resolves to "canvas-output" -- confirms compose() received the
-    // graded bitmap, not the original source, when a filter is picked.
-    expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
-  });
-
-  it("stacks the horror filter and Poster Mode instead of treating them as mutually exclusive", async () => {
-    const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
-    const ownerCameoEngine = noopCameoEngine();
-    const b = base();
-
-    await composeSelectedBitmap(b, recipe, baseSelection({ posterTint: "crimson", filterKey: "vhs" }), {
-      compositionEngine: { compose },
-      ownerCameoEngine,
-    });
-
-    // Both grades run (filter first, then poster on top) and compose()
-    // still receives the result -- filter is no longer skipped just
-    // because a poster tint is also picked.
-    expect(compose).toHaveBeenCalledTimes(1);
+    // applyStyle dispatches "vhs" to applyHorrorFilter, which runs through
+    // the faked OffscreenCanvas and always resolves to "canvas-output" --
+    // confirms compose() received the graded bitmap, not the original
+    // source, when a filter is picked.
     expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
   });
 

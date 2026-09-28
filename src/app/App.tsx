@@ -26,8 +26,7 @@ import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { CAMEO_FILENAMES, type CameoKey } from "../effects/Cameos";
 import { pickCaption } from "../effects/HalloweenEffects";
-import type { PosterTint } from "../effects/PosterEffect";
-import type { FilterKey } from "../effects/HorrorFilters";
+import type { StyleKey } from "../effects/Styles";
 import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import {
@@ -135,7 +134,6 @@ async function createPrinterTestBitmap(layout: string): Promise<ImageBitmap> {
 const EMPTY_PHOTO_OPTIONS: PhotoOptions = {
   ghostOptions: [],
   caption: false,
-  posterTints: [],
   filterOptions: [],
 };
 
@@ -147,8 +145,9 @@ export default function App() {
   const [faces, setFaces] = useState<FaceModel[]>([]);
   // Guest-facing picks for the current photo. Goofy/Ghost/Caption stay
   // simple booleans (CLAUDE.md section 25's captions and "My Cameo" aren't
-  // guest-selectable beyond on/off); Poster/Filter are now
-  // explicit choices the guest makes in CustomizePanel, not just on/off --
+  // guest-selectable beyond on/off); Filters (the merged Horror-Filter/
+  // Poster-Mode picker, see effects/Styles.ts) is now an
+  // explicit choice the guest makes in CustomizePanel, not just on/off --
   // see CapturePipeline.ts's PhotoSelection for why. None of these are
   // baked into a precomputed bitmap variant -- see applyPhotoSelection
   // below for why. Defaults are set fresh on every capture in
@@ -156,8 +155,7 @@ export default function App() {
   const [goofyFilterOn, setGoofyFilterOn] = useState(true);
   const [ghostKey, setGhostKey] = useState<CameoKey | null>(null);
   const [captionOn, setCaptionOn] = useState(false);
-  const [posterTint, setPosterTint] = useState<PosterTint | null>(null);
-  const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
+  const [styleKey, setStyleKey] = useState<StyleKey | null>(null);
   // What the guest can currently choose from (CapturePipeline.ts's
   // PhotoOptions) -- drives which sections CustomizePanel shows, and
   // whether the result screen's CUSTOMIZE/CAPTION/SPOOKY buttons render at
@@ -338,11 +336,10 @@ export default function App() {
       ghostKey,
       ghostOpacity: state.settings.ghostStrength,
       captioned: captionOn,
-      posterTint,
-      filterKey,
+      styleKey,
       ...overrides,
     }),
-    [goofyFilterOn, ghostKey, state.settings.ghostStrength, captionOn, posterTint, filterKey],
+    [goofyFilterOn, ghostKey, state.settings.ghostStrength, captionOn, styleKey],
   );
 
   // "Ghost Strength" is meant to be adjustable live (the user's explicit
@@ -368,14 +365,9 @@ export default function App() {
     void applyPhotoSelection(currentSelection({ ghostKey: key }));
   }, [currentSelection, applyPhotoSelection]);
 
-  const handleSelectPoster = useCallback((tint: PosterTint | null) => {
-    setPosterTint(tint);
-    void applyPhotoSelection(currentSelection({ posterTint: tint }));
-  }, [currentSelection, applyPhotoSelection]);
-
-  const handleSelectFilter = useCallback((key: FilterKey | null) => {
-    setFilterKey(key);
-    void applyPhotoSelection(currentSelection({ filterKey: key }));
+  const handleSelectStyle = useCallback((key: StyleKey | null) => {
+    setStyleKey(key);
+    void applyPhotoSelection(currentSelection({ styleKey: key }));
   }, [currentSelection, applyPhotoSelection]);
 
   // Caption toggle: unlike the picker categories above, every tap --
@@ -410,15 +402,13 @@ export default function App() {
     setGoofyFilterOn(false);
     setGhostKey(null);
     setCaptionOn(false);
-    setPosterTint(null);
-    setFilterKey(null);
+    setStyleKey(null);
     void applyPhotoSelection({
       goofy: false,
       ghostKey: null,
       ghostOpacity: state.settings.ghostStrength,
       captioned: false,
-      posterTint: null,
-      filterKey: null,
+      styleKey: null,
     });
   }, [applyPhotoSelection, state.settings.ghostStrength]);
 
@@ -466,7 +456,6 @@ export default function App() {
           ownerCameoMode: state.settings.ownerCameoMode,
           captionMode: state.settings.captionMode,
           fixedCaption: state.settings.fixedCaption,
-          posterMode: state.settings.posterMode,
           filters: state.settings.filters,
         },
       );
@@ -479,22 +468,20 @@ export default function App() {
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
       // default), Ghost off (the guest opts into a specific cameo from the
-      // menu) -- Poster/Filter/Ghost default off so the guest deliberately
-      // opts into those more dramatic whole-photo treatments via CUSTOMIZE
+      // menu) -- Filters/Ghost default off so the guest deliberately opts
+      // into those more dramatic whole-photo treatments via CUSTOMIZE
       // rather than finding them already applied.
       const { defaults, options } = analyzed;
       setGoofyFilterOn(true);
       setGhostKey(defaults.ghostKey);
       setCaptionOn(options.caption);
-      setPosterTint(defaults.posterTint);
-      setFilterKey(defaults.filterKey);
+      setStyleKey(defaults.styleKey);
       await applyPhotoSelection({
         goofy: true,
         ghostKey: defaults.ghostKey,
         ghostOpacity: state.settings.ghostStrength,
         captioned: options.caption,
-        posterTint: defaults.posterTint,
-        filterKey: defaults.filterKey,
+        styleKey: defaults.styleKey,
       });
       dispatch({ kind: "booth", event: { type: "PROCESSING_COMPLETE" } });
     } catch (err) {
@@ -510,7 +497,6 @@ export default function App() {
     state.settings.ownerCameoMode,
     state.settings.captionMode,
     state.settings.fixedCaption,
-    state.settings.posterMode,
     state.settings.filters,
     state.settings.ghostStrength,
     applyPhotoSelection,
@@ -568,8 +554,7 @@ export default function App() {
     setGoofyFilterOn(true);
     setGhostKey(null);
     setCaptionOn(false);
-    setPosterTint(null);
-    setFilterKey(null);
+    setStyleKey(null);
     setPhotoOptions(EMPTY_PHOTO_OPTIONS);
   }, []);
 
@@ -675,10 +660,8 @@ export default function App() {
             ghostOptions: photoOptions.ghostOptions,
             captionOn,
             captionAvailable: photoOptions.caption,
-            posterTints: photoOptions.posterTints,
-            posterTint,
             filterOptions: photoOptions.filterOptions,
-            filterKey,
+            styleKey,
             onStart: () => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } }),
             onCameraReady: handleCameraReady,
             onCameraError: handleCameraError,
@@ -693,8 +676,7 @@ export default function App() {
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onSelectGhost: handleSelectGhost,
             onToggleCaption: handleToggleCaption,
-            onSelectPoster: handleSelectPoster,
-            onSelectFilter: handleSelectFilter,
+            onSelectStyle: handleSelectStyle,
             onShowOriginal: handleShowOriginal,
           })}
 
@@ -753,10 +735,8 @@ interface RenderScreenArgs {
   ghostOptions: CameoKey[];
   captionOn: boolean;
   captionAvailable: boolean;
-  posterTints: PosterTint[];
-  posterTint: PosterTint | null;
-  filterOptions: FilterKey[];
-  filterKey: FilterKey | null;
+  filterOptions: StyleKey[];
+  styleKey: StyleKey | null;
   onStart: () => void;
   onCameraReady: (camera: GetUserMediaCameraManager) => void;
   onCameraError: (message: string) => void;
@@ -771,8 +751,7 @@ interface RenderScreenArgs {
   onToggleGoofyFilter: () => void;
   onSelectGhost: (key: CameoKey | null) => void;
   onToggleCaption: () => void;
-  onSelectPoster: (tint: PosterTint | null) => void;
-  onSelectFilter: (key: FilterKey | null) => void;
+  onSelectStyle: (key: StyleKey | null) => void;
   onShowOriginal: () => void;
 }
 
@@ -823,12 +802,9 @@ function renderScreen(args: RenderScreenArgs) {
           onToggleCaption={args.onToggleCaption}
           captionAvailable={args.captionAvailable}
           onShowOriginal={args.onShowOriginal}
-          posterTints={args.posterTints}
-          posterTint={args.posterTint}
-          onSelectPoster={args.onSelectPoster}
           filterOptions={args.filterOptions}
-          filterKey={args.filterKey}
-          onSelectFilter={args.onSelectFilter}
+          styleKey={args.styleKey}
+          onSelectStyle={args.onSelectStyle}
         />
       );
     case "printing":

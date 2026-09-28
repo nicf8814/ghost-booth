@@ -2,8 +2,7 @@ import { useRef, useState, type SyntheticEvent } from "react";
 import type { FaceModel } from "../vision/VisionTypes";
 import { DebugLandmarkOverlay } from "./DebugLandmarkOverlay";
 import { FeatureCarousel } from "./FeatureCarousel";
-import type { PosterTint } from "../effects/PosterEffect";
-import type { FilterKey } from "../effects/HorrorFilters";
+import type { StyleKey } from "../effects/Styles";
 import type { CameoKey } from "../effects/Cameos";
 
 interface ResultScreenProps {
@@ -42,16 +41,14 @@ interface ResultScreenProps {
   /** One-tap revert: turns every toggle above off/back to defaults at once,
    * back to the plain candid capture. */
   onShowOriginal: () => void;
-  /** Poster/Filter pickers, rendered inline via
-   * FeatureCarousel below the photo -- see that component. Everything the
-   * guest needs (see the photo, pick features, print) stays on this one
-   * screen; there's no separate customize screen to navigate to/from. */
-  posterTints: PosterTint[];
-  posterTint: PosterTint | null;
-  onSelectPoster: (tint: PosterTint | null) => void;
-  filterOptions: FilterKey[];
-  filterKey: FilterKey | null;
-  onSelectFilter: (key: FilterKey | null) => void;
+  /** The single merged Filters picker (horror filters + poster tints, see
+   * effects/Styles.ts), rendered inline via FeatureCarousel below the
+   * photo -- see that component. Everything the guest needs (see the
+   * photo, pick features, print) stays on this one screen; there's no
+   * separate customize screen to navigate to/from. */
+  filterOptions: StyleKey[];
+  styleKey: StyleKey | null;
+  onSelectStyle: (key: StyleKey | null) => void;
 }
 
 /**
@@ -76,12 +73,9 @@ export function ResultScreen({
   onToggleCaption,
   captionAvailable,
   onShowOriginal,
-  posterTints,
-  posterTint,
-  onSelectPoster,
   filterOptions,
-  filterKey,
-  onSelectFilter,
+  styleKey,
+  onSelectStyle,
 }: ResultScreenProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [renderedSize, setRenderedSize] = useState<{ width: number; height: number } | null>(null);
@@ -194,12 +188,9 @@ export function ResultScreen({
         )}
 
         <FeatureCarousel
-          posterTints={posterTints}
-          posterTint={posterTint}
-          onSelectPoster={onSelectPoster}
           filterOptions={filterOptions}
-          filterKey={filterKey}
-          onSelectFilter={onSelectFilter}
+          styleKey={styleKey}
+          onSelectStyle={onSelectStyle}
           ghostOptions={ghostOptions}
           ghostKey={ghostKey}
           onSelectGhost={onSelectGhost}

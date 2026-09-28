@@ -1361,3 +1361,51 @@ debugging.
 Verified for every item above: `tsc -b`, `npx vitest run` (183 tests, up
 from 178 -- new `tests/PhotoStore.test.ts`, all green), `oxlint`, and
 `npm run build` all clean.
+
+## Merged Poster Mode and Horror Filters into one "Filters" feature -- done
+
+Direction: "Combine posters and filters under 'Filters' -- no need to have
+separate places." Both were already whole-photo color-grade treatments
+from the guest's point of view (effects/PosterEffect.ts's tint+vignette
+grades vs. effects/HorrorFilters.ts's VHS/noir/blood-moon/vintage presets)
+living in two separate operator toggles (a "Poster Mode" checkbox plus its
+own "Horror Filters" checklist) and two separate guest-facing carousel
+categories -- one more thing to explain for no real payoff.
+
+New `effects/Styles.ts` merges them: `StyleKey = FilterKey | PosterTint`,
+`STYLE_KEYS`/`STYLE_LABELS` combine both sets (filters first, then poster
+tints), and `applyStyle()` dispatches to whichever underlying effect
+(`applyHorrorFilter`/`applyPosterEffect`) owns the picked key -- neither
+effect itself changed, only how they're selected and invoked. This
+necessarily makes the two mutually exclusive per photo now (a guest picks
+one Filters entry, not "a filter stacked with a poster tint" as before) --
+a direct consequence of merging two pickers into one, not a separate
+decision.
+
+Threaded the merged `styleKey`/`filters: StyleKey[]` through every layer
+that used to carry `posterTint`/`filterKey`/`posterMode` separately:
+`Settings.ts` (`posterMode` removed, `filters` is now `StyleKey[]`),
+`CapturePipeline.ts` (`PhotoSelection.styleKey`, `PhotoOptions.
+filterOptions: StyleKey[]`, `DefaultSelection.styleKey`,
+`composeSelectedBitmap` now applies at most one grade via `applyStyle`
+instead of two stacked ones), `App.tsx` (single `styleKey` state/handler
+replacing the separate poster/filter ones), `ResultScreen.tsx`/
+`FeatureCarousel.tsx` (one "Filters" tab instead of separate "Filter"/
+"Poster" tabs), and `OperatorPanel.tsx` (one "Filters" checklist listing
+all horror-filter and poster-tint options together, replacing the
+standalone "Poster Mode" checkbox).
+
+No settings migration needed for existing installs: `posterMode` is
+simply no longer read, and any horror-filter keys already in a persisted
+`filters` array are still valid `StyleKey`s so they carry over as-is
+(poster tints an operator previously had via the old separate "Poster
+Mode" toggle are not automatically added to `filters` -- the operator
+re-checks whichever poster tints they want in the new merged list, which
+matches the operator-panel settings reset guidance already given this
+week after the site-data clear).
+
+Verified: `tsc -b`, `npx vitest run` (182 tests -- one net fewer than
+before since two separate stacking-specific `composeSelectedBitmap` tests
+collapsed into the merged single-grade behavior; `tests/PosterEffect.test.ts`
+untouched and still green since it tests `applyPosterEffect` directly,
+which didn't change), `oxlint`, `npm run build` all clean.

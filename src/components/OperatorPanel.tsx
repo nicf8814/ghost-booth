@@ -1,6 +1,6 @@
 import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind } from "../app/Settings";
 import { CAPTIONS } from "../effects/HalloweenEffects";
-import { FILTER_KEYS, FILTER_LABELS, type FilterKey } from "../effects/HorrorFilters";
+import { STYLE_KEYS, STYLE_LABELS, type StyleKey } from "../effects/Styles";
 import { PRINT_LAYOUTS, PRINT_LAYOUT_LABELS, type PrintLayout } from "../printing/PrintLayout";
 
 interface OperatorPanelProps {
@@ -40,7 +40,7 @@ const PRINTER_ADAPTERS: { value: PrinterAdapterKind; label: string }[] = [
   { value: "airPrint", label: "AirPrint (via system print dialog)" },
 ];
 
-function toggleFilter(current: FilterKey[], key: FilterKey, checked: boolean): FilterKey[] {
+function toggleFilter(current: StyleKey[], key: StyleKey, checked: boolean): StyleKey[] {
   return checked ? [...current, key] : current.filter((k) => k !== key);
 }
 
@@ -182,25 +182,17 @@ export function OperatorPanel({
               onChange={(e) => onChange({ ownerCameoMode: e.target.checked ? "always" : "off" })}
             />
           </label>
-          <label>
-            Poster Mode (beta)
-            <input
-              type="checkbox"
-              checked={settings.posterMode}
-              onChange={(e) => onChange({ posterMode: e.target.checked })}
-            />
-          </label>
           <fieldset className="operator-overlay-fieldset">
-            <legend>Horror Filters (whole-photo color grade, one picked at random per photo)</legend>
+            <legend>Filters (whole-photo color grade -- horror filters and poster tints, guest picks one per photo)</legend>
             <div className="operator-overlay-grid">
-              {FILTER_KEYS.map((key) => (
+              {STYLE_KEYS.map((key) => (
                 <label key={key} className="operator-overlay-option">
                   <input
                     type="checkbox"
                     checked={settings.filters.includes(key)}
                     onChange={(e) => onChange({ filters: toggleFilter(settings.filters, key, e.target.checked) })}
                   />
-                  {FILTER_LABELS[key]}
+                  {STYLE_LABELS[key]}
                 </label>
               ))}
             </div>

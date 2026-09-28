@@ -3,16 +3,17 @@
 // "recipe" (CLAUDE.md section 27's vision -> caricature -> ghost stages,
 // plus the caption choice section 20 says to make once per
 // photo from the seeded rng), and turning the guest's current selection of
-// which poster-tint/filter to apply into the one
+// which style/ghost to apply into the one
 // composed bitmap that actually gets shown/printed (section 28's
 // composition stage).
 //
-// Poster/Filter are guest-driven pickers, not just on/off
-// toggles: the guest chooses which poster tint and which filter they want,
+// Filters (the merged Horror-Filter/Poster-Mode picker, see
+// effects/Styles.ts) and Ghost are guest-driven pickers, not just on/off
+// toggles: the guest chooses which style and which cameo they want,
 // from whatever the operator has made available for the event
-// (CapturePipelineSettings below). Only the caption and "My Cameo" ghost
-// stay as simple availability-gated booleans -- picking a specific caption
-// line or a specific cameo image isn't something the guest controls.
+// (CapturePipelineSettings below). Only the caption stays a simple
+// availability-gated boolean -- picking a specific caption line isn't
+// something the guest controls.
 //
 // Pulled out of App.tsx, which used to have all of this inline in
 // handleCountdownComplete/applyPhotoSelection -- CLAUDE.md section 55 says
@@ -32,8 +33,7 @@ import type { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { CAMEO_KEYS, type CameoKey } from "../effects/Cameos";
 import { resolvePreset, scaleTowardNeutral, varyConfigForFace } from "../effects/Presets";
 import { pickCaption } from "../effects/HalloweenEffects";
-import { applyPosterEffect, POSTER_TINTS, type PosterTint } from "../effects/PosterEffect";
-import { applyHorrorFilter, type FilterKey } from "../effects/HorrorFilters";
+import { applyStyle, type StyleKey } from "../effects/Styles";
 import type { CompositionEngine } from "../rendering/CompositionEngine";
 import { createSeed, seededRandom } from "../utils/random";
 import type { CaptionMode, CaricaturePreset, OwnerCameoMode } from "./Settings";
@@ -45,33 +45,29 @@ export interface CapturePipelineSettings {
   ownerCameoMode: OwnerCameoMode;
   captionMode: CaptionMode;
   fixedCaption: string;
-  posterMode: boolean;
-  filters: FilterKey[];
+  filters: StyleKey[];
 }
 
-/** Decided once per photo from the seeded rng (CLAUDE.md section 20) and reused across every later recompose, so re-picking poster/filter never reshuffles which caption the photo uses. */
+/** Decided once per photo from the seeded rng (CLAUDE.md section 20) and reused across every later recompose, so re-picking a style never reshuffles which caption the photo uses. */
 export interface PhotoRecipe {
   caption?: string;
 }
 
 /**
  * What the guest can choose from for this photo, given what the operator
- * configured for the event. Filter options are whichever subset the
- * operator enabled; poster tints are the full fixed set when Poster Mode is
- * on at all, empty otherwise.
+ * configured for the event. filterOptions is whichever subset of the merged
+ * Filters list (effects/Styles.ts) the operator enabled.
  */
 export interface PhotoOptions {
   /** Which specific cameos the guest can choose from (CapturePipeline.ts's ghost picker) -- empty when the operator has the feature off entirely. */
   ghostOptions: CameoKey[];
   caption: boolean;
-  posterTints: PosterTint[];
-  filterOptions: FilterKey[];
+  filterOptions: StyleKey[];
 }
 
-/** The guest's starting selection for a fresh photo -- poster/filter/ghost default off so the guest opts into those more dramatic whole-photo treatments deliberately. */
+/** The guest's starting selection for a fresh photo -- style/ghost default off so the guest opts into those more dramatic whole-photo treatments deliberately. */
 export interface DefaultSelection {
-  posterTint: PosterTint | null;
-  filterKey: FilterKey | null;
+  styleKey: StyleKey | null;
   ghostKey: CameoKey | null;
 }
 
@@ -93,7 +89,7 @@ export interface AnalyzePhotoDeps {
  * Runs face detection, per-face caricature warping, "My Cameo" ghost
  * compositing, and picks this photo's caption and overlay-placement seed --
  * everything that only needs to happen once, right after capture, regardless
- * of which frame/overlays/poster/filter the guest ends up picking afterward.
+ * of which ghost/style the guest ends up picking afterward.
  * Never throws on a detection/warp/cameo failure in a way that would lose
  * the photo (CLAUDE.md section 49): a face detector that returns no faces or
  * a cameo engine with nothing loaded both degrade to sensible fallbacks
@@ -148,10 +144,9 @@ export async function analyzeAndWarpPhoto(
   }
 
   // Ghost cameos are no longer baked in here -- the guest picks a specific
-  // cameo from a menu (like Frame/Overlays/Poster/Filter) and
-  // composeSelectedBitmap applies it on demand, so it can be swapped
-  // without re-running detection/warp. ghostAvailable just gates whether
-  // that menu has anything in it at all.
+  // cameo from a menu (like Filters) and composeSelectedBitmap applies it
+  // on demand, so it can be swapped without re-running detection/warp.
+  // ghostAvailable just gates whether that menu has anything in it at all.
   const ghostAvailable = settings.ownerCameoMode !== "off";
 
   const caption = pickCaption(settings.captionMode, settings.fixedCaption, rng);
@@ -167,12 +162,10 @@ export async function analyzeAndWarpPhoto(
     options: {
       ghostOptions: ghostAvailable ? CAMEO_KEYS : [],
       caption: settings.captionMode !== "off",
-      posterTints: settings.posterMode ? POSTER_TINTS : [],
       filterOptions: settings.filters,
     },
     defaults: {
-      posterTint: null,
-      filterKey: null,
+      styleKey: null,
       ghostKey: null,
     },
   };
@@ -195,8 +188,8 @@ export interface PhotoSelection {
    * ghostKey is null. */
   ghostOpacity: number;
   captioned: boolean;
-  posterTint: PosterTint | null;
-  filterKey: FilterKey | null;
+  /** Which single Filters entry (a horror filter or a poster tint, see effects/Styles.ts) is picked -- null means the plain, ungraded photo. */
+  styleKey: StyleKey | null;
 }
 
 export interface ComposeSelectionDeps {
@@ -207,11 +200,9 @@ export interface ComposeSelectionDeps {
 /**
  * Composes the guest's current picks into the one bitmap that should be
  * shown/printed. Pipeline order: the chosen ghost cameo (if any) is
- * composited onto the goofy/plain source first, then the chosen filter (if
- * any) grades that, then the chosen poster tint (if any) grades on top of
- * that -- Filter and Poster can both be live on the same photo, stacking as
- * two color grades rather than being mutually exclusive. The caption is
- * unaffected by Poster and always draws on top via the regular composition.
+ * composited onto the goofy/plain source first, then the chosen Filters
+ * style (if any) grades that. The caption always draws on top via the
+ * regular composition, independent of which style (if any) is picked.
  * Returns null only when the base
  * bitmaps aren't ready yet (no photo captured), which callers should treat
  * as "nothing to display", not an error.
@@ -228,9 +219,9 @@ export async function composeSelectedBitmap(
   // Every stage below either passes `source`/the previous stage's bitmap
   // straight through (a disabled/failed step) or allocates a brand-new one
   // via a fresh OffscreenCanvas. This function is called on every single
-  // guest toggle tap (goofy/ghost/filter/poster/caption), so leaving those
-  // fresh intermediates for GC instead of closing them explicitly adds up
-  // fast over a multi-hour event. `fresh` tracks only the bitmaps this call
+  // guest toggle tap (goofy/ghost/style/caption), so leaving those fresh
+  // intermediates for GC instead of closing them explicitly adds up fast
+  // over a multi-hour event. `fresh` tracks only the bitmaps this call
   // allocated -- never `source` itself, which is owned by `base` and reused
   // across every future call for this same photo.
   const fresh: ImageBitmap[] = [];
@@ -240,17 +231,8 @@ export async function composeSelectedBitmap(
   });
   if (ghosted !== source) fresh.push(ghosted);
 
-  const postered = selection.posterTint !== null;
-
-  const filteredSource = selection.filterKey
-    ? await applyHorrorFilter(ghosted, { key: selection.filterKey })
-    : ghosted;
-  if (filteredSource !== ghosted) fresh.push(filteredSource);
-
-  const gradedSource = postered
-    ? await applyPosterEffect(filteredSource, { tint: selection.posterTint as PosterTint })
-    : filteredSource;
-  if (gradedSource !== filteredSource) fresh.push(gradedSource);
+  const gradedSource = selection.styleKey ? await applyStyle(ghosted, selection.styleKey) : ghosted;
+  if (gradedSource !== ghosted) fresh.push(gradedSource);
 
   const result = await deps.compositionEngine.compose({
     foreground: gradedSource,

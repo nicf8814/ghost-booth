@@ -2,7 +2,7 @@
 // Persisted via storage/SettingsStore.ts.
 
 import { CAPTIONS } from "../effects/HalloweenEffects";
-import type { FilterKey } from "../effects/HorrorFilters";
+import type { StyleKey } from "../effects/Styles";
 import type { PrintLayout } from "../printing/PrintLayout";
 
 export type { PrintLayout } from "../printing/PrintLayout";
@@ -59,29 +59,17 @@ export interface BoothSettings {
    * guest's own segmented photo was tried and reverted (didn't look great,
    * wasn't reliable enough); this fixed-asset approach replaced it. */
   ownerCameoMode: OwnerCameoMode;
-  /** "Poster Mode" (beta): grades the photo like a horror movie poster --
-   * pure color grade + vignette gradient, no text of its own (that was
-   * dropped; the caption toggle below is the only source of text on a
-   * photo now, and it applies independently of whether Poster Mode is on).
-   * See effects/PosterEffect.ts. Turning this on makes the guest-facing
-   * Poster toggle available at all (same on/off-availability pattern as
-   * ownerCameoMode below); it no longer forces poster grading onto every
-   * photo unconditionally -- the guest can flip it off per-photo to see
-   * the plain candid instead (via the other toggles). Defaults to on for
-   * a fresh photo when enabled here, matching the previous always-on
-   * behavior out of the box. */
-  posterMode: boolean;
-  /** Horror Filters (whole-photo color grades -- VHS/noir/blood-moon/vintage,
-   * see effects/HorrorFilters.ts) the operator wants available for this
-   * event. Opt-in: empty by default, and when non-empty the guest gets a
-   * Filter toggle on the result screen. Which filter a given photo uses is
-   * picked once per photo from this list via the seeded rng
-   * (CapturePipeline's recipe, same pattern as posterTint), not
-   * guest-selectable -- keeps the toggle a simple on/off like the others
-   * rather than adding a picker. Stacks with Poster Mode (filter grade
-   * applied first, then poster grade on top) rather than being mutually
-   * exclusive with it. */
-  filters: FilterKey[];
+  /** "Filters" -- a single merged list of whole-photo grade presets the
+   * operator wants available for this event, combining what used to be
+   * two separate features: Horror Filters (VHS/noir/blood-moon/vintage,
+   * effects/HorrorFilters.ts) and Poster Mode's tint+vignette grades
+   * (effects/PosterEffect.ts). See effects/Styles.ts for the merged type.
+   * Opt-in: empty by default, and when non-empty the guest gets one
+   * Filters picker on the result screen listing whichever of these the
+   * operator checked here -- picking one grades the whole photo; there's
+   * no stacking two grades at once anymore now that this is one feature
+   * instead of two. */
+  filters: StyleKey[];
 
   // Printing
   printerId?: string;
@@ -120,7 +108,6 @@ export const defaultSettings: BoothSettings = {
   captionMode: "random",
   fixedCaption: CAPTIONS[0],
   ownerCameoMode: "off",
-  posterMode: false,
   filters: [],
 
   printerAdapter: "shareSheet",
