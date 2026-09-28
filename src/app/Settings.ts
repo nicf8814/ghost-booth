@@ -37,6 +37,15 @@ export type OwnerCameoMode = "off" | "always";
 export interface BoothSettings {
   // Camera
   cameraDeviceId?: string;
+  /** The booth is mounted portrait, and iOS Safari can still hand back a
+   * landscape-shaped raw capture despite that (see
+   * camera/CaptureService.ts's maybeRotateToPortrait) -- when that happens
+   * it's auto-rotated 90deg to match. This flips which direction that
+   * correction turns. There's no reliable way to predict the front
+   * camera's sensor-mounting offset from code, so this exists purely for
+   * an operator to flip on-site (Operator Panel) if a test photo comes
+   * back upside-down or sideways the wrong way after the auto-rotation. */
+  rotateCaptureCounterClockwise: boolean;
 
   // Flow
   countdownSeconds: number;
@@ -93,6 +102,7 @@ export interface BoothSettings {
 }
 
 export const defaultSettings: BoothSettings = {
+  rotateCaptureCounterClockwise: false,
   countdownSeconds: 3,
   autoStart: true,
   // Was 45s; bumped up now that the result screen's picker is a carousel a

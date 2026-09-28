@@ -73,6 +73,22 @@ export function OperatorPanel({
 
       <div className="operator-panel-body">
         <section>
+          <h3>Camera</h3>
+          <label>
+            Flip Auto-Rotation Direction
+            <input
+              type="checkbox"
+              checked={settings.rotateCaptureCounterClockwise}
+              onChange={(e) => onChange({ rotateCaptureCounterClockwise: e.target.checked })}
+            />
+          </label>
+          <span className="operator-panel-note">
+            The booth auto-corrects a sideways capture to portrait. If a TEST CAPTURE comes back upside-down or
+            rotated the wrong way, toggle this and try again.
+          </span>
+        </section>
+
+        <section>
           <h3>Flow</h3>
           <label>
             Countdown seconds

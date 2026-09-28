@@ -22,3 +22,37 @@ export function drawNormalized(
   ctx.drawImage(source, 0, 0, width, height);
   ctx.restore();
 }
+
+/**
+ * Draws a `sourceWidth` x `sourceHeight` source frame onto a canvas rotated
+ * 90deg, landscape-to-portrait (or vice versa) -- the canvas passed in must
+ * already be sized `sourceHeight` x `sourceWidth` (dimensions swapped).
+ *
+ * Needed because on this booth's portrait iPad mount, iOS Safari's
+ * getUserMedia can still hand back a landscape-shaped video frame (the
+ * front camera's sensor is physically landscape; portrait ideal
+ * width/height constraints are only a hint -- see CameraManager.ts) even
+ * though the live <video> preview displays it correctly rotated via an
+ * internal transform that plain canvas/ImageBitmap capture does not
+ * inherit. captureMasterFrame detects that width>height mismatch against
+ * the portrait viewport and calls this to rotate the actual pixel data
+ * to match, once, before any other processing.
+ */
+export function drawRotated90(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  clockwise: boolean,
+): void {
+  ctx.save();
+  if (clockwise) {
+    ctx.translate(sourceHeight, 0);
+    ctx.rotate(Math.PI / 2);
+  } else {
+    ctx.translate(0, sourceWidth);
+    ctx.rotate(-Math.PI / 2);
+  }
+  ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight);
+  ctx.restore();
+}

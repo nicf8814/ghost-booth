@@ -420,7 +420,10 @@ export default function App() {
       return;
     }
     try {
-      const master = await captureMasterFrame(camera, { mirrorPreview: true });
+      const master = await captureMasterFrame(camera, {
+        mirrorPreview: true,
+        rotateCounterClockwise: state.settings.rotateCaptureCounterClockwise,
+      });
 
       // Free the previous photo's bitmaps now that this capture is
       // replacing them (a retake, or the next group's photo) -- original,
@@ -499,6 +502,7 @@ export default function App() {
     state.settings.fixedCaption,
     state.settings.filters,
     state.settings.ghostStrength,
+    state.settings.rotateCaptureCounterClockwise,
     applyPhotoSelection,
   ]);
 

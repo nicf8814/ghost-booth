@@ -1492,3 +1492,50 @@ height/caption strip survives) and confirming forcePortrait is a no-op
 equal to the unforced result when the source is already portrait.
 `tsc -b`, `npx vitest run` (185 tests, all green), `oxlint`,
 `npm run build` all clean.
+
+## Fixed: photo captured in portrait mode comes out rotated to landscape -- done
+
+Follow-up to the previous entry, which made the camera *request* a
+portrait stream and made the print crop *force* portrait output -- but
+neither of those fixes the raw capture itself if iOS Safari hands one
+back landscape-shaped anyway. That's a known iOS Safari quirk: the live
+`<video>` preview can display a getUserMedia stream correctly rotated to
+match the device's physical orientation via an internal transform, but a
+canvas/`ImageBitmap` capture of that same stream (`captureFrame()` in
+CameraManager.ts) doesn't inherit that transform -- it grabs the
+underlying landscape sensor buffer as-is. That's what the operator hit:
+photo taken while the iPad is in portrait still comes out landscape.
+
+Fixed in `camera/CaptureService.ts`'s `captureMasterFrame()`: after the
+raw capture, a new `maybeRotateToPortrait()` step compares the frame's
+own shape (`raw.width > raw.height`) against the actual viewport
+(`window.innerHeight >= window.innerWidth`, i.e. is the iPad currently
+portrait). Only when those disagree -- landscape frame on a portrait
+viewport -- does it rotate the frame 90deg via a new `drawRotated90()`
+helper in `utils/orientation.ts` before anything else in the pipeline
+touches it; on a device/browser that already reports frames correctly
+(desktop testing, a future device that doesn't have this quirk) it's a
+no-op, so this doesn't newly break anything working today.
+
+There's no way to know from code which way (clockwise vs.
+counterclockwise) the front camera's physical sensor is offset relative
+to the device housing -- that only shows up once tested on the real
+iPad. Rather than guess and risk shipping a photo that comes back upside
+down, added an operator-only escape hatch: `rotateCaptureCounterClockwise`
+(BoothSettings, default off) flips the rotation direction, surfaced as a
+new "Camera" section in the Operator Panel with a note pointing at TEST
+CAPTURE. If the auto-rotation guesses wrong on-site, the operator flips
+this one checkbox rather than needing a new deploy.
+
+Also closes every intermediate bitmap this adds (the raw pre-rotation
+capture, and the rotated-but-not-yet-mirrored copy) rather than leaking
+them, consistent with this session's earlier P0 bitmap-lifecycle fixes.
+
+Verified: new `tests/CaptureService.test.ts` (5 tests) covering: rotates
+when frame is landscape and viewport is portrait; does NOT rotate when
+the frame already matches; does NOT rotate when the viewport itself is
+landscape (so desktop/landscape-mount testing is unaffected); rotates the
+opposite direction when the operator override is set; and that
+un-mirroring still runs afterward with every intermediate bitmap closed.
+`tsc -b`, `npx vitest run` (190 tests, all green), `oxlint`,
+`npm run build` all clean.
