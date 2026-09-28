@@ -110,54 +110,18 @@ export function ResultScreen({
       {/* Branding lives as small corner marks now instead of a title bar --
           content-first, chrome-minimal: the photo is the thing the guest
           looks at, not the header. These sit out of normal flow (position:
-          absolute in CSS) so they cost the layout no vertical space at all,
-          which is what actually lets result-photo-frame grow. */}
+          absolute in CSS) so they cost the layout no space at all. */}
       <span className="result-brand-mark" aria-hidden="true">👻 GHOST BOOTH</span>
       <span className="result-tagline-mark" aria-hidden="true">🎃 HAPPY HALLOWEEN 🎃</span>
 
-      <div className="result-photo-frame">
-        {imageUrl ? (
-          <>
-            <img
-              ref={imgRef}
-              src={imageUrl}
-              alt="Your haunted photo"
-              className="result-photo"
-              onLoad={handleImageLoad}
-            />
-            {debugMode && renderedSize && (
-              <DebugLandmarkOverlay faces={faces} width={renderedSize.width} height={renderedSize.height} />
-            )}
-          </>
-        ) : (
-          <div className="result-photo-placeholder">NO PHOTO</div>
-        )}
-      </div>
-      {debugMode && (
-        <p className="debug-face-count">
-          {faces.length === 0 ? "0 faces detected" : `${faces.length} face${faces.length > 1 ? "s" : ""} detected`}
-        </p>
-      )}
-
-      <FeatureCarousel
-        frameOptions={frameOptions}
-        frameKey={frameKey}
-        onSelectFrame={onSelectFrame}
-        overlayOptions={overlayOptions}
-        overlayKeys={overlayKeys}
-        onToggleOverlay={onToggleOverlay}
-        posterTints={posterTints}
-        posterTint={posterTint}
-        onSelectPoster={onSelectPoster}
-        filterOptions={filterOptions}
-        filterKey={filterKey}
-        onSelectFilter={onSelectFilter}
-        ghostOptions={ghostOptions}
-        ghostKey={ghostKey}
-        onSelectGhost={onSelectGhost}
-      />
-
-      <div className="result-icon-row">
+      {/* Action buttons moved to a left-hand rail instead of a row under
+          the photo -- a horizontal row of buttons plus the picker carousel
+          both stacked under the photo was too tall to fit some devices'
+          viewports at once (reported: buttons cut off/unusable at the
+          bottom). A side rail removes one whole row from that vertical
+          stack, and its height is driven by result-main next to it rather
+          than adding to it. */}
+      <div className="result-sidebar">
         <button
           type="button"
           className="icon-button"
@@ -211,6 +175,55 @@ export function ResultScreen({
           <span className="icon-button-glyph" aria-hidden="true">↩️</span>
           <span className="icon-button-label">ORIGINAL</span>
         </button>
+      </div>
+
+      {/* Photo + option carousel share the remaining width, stacked so the
+          photo (flex: 1) fills whatever vertical space the carousel
+          (flex: none, sized to its own content) doesn't need -- same
+          "claim the remainder, can't overflow" approach as before, just
+          now with one less row competing for that space. */}
+      <div className="result-main">
+        <div className="result-photo-frame">
+          {imageUrl ? (
+            <>
+              <img
+                ref={imgRef}
+                src={imageUrl}
+                alt="Your haunted photo"
+                className="result-photo"
+                onLoad={handleImageLoad}
+              />
+              {debugMode && renderedSize && (
+                <DebugLandmarkOverlay faces={faces} width={renderedSize.width} height={renderedSize.height} />
+              )}
+            </>
+          ) : (
+            <div className="result-photo-placeholder">NO PHOTO</div>
+          )}
+        </div>
+        {debugMode && (
+          <p className="debug-face-count">
+            {faces.length === 0 ? "0 faces detected" : `${faces.length} face${faces.length > 1 ? "s" : ""} detected`}
+          </p>
+        )}
+
+        <FeatureCarousel
+          frameOptions={frameOptions}
+          frameKey={frameKey}
+          onSelectFrame={onSelectFrame}
+          overlayOptions={overlayOptions}
+          overlayKeys={overlayKeys}
+          onToggleOverlay={onToggleOverlay}
+          posterTints={posterTints}
+          posterTint={posterTint}
+          onSelectPoster={onSelectPoster}
+          filterOptions={filterOptions}
+          filterKey={filterKey}
+          onSelectFilter={onSelectFilter}
+          ghostOptions={ghostOptions}
+          ghostKey={ghostKey}
+          onSelectGhost={onSelectGhost}
+        />
       </div>
     </div>
   );

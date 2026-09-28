@@ -5,7 +5,20 @@
   position: fixed;
   inset: 0;
   width: 100vw;
+  /* 100vh on iOS Safari is the full layout viewport, INCLUDING the area
+     behind the collapsible address bar/tab strip -- when that chrome is
+     showing (not collapsed), a fixed-position 100vh box is taller than
+     what's actually visible on screen, silently pushing content below the
+     fold. This is what was actually behind every "buttons cut off at the
+     bottom" report so far: the flex math inside .screen was correct, but
+     the box it was laid out in was already bigger than the visible area
+     before any of that math ran. `100dvh` (dynamic viewport height)
+     tracks the real visible viewport and shrinks/grows live as the
+     browser chrome shows/hides; `100vh` stays as a fallback for browsers
+     that don't support `dvh` (all real target browsers here do, but this
+     costs nothing to keep). */
   height: 100vh;
+  height: 100dvh;
   background: radial-gradient(circle at 50% 20%, #1a0d24 0%, #050308 70%);
   overflow: hidden;
 }
@@ -161,23 +174,52 @@
 
 /* ---- Result ---- */
 .result-screen {
-  /* Overrides .screen's center/center flex: a fixed-size stage guessed at
-     in vh (the previous two attempts here) either didn't fill the leftover
-     space or overflowed it and pushed the button dock off the bottom of
-     the viewport, depending on how tall the dock actually rendered on a
-     given device -- the number was always a guess. `flex-direction: column`
-     plus the stage below being `flex: 1; min-height: 0` instead makes the
-     stage *exactly* however tall "whatever's left after the dock" is, on
-     any viewport, with zero overflow risk: the dock's real rendered height
-     is what determines the split, not a hardcoded vh figure. `align-items:
-     stretch` (in place of .screen's `center`) lets the stage and dock use
-     the full width instead of shrinking to their content. */
+  /* Overrides .screen's center/center flex. Laid out as a row now: a
+     left-hand button rail (result-sidebar) plus a main column
+     (result-main, photo + carousel) sharing the rest of the width -- per
+     explicit direction, after a photo-on-top/buttons-on-bottom stack kept
+     being too tall to fit some viewports at once (buttons cut off) even
+     once result-photo-frame's own sizing was fixed. Moving the buttons to
+     a side rail removes an entire row from the vertical stack instead of
+     continuing to fight for headroom within it. */
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 14px 16px 14px 14px;
+}
+
+.result-sidebar {
+  /* Sized to its own content (the icon buttons), never squeezed by
+     result-main's flexible photo stage next to it. Vertically centered so
+     the button column doesn't feel top- or bottom-heavy regardless of how
+     tall result-main ends up. Top padding clears the "GHOST BOOTH" corner
+     mark, which is positioned independently (absolute) over this same
+     screen. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  flex: none;
+  padding-top: 34px;
+}
+
+.result-main {
+  /* The photo (flex: 1) and the option carousel (flex: none) stack here,
+     sharing whatever width is left after the sidebar -- same "claim the
+     remainder, can't overflow" approach the photo stage itself uses
+     vertically (see result-photo-frame), just one axis over now that the
+     buttons no longer compete for space in this column. */
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
   gap: 12px;
-  padding: 14px 16px 18px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Small corner marks instead of a title bar -- carries the same branding
@@ -215,10 +257,11 @@
      first time, and enough to overflow the viewport and push the button
      dock off-screen the second time, because a hardcoded number can't know
      how tall the dock below will actually render. `flex: 1` instead makes
-     this box claim exactly the vertical space left over after the dock
-     (result-icon-row + feature-carousel) takes what it needs -- always
-     fills the true remaining space, on any viewport, with the dock always
-     fully visible below it. `min-height: 0` is required here: without it a
+     this box claim exactly the vertical space left over after
+     feature-carousel (in the same result-main column) takes what it
+     needs -- always fills the true remaining space, on any viewport, with
+     the carousel always fully visible below it. `min-height: 0` is
+     required here: without it a
      flex child defaults to a min-height equal to its content, which for an
      -- object-fit: contain -- image can be its full intrinsic height, and
      that alone was enough to blow past the available space and reintroduce
@@ -261,23 +304,6 @@
   color: #666;
   font-weight: 700;
   padding: 40px;
-}
-
-/* Circular icon-button row (Print/Retake/Goofy/Spookify) -- borrows the
-   reference layout's compact circular controls with a small label under
-   each, instead of a stack of full-width rectangular buttons. Kept large
-   enough to stay an easy touch target up close (this screen is reviewed
-   hand-held/close-up, unlike the full-screen kiosk camera view). */
-.result-icon-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 20px;
-  flex-wrap: wrap;
-  /* Sized to content, never squeezed by the flexible stage above --
-     result-photo-frame's flex: 1 is what absorbs any extra/short space,
-     not this. */
-  flex: none;
 }
 
 .icon-button {
@@ -511,8 +537,8 @@
 .feature-carousel {
   width: 100%;
   text-align: left;
-  /* Sized to content, never squeezed by the flexible stage above -- see
-     .result-icon-row's flex: none for the same reasoning. */
+  /* Sized to content, never squeezed by result-photo-frame's flex: 1
+     above it in the same result-main column. */
   flex: none;
 }
 

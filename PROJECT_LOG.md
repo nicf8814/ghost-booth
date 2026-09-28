@@ -900,3 +900,45 @@ leftover space with only the letterboxing genuinely required by aspect
 mismatch (not the layout's own guesswork). Then `tsc -b --force`,
 `oxlint`, `npm run build`, and the full suite (180 tests, no test touches
 this CSS) all clean.
+
+## Result stage: iOS Safari `100dvh` fix + sidebar layout -- done
+
+The flexbox fix above tested correctly against desktop headless Chromium
+at three iPad heights, but the user still reported buttons cut off at the
+bottom on the real iPad, with a screenshot showing Safari's own chrome
+(address bar) visible. Root cause the flexbox math couldn't have caught:
+`.booth-shell` (the root `position: fixed` container everything else
+sizes against) used `height: 100vh`. On iOS Safari, `100vh` is the full
+layout viewport *including* the area behind the collapsible address
+bar/tab strip -- when that chrome is showing (not collapsed), a
+fixed-position `100vh` box is taller than what's actually visible on
+screen, silently pushing content below the fold. Every `flex: 1;
+min-height: 0` calculation downstream was correct math running inside a
+container that was already taller than the real visible viewport --
+invisible to desktop Chromium, which doesn't replicate this behavior.
+Fixed with `height: 100dvh` (dynamic viewport height, tracks the actual
+visible area) declared after the `100vh` line so `100vh` still applies as
+a fallback in browsers that don't support `dvh`.
+
+Separately, per the user's explicit request ("put the buttons on the left
+hand side and all the options below the image"), `ResultScreen.tsx` was
+restructured: the RETAKE/PRINT/GOOFY/CAPTION/ORIGINAL icon buttons now
+live in a `result-sidebar` column (`flex: none`, left side), and the photo
+frame + `FeatureCarousel` live together in a `result-main` column
+(`flex: 1; min-width: 0`) next to it -- `result-screen` itself switched
+from a `flex-direction: column` single stack to a `flex-direction: row`
+of those two. This removes an entire row from the vertical stack (the old
+icon row), independent of the `100dvh` fix, and was the user's own
+suggested structural fix from an earlier report. The dead `.result-icon-row`
+CSS rule was removed; stale comments referencing it were updated to point
+at `.result-main`/`.result-photo-frame` instead.
+
+Verified with a new Playwright harness that wraps the mocked markup in
+`.booth-shell` itself (exercising the real `dvh` fix in its actual
+container, not just the inner flex math) with the new sidebar structure,
+at the same three iPad landscape heights (1024/820/768px) -- confirmed
+zero overflow (sidebar bottom, stage bottom, and carousel bottom all
+within the viewport) at all three, plus a screenshot visually confirming
+the sidebar renders correctly alongside the full-height stage and
+carousel. Then `tsc -b --force`, `oxlint`, `npm run build`, and the full
+suite (180 tests, no test touches this CSS/markup) all clean.
