@@ -73,7 +73,7 @@ export class Canvas2DCompositionEngine implements CompositionEngine {
     }
 
     if (config.frame) {
-      drawFrame(ctx, config.frame, canvas.width, canvas.height);
+      await drawFrame(ctx, config.frame, canvas.width, canvas.height);
     }
 
     return canvas.transferToImageBitmap();

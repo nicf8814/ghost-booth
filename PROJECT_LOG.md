@@ -942,3 +942,45 @@ within the viewport) at all three, plus a screenshot visually confirming
 the sidebar renders correctly alongside the full-height stage and
 carousel. Then `tsc -b --force`, `oxlint`, `npm run build`, and the full
 suite (180 tests, no test touches this CSS/markup) all clean.
+
+## Heisterkamp frame: raster bloody-hands border -- done
+
+Per explicit direction ("use the bloody fingers as the border... words at
+the bottom as it currently is"), the Heisterkamp frame's border is now a
+raster image -- a ring of bloody clasped hands the user generated with
+Gemini (same personal/non-commercial licensing basis as `geminiReacher`,
+confirmed with the user before use) -- replacing the earlier procedural
+top-of-frame blood-drip streaks. This is the first frame in `Frames.ts`
+to use a raster asset rather than pure Canvas2D drawing; every other
+frame is untouched.
+
+The source image had its "transparent" center rendered as a literal
+checkerboard pattern (not real alpha), so it was processed into a proper
+cutout before adding it to the repo: flagged every near-grayscale pixel
+(low saturation -- the checkerboard is neutral gray, the hands/blood are
+warm-toned) as background, took its largest connected component as the
+hole, set that region's alpha to 0 with a slight Gaussian feather on the
+edge for a soft, non-jagged cutout, then downscaled to 1100px wide
+(~1.1MB PNG) since it's fetched by every photo composited with this frame.
+Saved as `public/frames/heisterkamp-hands-border.png`.
+
+Compositing it required `Frames.ts`'s `drawFrame()` to become async for
+the first time (every other frame draws synchronously with Canvas2D
+calls only) -- `drawHeisterkampFrame` now fetches the border image once
+via a cached `loadHeisterkampBorderImage()` (same fetch+createImageBitmap
+pattern as `OwnerCameoEngine`, degrading to no border rather than
+throwing on a load failure per CLAUDE.md section 49) and draws it
+stretched to exactly the canvas's width/height -- not "cover"-cropped --
+so the transparent center always lines up with the photo underneath
+regardless of the photo's own aspect ratio. `CompositionEngine.ts`'s one
+call site now awaits `drawFrame()`. The now-dead `drawBloodDrips` helper
+(only ever used by the old top-of-frame streaks) was removed entirely.
+
+Verified: `tsc -b --force`, `oxlint`, `npm run build`, and the full suite
+(180 tests, none exercise `heisterkamp` specifically so none needed
+changes) all clean. Also verified visually with a Playwright harness that
+fetches the real built asset from a `vite preview` server and runs the
+exact border-stretch + banner/text draw calls against a stand-in photo
+canvas -- confirmed the border rings the photo with the center showing
+through cleanly and the banner text stays legible and untouched by the
+border art.

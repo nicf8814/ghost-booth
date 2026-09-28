@@ -38,12 +38,32 @@ export const FRAME_LABELS: Record<FrameKey, string> = {
 const ACCENT_ORANGE = "#ff7a1a";
 const DARK = "#150500";
 
-export function drawFrame(
+// The Heisterkamp frame's border is a raster asset (public/frames/
+// heisterkamp-hands-border.png) rather than procedural Canvas2D drawing,
+// unlike every other frame -- a user-generated (Gemini) image of bloody
+// clasped hands forming a ring around the photo, transparent in the
+// center so the photo shows through. Loaded once and cached; a fetch/
+// decode failure degrades to just the banner+text (CLAUDE.md section 49),
+// never a thrown error.
+let heisterkampBorderPromise: Promise<ImageBitmap | null> | null = null;
+function loadHeisterkampBorderImage(): Promise<ImageBitmap | null> {
+  if (!heisterkampBorderPromise) {
+    heisterkampBorderPromise = fetch(
+      `${import.meta.env.BASE_URL}frames/heisterkamp-hands-border.png`,
+    )
+      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((blob) => createImageBitmap(blob))
+      .catch(() => null);
+  }
+  return heisterkampBorderPromise;
+}
+
+export async function drawFrame(
   ctx: OffscreenCanvasRenderingContext2D,
   frame: string,
   width: number,
   height: number,
-): void {
+): Promise<void> {
   switch (frame as FrameKey) {
     case "classic":
       drawClassicFrame(ctx, width, height);
@@ -61,7 +81,7 @@ export function drawFrame(
       drawTornFrame(ctx, width, height);
       break;
     case "heisterkamp":
-      drawHeisterkampFrame(ctx, width, height);
+      await drawHeisterkampFrame(ctx, width, height);
       break;
     case "none":
     default:
@@ -236,14 +256,23 @@ function jaggedRectPath(
 }
 
 /** The named event frame: dramatic blood dripping down from the very top of the frame over the subject, with a clean black banner across the bottom reading "HEISTERKAMP HALLOWEEN 2027" in bold horror lettering -- kept completely free of blood so it stays legible. Font size auto-shrinks to fit the banner width so the text is never clipped or cramped at any photo size. */
-function drawHeisterkampFrame(ctx: OffscreenCanvasRenderingContext2D, width: number, height: number): void {
+async function drawHeisterkampFrame(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  height: number,
+): Promise<void> {
   ctx.save();
 
-  // Blood dripping down from the top edge of the frame, over the subject --
-  // long, uneven streaks rather than the earlier thin corner accent, so it
-  // reads as "dripping down the photo" rather than a decoration. Nowhere
-  // near the banner at the bottom, so the two never interact.
-  drawBloodDrips(ctx, width, 0, height * 0.4, "rgba(130, 8, 12, 0.82)", 1, 9);
+  // Bloody-hands border -- a raster asset ringing the photo (see
+  // loadHeisterkampBorderImage above), replacing the earlier procedural
+  // top-of-frame blood-drip streaks now that the artwork itself already
+  // drips blood down over the subject. Stretched to exactly the canvas
+  // size (not "cover"-cropped) so its transparent center always lines up
+  // with the photo underneath regardless of the photo's own aspect ratio.
+  const borderImage = await loadHeisterkampBorderImage();
+  if (borderImage) {
+    ctx.drawImage(borderImage, 0, 0, width, height);
+  }
 
   // Bottom banner -- solid black, no blood drawn anywhere near it, so the
   // text underneath stays clean and legible.
@@ -282,38 +311,4 @@ function drawHeisterkampFrame(ctx: OffscreenCanvasRenderingContext2D, width: num
   ctx.fillText(text, width / 2, textY);
 
   ctx.restore();
-}
-
-/** A deterministic row of uneven blood-drip streaks hanging from `y`, either downward (`direction: 1`, into the photo below) or upward (`direction: -1`, into the photo above -- used for drips that hang from the *top* of a bottom banner without crossing into it). Shared by drawHeisterkampFrame's top-of-frame accent and its banner-edge drips. No rng (frames must render identically every time for a given size), so drip lengths/positions come from a fixed trig-based wobble instead. `count` overrides the default density (~1 drip per 42px of width) -- a top-of-frame drip that runs a long way down needs to be sparser and fatter to read as a handful of dramatic streaks rather than a dense picket fence, so its width is derived from `width / count` instead of the long `maxDripLen`. */
-function drawBloodDrips(
-  ctx: OffscreenCanvasRenderingContext2D,
-  width: number,
-  y: number,
-  maxDripLen: number,
-  color: string,
-  direction: 1 | -1,
-  count?: number,
-): void {
-  const dripCount = count ?? Math.max(6, Math.round(width / 42));
-  const baseDripW = width / dripCount;
-  ctx.fillStyle = color;
-  for (let i = 0; i < dripCount; i++) {
-    const t = i / dripCount;
-    const x = t * width + Math.sin(i * 7.13) * 6;
-    const wobble = (Math.sin(i * 3.71) + 1) / 2; // 0..1, deterministic per index
-    const dripLen = direction * maxDripLen * (0.25 + wobble * 0.75);
-    const dripW = baseDripW * (0.5 + wobble * 0.35);
-
-    // A rounded "bead" at the drip's base, tapering into a thin trail.
-    ctx.beginPath();
-    ctx.moveTo(x - dripW * 0.5, y);
-    ctx.quadraticCurveTo(x - dripW * 0.5, y + dripLen * 0.6, x, y + dripLen);
-    ctx.quadraticCurveTo(x + dripW * 0.5, y + dripLen * 0.6, x + dripW * 0.5, y);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(x, y + dripLen, dripW * 0.42, 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
