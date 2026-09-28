@@ -87,6 +87,50 @@ const ownerCameoEngine = new OwnerCameoEngine(
 // https://<user>.github.io/ghost-booth/ rather than a domain root.
 const faceDetector = new WorkerFaceDetector(new URL("models/", document.baseURI).href);
 
+// Renders a synthetic test card -- not a captured photo -- for the
+// operator panel's TEST PRINTER button (CLAUDE.md section 48). Goes
+// through the exact same crop-to-paper-shape + printer-adapter path a
+// real print does (see handlePrintRequested), so one tap verifies the
+// real Kodak Mini 2 Retro hand-off (share sheet -> Kodak Photo Printer
+// app -> actual paper) without posing for the camera or running face
+// detection first -- the fastest way to test the one open question this
+// booth has left (PROJECT_LOG.md): whether the Kodak app actually accepts
+// a Web Share API hand-off. The big centered crop-shape label is the
+// point: if the test print comes out stretched, letterboxed, or the wrong
+// shape, that's immediately obvious without needing to compare against a
+// real photo.
+async function createPrinterTestBitmap(layout: string): Promise<ImageBitmap> {
+  const width = 1600;
+  const height = 1067; // matches the 1920x1080-ish master aspect from CameraManager
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("2D context unavailable for printer test card");
+  }
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#1a0d24");
+  gradient.addColorStop(1, "#3a0a12");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "#ff7a1a";
+  ctx.lineWidth = 20;
+  ctx.strokeRect(10, 10, width - 20, height - 20);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ff7a1a";
+  ctx.font = '900 100px Impact, "Arial Black", sans-serif';
+  ctx.fillText("👻 PRINTER TEST", width / 2, height / 2 - 90);
+  ctx.fillStyle = "#f4e6c8";
+  ctx.font = '700 56px Impact, "Arial Black", sans-serif';
+  ctx.fillText(`Layout: ${layout.toUpperCase()}`, width / 2, height / 2 + 10);
+  ctx.font = "400 34px sans-serif";
+  ctx.fillText(new Date().toLocaleString(), width / 2, height / 2 + 80);
+  ctx.font = "400 30px sans-serif";
+  ctx.fillText("If this border isn't stretched or cropped, printing is ready.", width / 2, height / 2 + 150);
+
+  return canvas.transferToImageBitmap();
+}
+
 const EMPTY_PHOTO_OPTIONS: PhotoOptions = {
   ghostOptions: [],
   caption: false,
@@ -452,6 +496,48 @@ export default function App() {
     dispatch({ kind: "booth", event: { type: "DONE" } });
   }, [dispatch, resetGuestPicks]);
 
+  // CLAUDE.md section 39: "Never discard the finished image merely because
+  // printing failed" -- the PrintingScreen's "SAVE PHOTO" button used to
+  // just call handleDone() directly, discarding the photo exactly like the
+  // failure screen says never to do. This actually saves it first: the iOS
+  // share sheet (same mechanism as ShareSheetPrinterAdapter, used here
+  // directly rather than through the operator's chosen printer adapter,
+  // since this needs to work regardless of *why* printing failed) offers
+  // "Save to Photos" as one of its built-in options. A plain anchor-tag
+  // download is the fallback for a browser/device that can't share files
+  // at all. Either way this is best-effort (CLAUDE.md section 49) -- a
+  // failed save must never block the guest from finishing up.
+  const handleSavePhoto = useCallback(async () => {
+    const bitmap = masterBitmapRef.current;
+    if (bitmap) {
+      try {
+        const printReady = await cropToPrintLayout(bitmap, state.settings.printLayout);
+        const blob = await imageBitmapToBlob(printReady);
+        const file = new File([blob], `ghost-booth-${Date.now()}.jpg`, { type: "image/jpeg" });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: "Ghost Booth Photo" });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        }
+      } catch (err) {
+        // AbortError just means the guest backed out of the share sheet --
+        // not a failure. Anything else is a best-effort save that didn't
+        // pan out; either way, don't block finishing up over it.
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.warn("Save photo failed:", err);
+        }
+      }
+    }
+    handleDone();
+  }, [handleDone, state.settings.printLayout]);
+
   const handleRetry = useCallback(() => {
     dispatch({ kind: "booth", event: { type: "RETRY" } });
   }, [dispatch]);
@@ -502,6 +588,7 @@ export default function App() {
             onPrint: handlePrintRequested,
             onRetake: handleRetake,
             onDone: handleDone,
+            onSavePhoto: handleSavePhoto,
             onRetry: handleRetry,
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onSelectGhost: handleSelectGhost,
@@ -520,7 +607,12 @@ export default function App() {
               onTestCamera={() => dispatch({ kind: "booth", event: { type: "GUEST_APPROACHED" } })}
               onTestCapture={handleCountdownComplete}
               onTestEffect={() => alert("Effect pipeline is stubbed in this phase.")}
-              onTestPrinter={() => printerManager.print(new Blob())}
+              onTestPrinter={() =>
+                createPrinterTestBitmap(state.settings.printLayout)
+                  .then((bitmap) => cropToPrintLayout(bitmap, state.settings.printLayout))
+                  .then((printReady) => printerManager.print(printReady, 1))
+                  .catch((err) => alert(err instanceof Error ? err.message : "Test print failed"))
+              }
               onDiscoverPrinter={() => printerManager.discover().then((d) => alert(JSON.stringify(d)))}
               onClearPrintQueue={() => printerManager.cancel()}
               onClearTempPhotos={() => {
@@ -560,6 +652,7 @@ interface RenderScreenArgs {
   onPrint: () => void;
   onRetake: () => void;
   onDone: () => void;
+  onSavePhoto: () => void;
   onRetry: () => void;
   onToggleGoofyFilter: () => void;
   onSelectGhost: (key: CameoKey | null) => void;
@@ -629,7 +722,7 @@ function renderScreen(args: RenderScreenArgs) {
         <PrintingScreen
           status={args.printStatus}
           onRetry={args.onPrint}
-          onSavePhoto={args.onDone}
+          onSavePhoto={args.onSavePhoto}
           onContinueWithoutPrinting={args.onDone}
         />
       );

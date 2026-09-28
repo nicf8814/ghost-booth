@@ -1065,3 +1065,73 @@ A final repo-wide grep for `FrameKey|frameKey|frameOptions|onSelectFrame|
 drawFrame|OverlayKey|overlayKeys|overlayOptions|onToggleOverlay|
 drawOverlays|FRAME_KEYS|FRAME_LABELS|OVERLAY_KEYS|OVERLAY_LABELS` across
 `src/`, `tests/`, and `public/` came back empty.
+
+## Print-readiness review for the Kodak Mini 2 Retro -- done
+
+The user hooked up the camera and asked for a code review to confirm the
+booth is ready to print to the confirmed hardware (Kodak Mini 2 Retro, see
+Phase 9 above) at the correct size, plus the fastest way to test it. Full
+review of the capture -> print pipeline:
+
+- **Defaults already correct**: `Settings.ts`'s `printerAdapter: "shareSheet"`
+  and `printLayout: "2x3"` match the Kodak's actual output shape and the
+  only viable hand-off mechanism (no Web Bluetooth in Safari, no Kodak
+  SDK -- see `ShareSheetPrinterAdapter.ts`'s own docstring).
+- **The bitmap that gets printed is the one the guest actually sees.**
+  Traced `masterBitmapRef` end to end: `applyPhotoSelection` -- which runs
+  on every Ghost/Filter/Poster/Caption tap -- sets it to the exact same
+  composed bitmap `resultImageUrl` is built from, so `handlePrintRequested`
+  can't ever print a stale or different combination than what's on screen.
+- **Crop-to-paper-shape math (`PrintLayout.ts`) is correct and already
+  unit tested** (`tests/PrintLayout.test.ts`) -- a "cover" center-crop to
+  2:3, preserving the source's landscape orientation, run once right
+  before the adapter call, never touching what's cached for display.
+- **Found and fixed a real bug**: the print-failure screen's "SAVE PHOTO"
+  button (`PrintingScreen.tsx`) was wired straight to `handleDone`, which
+  just resets the booth back to attract mode -- discarding the photo
+  without saving it anywhere, the literal thing CLAUDE.md section 39 says
+  never to do ("Never discard the finished image merely because printing
+  failed"). Added `App.tsx`'s `handleSavePhoto`: re-crops to the print
+  layout, then tries the Web Share API directly (same "Save to Photos"
+  path the Kodak share-sheet flow already relies on) with a plain
+  anchor-tag download as the fallback for a browser/device that can't
+  share files at all. Threaded through `RenderScreenArgs` as
+  `onSavePhoto` (the existing args-object pattern every other screen
+  handler already uses) rather than referenced directly, since
+  `renderScreen` is a plain function outside the `App()` component and
+  doesn't close over its hooks. Best-effort per CLAUDE.md section 49 -- a
+  failed save (or a guest simply backing out of the share sheet,
+  `AbortError`) never blocks finishing up.
+- **Made the operator's TEST PRINTER button actually useful.** It
+  previously printed an empty, zero-byte `Blob` -- technically exercises
+  `navigator.canShare`, but shows nothing meaningful in the Kodak app and
+  can't confirm the crop shape is right. Replaced with
+  `createPrinterTestBitmap()`, a synthetic test card (ghost emoji, the
+  configured layout name, a timestamp, and a thick border specifically so
+  any stretching/cropping is immediately obvious) run through the exact
+  same `cropToPrintLayout` + `printerManager.print` path a real photo
+  takes. This is now the fastest way to test the one open question left
+  on the printing side (PROJECT_LOG's Phase 9 note): whether the Kodak
+  Photo Printer app actually accepts a Web Share API hand-off -- one tap
+  in the operator panel, no posing for the camera, no face detection,
+  same real adapter and real crop math as a guest's photo would use.
+
+**Still needs a hands-on test on the real device** (this session has no
+access to the iPad or the paired printer) -- the fastest path once both
+are in the same room: Operator Panel -> Printer dropdown confirms "Share
+Sheet" is selected -> Print Layout dropdown confirms "2x3 (Kodak Mini 2
+Retro)" -> TEST PRINTER. If the Kodak Photo Printer app appears in the
+share sheet and accepts the hand-off, the booth is print-ready end to
+end; if it doesn't appear or rejects the file, that's the one genuine
+unknown this architecture already flagged, and BrowserPrintAdapter/
+AirPrintAdapter are the fallback options already built and selectable
+from the same dropdown without further code changes.
+
+Verified: `tsc -b --force`, `npx vitest run` (178 tests, all green --
+none needed changes since App.tsx isn't unit tested directly, consistent
+with this project's existing convention of keeping business logic in
+tested modules like CapturePipeline.ts and treating App.tsx as
+orchestration glue), `oxlint`, `npm run build` all clean. Also visually
+confirmed the new test card renders correctly (readable text, intact
+border, no stretching) via a Playwright screenshot of the exact draw
+calls against the real built app.
