@@ -48,6 +48,27 @@ describe("computeCoverCropRect", () => {
     expect(rect.y).toBeGreaterThan(0); // confirms height is actually being trimmed in this case
   });
 
+  it("forcePortrait: crops a wide landscape source down to a portrait 2:3 shape, keeping full height", () => {
+    // The booth is physically mounted portrait and the Kodak Mini 2 Retro
+    // only ever outputs portrait 2x3 -- forcePortrait is the safety net for
+    // a capture that comes back landscape anyway (see CameraManager.ts's
+    // portrait-ideal constraints, the primary fix). A 1920x1080 (16:9)
+    // source is "wider" than the 2:3 target, so width gets trimmed hard
+    // while the full height (and the caption strip at its bottom) survives.
+    const rect = computeCoverCropRect(1920, 1080, 2 / 3, true);
+    expect(rect.height).toBe(1080);
+    expect(rect.width).toBeCloseTo(1080 * (2 / 3), 6);
+    expect(rect.width).toBeLessThan(rect.height); // actually portrait-shaped
+    expect(rect.y).toBe(0);
+    expect(rect.x).toBeCloseTo((1920 - rect.width) / 2, 6);
+  });
+
+  it("forcePortrait: on an already-portrait source, behaves like the unforced case (height trimmed, anchored to bottom)", () => {
+    const forced = computeCoverCropRect(1080, 1920, 2 / 3, true);
+    const unforced = computeCoverCropRect(1080, 1920, 2 / 3, false);
+    expect(forced).toEqual(unforced);
+  });
+
   it("crops a landscape source to a square, trimming the width", () => {
     const rect = computeCoverCropRect(1920, 1080, 1);
     expect(rect.width).toBe(1080);

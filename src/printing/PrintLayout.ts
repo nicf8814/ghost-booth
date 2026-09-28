@@ -14,8 +14,27 @@
 // ever runs once, right before handing the image to a PhotoPrinter
 // adapter, so the print output matches the physical paper shape without
 // touching what the guest sees on screen.
+//
+// The booth is physically mounted PORTRAIT (operator-confirmed), and the
+// connected Kodak Mini 2 Retro only ever outputs portrait 2x3 prints --
+// there is no landscape paper. CameraManager.ts now requests a portrait
+// stream to match, but this module still forces a portrait-shaped crop
+// for "2x3"/"4x6" regardless of the source bitmap's actual shape, as a
+// safety net: if a capture ever comes back landscape anyway (a device that
+// ignores the ideal constraint, a stray desktop test, etc.), the Kodak app
+// previously had to silently re-crop a mismatched landscape export down to
+// its own fixed portrait paper -- and that uncontrolled re-crop is what
+// was cutting the caption off, even after the bottom-anchor fix below,
+// because that fix only protects a height trim on an already-portrait (or
+// already-landscape) source, not a full landscape-to-portrait reshape done
+// by a different app we don't control.
 
 export type PrintLayout = "2x3" | "4x6" | "square" | "2x6strip";
+
+/** Layouts whose physical paper is a fixed portrait shape -- see the
+ * PORTRAIT-mount comment above. Square and the photo strip aren't affected
+ * (square has no orientation; the strip is a future feature). */
+const FORCE_PORTRAIT_LAYOUTS: ReadonlySet<PrintLayout> = new Set(["2x3", "4x6"]);
 
 export const PRINT_LAYOUTS: PrintLayout[] = ["2x3", "4x6", "square", "2x6strip"];
 
@@ -43,10 +62,12 @@ const SHORT_TO_LONG_RATIO: Record<PrintLayout, number> = {
  * returns the largest centered crop rectangle of that ratio that fits
  * inside the source ("cover" crop -- fills the target shape completely,
  * trimming whichever dimension is relatively longer, never letterboxing).
- * Preserves the source's own orientation (a landscape photo stays
- * landscape) rather than forcing portrait, since CLAUDE.md section 46 has
- * the booth mounted in one fixed physical orientation -- the target ratio
- * describes a shape, not a forced rotation.
+ * By default preserves the source's own orientation (a landscape photo
+ * stays landscape) -- the target ratio describes a shape, not a forced
+ * rotation. Pass `forcePortrait: true` (used for this booth's "2x3"/"4x6"
+ * layouts, whose paper is a fixed portrait shape -- see the top-of-file
+ * comment) to always produce a portrait-shaped crop (height >= width)
+ * regardless of whether the source itself is landscape or portrait.
  *
  * Pure/synchronous and canvas-free so it's directly unit-testable, per this
  * project's convention of separating crop-rect math from the canvas draw
@@ -56,44 +77,71 @@ export function computeCoverCropRect(
   sourceWidth: number,
   sourceHeight: number,
   shortToLongRatio: number,
+  forcePortrait = false,
 ): { x: number; y: number; width: number; height: number } {
   if (sourceWidth <= 0 || sourceHeight <= 0 || shortToLongRatio <= 0) {
     return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
   }
 
-  const isSourceLandscape = sourceWidth >= sourceHeight;
-  const longSide = Math.max(sourceWidth, sourceHeight);
-  const shortSide = Math.min(sourceWidth, sourceHeight);
-  const sourceShortToLong = shortSide / longSide;
-
   let cropWidth: number;
   let cropHeight: number;
   // Height trims are biased toward the bottom edge (see below) rather than
   // centered like every other case -- default false, flipped on for the
-  // one branch that actually needs it.
+  // branches that actually need it.
   let anchorCropToBottom = false;
 
-  if (sourceShortToLong > shortToLongRatio) {
-    // Source is relatively "fatter" than the target shape (its short side
-    // is proportionally longer) -- trim the short side, keep the long side.
-    if (isSourceLandscape) {
-      cropWidth = sourceWidth;
-      cropHeight = sourceWidth * shortToLongRatio;
-      anchorCropToBottom = true;
-    } else {
+  if (forcePortrait) {
+    // Compare literal width:height against the target's width:height
+    // (shortToLongRatio, e.g. 2/3) directly -- NOT the source's own
+    // long/short-side split used below, which assumes the crop keeps the
+    // source's own orientation. That assumption doesn't hold here: a wide
+    // landscape source (e.g. 1920x1080, aspect 1.78) still needs its WIDTH
+    // trimmed hard to reach a portrait 2:3 shape, even though 1080/1920
+    // alone would (wrongly) suggest a height trim.
+    const sourceAspect = sourceWidth / sourceHeight;
+    if (sourceAspect > shortToLongRatio) {
+      // Source is relatively wider than the portrait target -- keep full
+      // height, trim width. Full height retained, so the caption (which
+      // sits in a bottom strip) is untouched regardless of anchoring.
       cropHeight = sourceHeight;
       cropWidth = sourceHeight * shortToLongRatio;
-    }
-  } else {
-    // Source is relatively "thinner" than the target shape -- trim the long
-    // side, keep the short side.
-    if (isSourceLandscape) {
-      cropHeight = sourceHeight;
-      cropWidth = sourceHeight / shortToLongRatio;
     } else {
+      // Source is relatively narrower/taller than the portrait target --
+      // keep full width, trim height.
       cropWidth = sourceWidth;
       cropHeight = sourceWidth / shortToLongRatio;
       anchorCropToBottom = true;
+    }
+  } else {
+    // Preserve the source's own landscape/portrait shape (the original,
+    // non-forced behavior -- used for "square").
+    const isSourceLandscape = sourceWidth >= sourceHeight;
+    const longSide = Math.max(sourceWidth, sourceHeight);
+    const shortSide = Math.min(sourceWidth, sourceHeight);
+    const sourceShortToLong = shortSide / longSide;
+
+    if (sourceShortToLong > shortToLongRatio) {
+      // Source is relatively "fatter" than the target shape (its short side
+      // is proportionally longer) -- trim the short side, keep the long side.
+      if (isSourceLandscape) {
+        cropWidth = sourceWidth;
+        cropHeight = sourceWidth * shortToLongRatio;
+        anchorCropToBottom = true;
+      } else {
+        cropHeight = sourceHeight;
+        cropWidth = sourceHeight * shortToLongRatio;
+      }
+    } else {
+      // Source is relatively "thinner" than the target shape -- trim the long
+      // side, keep the short side.
+      if (isSourceLandscape) {
+        cropHeight = sourceHeight;
+        cropWidth = sourceHeight / shortToLongRatio;
+      } else {
+        cropWidth = sourceWidth;
+        cropHeight = sourceWidth / shortToLongRatio;
+        anchorCropToBottom = true;
+      }
     }
   }
 
@@ -142,7 +190,8 @@ export function computeCoverCropRect(
  */
 export async function cropToPrintLayout(source: ImageBitmap, layout: PrintLayout): Promise<ImageBitmap> {
   const ratio = SHORT_TO_LONG_RATIO[layout] ?? SHORT_TO_LONG_RATIO["2x3"];
-  const rect = computeCoverCropRect(source.width, source.height, ratio);
+  const forcePortrait = FORCE_PORTRAIT_LAYOUTS.has(layout);
+  const rect = computeCoverCropRect(source.width, source.height, ratio, forcePortrait);
 
   const canvas = new OffscreenCanvas(Math.round(rect.width), Math.round(rect.height));
   const ctx = canvas.getContext("2d");

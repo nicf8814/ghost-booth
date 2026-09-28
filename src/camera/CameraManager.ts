@@ -24,6 +24,34 @@ export interface CameraManager {
 }
 
 /**
+ * This booth is physically mounted in PORTRAIT orientation (confirmed by
+ * the operator; the connected Kodak Mini 2 Retro only ever outputs portrait
+ * 2x3 prints -- see printing/PrintLayout.ts). getUserMedia's width/height
+ * constraints do NOT auto-swap for device orientation -- they're a literal
+ * pixel-dimension hint -- so a fixed { ideal: 1920x1080 } request biases
+ * Safari toward handing back a LANDSCAPE-shaped stream even while the iPad
+ * itself is mounted portrait. That landscape-shaped master bitmap then
+ * disagreed with Kodak's fixed portrait 2x3 output, forcing the Kodak app
+ * to silently re-crop the print in a way our own crop couldn't account
+ * for (see PROJECT_LOG.md -- this was the real cause of captions going
+ * missing from Kodak prints, not just the crop-anchoring bug fixed
+ * earlier). Requesting portrait-shaped ideal dimensions here makes the
+ * browser's own stream match the booth's actual mount, so every later
+ * stage (composition, caption, print crop) already works in portrait
+ * without needing a rotation step.
+ */
+function defaultCameraConstraints(): MediaStreamConstraints {
+  return {
+    video: {
+      facingMode: "user",
+      width: { ideal: 1080 },
+      height: { ideal: 1920 },
+    },
+    audio: false,
+  };
+}
+
+/**
  * Wraps getUserMedia + an offscreen <video> element used purely to decode
  * the stream for capture. CLAUDE.md section 6: capture uses canvas/
  * ImageBitmap, not repeated low-quality screenshots of the visible video
@@ -34,16 +62,7 @@ export class GetUserMediaCameraManager implements CameraManager {
   private videoEl: HTMLVideoElement | null = null;
   private constraints: MediaStreamConstraints;
 
-  constructor(
-    constraints: MediaStreamConstraints = {
-      video: {
-        facingMode: "user",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      },
-      audio: false,
-    },
-  ) {
+  constructor(constraints: MediaStreamConstraints = defaultCameraConstraints()) {
     this.constraints = constraints;
   }
 

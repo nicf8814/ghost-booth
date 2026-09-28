@@ -1442,3 +1442,53 @@ plus a new landscape height-trim test (1440x1080 source into a 2:3
 target) covering the exact scenario that was silently eating captions.
 `tsc -b`, `npx vitest run` (183 tests, all green), `oxlint`,
 `npm run build` all clean.
+
+## Fixed: caption still missing from Kodak prints -- booth is mounted portrait, capture/print pipeline was landscape -- done
+
+Follow-up to the previous entry: the bottom-anchor crop fix alone didn't
+fix it in practice. Root cause was one level up -- an orientation
+mismatch, not just a bad crop anchor.
+
+The operator confirmed the booth is physically mounted **portrait**, and
+the connected Kodak Mini 2 Retro only ever outputs **portrait** 2x3
+prints -- there's no landscape paper. But `CameraManager.ts`'s
+`getUserMedia` constraints requested `{ ideal: 1920x1080 }` (landscape)
+unconditionally, regardless of the iPad's actual physical orientation --
+width/height constraints don't auto-swap for device orientation, they're
+a literal pixel-dimension hint. That biased Safari toward handing back a
+landscape-shaped stream even while mounted portrait. `PrintLayout.ts`'s
+`computeCoverCropRect()` then deliberately *preserved* that shape (a
+landscape source stayed landscape after cropping), so we were handing
+Kodak's app a landscape export for a printer that only prints portrait.
+Kodak's own print-preview screen was silently re-cropping it down to its
+fixed portrait paper shape -- an uncontrolled second crop we have no
+visibility into, which is what kept eating the caption even after our
+own crop was correctly bottom-anchored.
+
+Fixed at both ends:
+
+1. `CameraManager.ts`'s `defaultCameraConstraints()`: now requests
+   `{ ideal: 1080x1920 }` (portrait) instead of `1920x1080`, matching the
+   booth's actual mount. Every later stage (composition, caption,
+   print crop) now works against a portrait bitmap from the start.
+2. `PrintLayout.ts`: `computeCoverCropRect()` gained a `forcePortrait`
+   parameter, and `cropToPrintLayout()` now passes it for the "2x3"/"4x6"
+   layouts (their paper is a fixed portrait shape; "square"/"2x6strip"
+   aren't affected). This is a safety net independent of (1) -- even if a
+   capture ever comes back landscape anyway (a device ignoring the ideal
+   constraint, a desktop test, etc.), the print crop now always produces a
+   portrait shape that matches Kodak's paper, so there's no second,
+   uncontrolled re-crop on Kodak's side to lose the caption to.
+   `forcePortrait` compares literal width:height against the target
+   ratio directly rather than reusing the existing "preserve source
+   orientation" long/short-side branch logic, which would otherwise pick
+   the wrong dimension to trim for a source whose actual shape disagrees
+   with the forced orientation (e.g. a very wide 16:9 source needs its
+   WIDTH trimmed hard to reach 2:3 portrait, not its height).
+
+Verified: two new `tests/PrintLayout.test.ts` cases -- forcing a
+1920x1080 landscape source portrait (confirms width is trimmed, full
+height/caption strip survives) and confirming forcePortrait is a no-op
+equal to the unforced result when the source is already portrait.
+`tsc -b`, `npx vitest run` (185 tests, all green), `oxlint`,
+`npm run build` all clean.
