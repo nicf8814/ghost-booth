@@ -1,7 +1,5 @@
 import type { BoothSettings, CaptionMode, CaricaturePreset, PrinterAdapterKind } from "../app/Settings";
-import { FRAME_KEYS, type FrameKey } from "../effects/Frames";
-import { CAPTIONS, type OverlayKey } from "../effects/HalloweenEffects";
-import { OVERLAY_KEYS, OVERLAY_LABELS } from "../effects/Overlays";
+import { CAPTIONS } from "../effects/HalloweenEffects";
 import { FILTER_KEYS, FILTER_LABELS, type FilterKey } from "../effects/HorrorFilters";
 import { PRINT_LAYOUTS, PRINT_LAYOUT_LABELS, type PrintLayout } from "../printing/PrintLayout";
 
@@ -41,10 +39,6 @@ const PRINTER_ADAPTERS: { value: PrinterAdapterKind; label: string }[] = [
   { value: "browserPrint", label: "Browser/System Print Dialog" },
   { value: "airPrint", label: "AirPrint (via system print dialog)" },
 ];
-
-function toggleOverlay(current: OverlayKey[], key: OverlayKey, checked: boolean): OverlayKey[] {
-  return checked ? [...current, key] : current.filter((k) => k !== key);
-}
 
 function toggleFilter(current: FilterKey[], key: FilterKey, checked: boolean): FilterKey[] {
   return checked ? [...current, key] : current.filter((k) => k !== key);
@@ -152,31 +146,6 @@ export function OperatorPanel({
               ))}
             </select>
           </label>
-          <label>
-            Frame
-            <select value={settings.frame} onChange={(e) => onChange({ frame: e.target.value as FrameKey })}>
-              {FRAME_KEYS.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
-          </label>
-          <fieldset className="operator-overlay-fieldset">
-            <legend>Overlays (Halloween decorations, drawn on top of every photo)</legend>
-            <div className="operator-overlay-grid">
-              {OVERLAY_KEYS.map((key) => (
-                <label key={key} className="operator-overlay-option">
-                  <input
-                    type="checkbox"
-                    checked={settings.overlays.includes(key)}
-                    onChange={(e) => onChange({ overlays: toggleOverlay(settings.overlays, key, e.target.checked) })}
-                  />
-                  {OVERLAY_LABELS[key]}
-                </label>
-              ))}
-            </div>
-          </fieldset>
           <label>
             Caption Mode
             <select

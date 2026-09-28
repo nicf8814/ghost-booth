@@ -24,8 +24,7 @@ import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
 import { OwnerCameoEngine } from "../effects/OwnerCameoEngine";
 import { CAMEO_FILENAMES, type CameoKey } from "../effects/Cameos";
-import { pickCaption, type OverlayKey } from "../effects/HalloweenEffects";
-import type { FrameKey } from "../effects/Frames";
+import { pickCaption } from "../effects/HalloweenEffects";
 import type { PosterTint } from "../effects/PosterEffect";
 import type { FilterKey } from "../effects/HorrorFilters";
 import { Canvas2DCompositionEngine } from "../rendering/CompositionEngine";
@@ -60,7 +59,7 @@ function createPrinterAdapter(kind: PrinterAdapterKind): PhotoPrinter {
   }
 }
 const caricatureEngine = new MeshWarpCaricatureEngine();
-// Caption/frame compositing (CLAUDE.md section 28) -- Canvas2D is the
+// Caption compositing (CLAUDE.md section 28) -- Canvas2D is the
 // baseline/guaranteed-available tier (section 29); no state worth
 // reconstructing between photos, so one shared instance.
 const compositionEngine = new Canvas2DCompositionEngine();
@@ -91,8 +90,6 @@ const faceDetector = new WorkerFaceDetector(new URL("models/", document.baseURI)
 const EMPTY_PHOTO_OPTIONS: PhotoOptions = {
   ghostOptions: [],
   caption: false,
-  frameOptions: [],
-  overlayOptions: [],
   posterTints: [],
   filterOptions: [],
 };
@@ -105,7 +102,7 @@ export default function App() {
   const [faces, setFaces] = useState<FaceModel[]>([]);
   // Guest-facing picks for the current photo. Goofy/Ghost/Caption stay
   // simple booleans (CLAUDE.md section 25's captions and "My Cameo" aren't
-  // guest-selectable beyond on/off); Frame/Overlays/Poster/Filter are now
+  // guest-selectable beyond on/off); Poster/Filter are now
   // explicit choices the guest makes in CustomizePanel, not just on/off --
   // see CapturePipeline.ts's PhotoSelection for why. None of these are
   // baked into a precomputed bitmap variant -- see applyPhotoSelection
@@ -114,8 +111,6 @@ export default function App() {
   const [goofyFilterOn, setGoofyFilterOn] = useState(true);
   const [ghostKey, setGhostKey] = useState<CameoKey | null>(null);
   const [captionOn, setCaptionOn] = useState(false);
-  const [frameKey, setFrameKey] = useState<FrameKey>("none");
-  const [overlayKeys, setOverlayKeys] = useState<OverlayKey[]>([]);
   const [posterTint, setPosterTint] = useState<PosterTint | null>(null);
   const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
   // What the guest can currently choose from (CapturePipeline.ts's
@@ -127,7 +122,7 @@ export default function App() {
   // Bumped on every guest interaction with the result screen (goofy/ghost/
   // caption toggle, or any FeatureCarousel pick) so the idle timer below
   // re-arms on that activity, not just on booth-state changes. Without
-  // this, a guest quietly browsing frame/overlay/filter/poster options
+  // this, a guest quietly browsing filter/poster options
   // never touches state.booth.state, so the idle timer kept counting down
   // underneath them and discarded the photo mid-choice (reported: photo
   // vanishing ~30s in, before printing).
@@ -145,10 +140,9 @@ export default function App() {
   // more per tap than the old swap-a-cached-bitmap approach did.
   const originalBitmapRef = useRef<ImageBitmap | null>(null);
   const caricaturedBitmapRef = useRef<ImageBitmap | null>(null);
-  // The per-photo "recipe" (caption, overlay-placement seed) decided once
+  // The per-photo "recipe" (caption) decided once
   // at capture time from the seeded rng (CLAUDE.md section 20), so
-  // re-picking frame/overlays/poster/filter never reshuffles which caption
-  // or overlay layout the photo uses.
+  // re-picking poster/filter never reshuffles which caption the photo uses.
   const photoRecipeRef = useRef<PhotoRecipe | null>(null);
   const settingsLoadedRef = useRef(false);
 
@@ -222,13 +216,10 @@ export default function App() {
   }, [dispatch]);
 
   // Composes the guest's current picks into the photo shown/printed, and
-  // swaps resultImageUrl to it. A non-null posterTint replaces the regular
-  // frame+overlay+filter composition entirely (same mutually-exclusive-
-  // treatment rationale PosterEffect.ts has always documented -- its own
-  // vignette would clash with a frame border); otherwise the chosen filter
-  // (if any) grades the source first, then frame/overlays (if any) are
-  // drawn on top of that. The caption toggle is independent of that choice
-  // and, when on, is drawn on top of either path.
+  // swaps resultImageUrl to it. The chosen filter (if any) grades the
+  // source first, then the chosen poster tint (if any) grades on top of
+  // that. The caption toggle is independent of that choice
+  // and, when on, is drawn on top.
   const applyPhotoSelection = useCallback(async (selection: PhotoSelection) => {
     const recipe = photoRecipeRef.current;
     const original = originalBitmapRef.current;
@@ -256,13 +247,11 @@ export default function App() {
       ghostKey,
       ghostOpacity: state.settings.ghostStrength,
       captioned: captionOn,
-      frameKey,
-      overlayKeys,
       posterTint,
       filterKey,
       ...overrides,
     }),
-    [goofyFilterOn, ghostKey, state.settings.ghostStrength, captionOn, frameKey, overlayKeys, posterTint, filterKey],
+    [goofyFilterOn, ghostKey, state.settings.ghostStrength, captionOn, posterTint, filterKey],
   );
 
   // "Ghost Strength" is meant to be adjustable live (the user's explicit
@@ -286,19 +275,6 @@ export default function App() {
   const handleSelectGhost = useCallback((key: CameoKey | null) => {
     setGhostKey(key);
     void applyPhotoSelection(currentSelection({ ghostKey: key }));
-  }, [currentSelection, applyPhotoSelection]);
-
-  const handleSelectFrame = useCallback((key: FrameKey) => {
-    setFrameKey(key);
-    void applyPhotoSelection(currentSelection({ frameKey: key }));
-  }, [currentSelection, applyPhotoSelection]);
-
-  const handleToggleOverlayKey = useCallback((key: OverlayKey) => {
-    setOverlayKeys((prev) => {
-      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
-      void applyPhotoSelection(currentSelection({ overlayKeys: next }));
-      return next;
-    });
   }, [currentSelection, applyPhotoSelection]);
 
   const handleSelectPoster = useCallback((tint: PosterTint | null) => {
@@ -343,8 +319,6 @@ export default function App() {
     setGoofyFilterOn(false);
     setGhostKey(null);
     setCaptionOn(false);
-    setFrameKey("none");
-    setOverlayKeys([]);
     setPosterTint(null);
     setFilterKey(null);
     void applyPhotoSelection({
@@ -352,8 +326,6 @@ export default function App() {
       ghostKey: null,
       ghostOpacity: state.settings.ghostStrength,
       captioned: false,
-      frameKey: "none",
-      overlayKeys: [],
       posterTint: null,
       filterKey: null,
     });
@@ -372,7 +344,7 @@ export default function App() {
       dispatch({ kind: "booth", event: { type: "FRAME_CAPTURED" } });
 
       // Vision analysis, caricature warp, "My Cameo" ghost compositing, and
-      // this photo's caption/overlay-seed recipe -- CapturePipeline.ts's
+      // this photo's caption recipe -- CapturePipeline.ts's
       // analyzeAndWarpPhoto (see that file for why this is a plain
       // function and not inline here). Never throws in a way that loses
       // the photo (CLAUDE.md section 49): 0 detected faces just means the
@@ -387,8 +359,6 @@ export default function App() {
           ownerCameoMode: state.settings.ownerCameoMode,
           captionMode: state.settings.captionMode,
           fixedCaption: state.settings.fixedCaption,
-          frame: state.settings.frame,
-          overlays: state.settings.overlays,
           posterMode: state.settings.posterMode,
           filters: state.settings.filters,
         },
@@ -402,16 +372,13 @@ export default function App() {
 
       // Every fresh photo starts with Goofy Filter on (maxed-out effect by
       // default), Ghost off (the guest opts into a specific cameo from the
-      // menu), and Frame/Overlays at the operator's configured defaults --
-      // Poster/Filter/Ghost default off so the guest deliberately opts into
-      // those more dramatic whole-photo treatments via CUSTOMIZE rather
-      // than finding them already applied.
+      // menu) -- Poster/Filter/Ghost default off so the guest deliberately
+      // opts into those more dramatic whole-photo treatments via CUSTOMIZE
+      // rather than finding them already applied.
       const { defaults, options } = analyzed;
       setGoofyFilterOn(true);
       setGhostKey(defaults.ghostKey);
       setCaptionOn(options.caption);
-      setFrameKey(defaults.frameKey);
-      setOverlayKeys(defaults.overlayKeys);
       setPosterTint(defaults.posterTint);
       setFilterKey(defaults.filterKey);
       await applyPhotoSelection({
@@ -419,8 +386,6 @@ export default function App() {
         ghostKey: defaults.ghostKey,
         ghostOpacity: state.settings.ghostStrength,
         captioned: options.caption,
-        frameKey: defaults.frameKey,
-        overlayKeys: defaults.overlayKeys,
         posterTint: defaults.posterTint,
         filterKey: defaults.filterKey,
       });
@@ -438,8 +403,6 @@ export default function App() {
     state.settings.ownerCameoMode,
     state.settings.captionMode,
     state.settings.fixedCaption,
-    state.settings.frame,
-    state.settings.overlays,
     state.settings.posterMode,
     state.settings.filters,
     state.settings.ghostStrength,
@@ -474,8 +437,6 @@ export default function App() {
     setGoofyFilterOn(true);
     setGhostKey(null);
     setCaptionOn(false);
-    setFrameKey("none");
-    setOverlayKeys([]);
     setPosterTint(null);
     setFilterKey(null);
     setPhotoOptions(EMPTY_PHOTO_OPTIONS);
@@ -529,10 +490,6 @@ export default function App() {
             ghostOptions: photoOptions.ghostOptions,
             captionOn,
             captionAvailable: photoOptions.caption,
-            frameOptions: photoOptions.frameOptions,
-            frameKey,
-            overlayOptions: photoOptions.overlayOptions,
-            overlayKeys,
             posterTints: photoOptions.posterTints,
             posterTint,
             filterOptions: photoOptions.filterOptions,
@@ -549,8 +506,6 @@ export default function App() {
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onSelectGhost: handleSelectGhost,
             onToggleCaption: handleToggleCaption,
-            onSelectFrame: handleSelectFrame,
-            onToggleOverlay: handleToggleOverlayKey,
             onSelectPoster: handleSelectPoster,
             onSelectFilter: handleSelectFilter,
             onShowOriginal: handleShowOriginal,
@@ -593,10 +548,6 @@ interface RenderScreenArgs {
   ghostOptions: CameoKey[];
   captionOn: boolean;
   captionAvailable: boolean;
-  frameOptions: FrameKey[];
-  frameKey: FrameKey;
-  overlayOptions: OverlayKey[];
-  overlayKeys: OverlayKey[];
   posterTints: PosterTint[];
   posterTint: PosterTint | null;
   filterOptions: FilterKey[];
@@ -613,8 +564,6 @@ interface RenderScreenArgs {
   onToggleGoofyFilter: () => void;
   onSelectGhost: (key: CameoKey | null) => void;
   onToggleCaption: () => void;
-  onSelectFrame: (key: FrameKey) => void;
-  onToggleOverlay: (key: OverlayKey) => void;
   onSelectPoster: (tint: PosterTint | null) => void;
   onSelectFilter: (key: FilterKey | null) => void;
   onShowOriginal: () => void;
@@ -667,12 +616,6 @@ function renderScreen(args: RenderScreenArgs) {
           onToggleCaption={args.onToggleCaption}
           captionAvailable={args.captionAvailable}
           onShowOriginal={args.onShowOriginal}
-          frameOptions={args.frameOptions}
-          frameKey={args.frameKey}
-          onSelectFrame={args.onSelectFrame}
-          overlayOptions={args.overlayOptions}
-          overlayKeys={args.overlayKeys}
-          onToggleOverlay={args.onToggleOverlay}
           posterTints={args.posterTints}
           posterTint={args.posterTint}
           onSelectPoster={args.onSelectPoster}

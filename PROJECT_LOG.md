@@ -984,3 +984,84 @@ exact border-stretch + banner/text draw calls against a stand-in photo
 canvas -- confirmed the border rings the photo with the center showing
 through cleanly and the banner text stays legible and untouched by the
 border art.
+
+## Frame and Overlays features removed entirely -- done
+
+Per explicit user direction ("Meh -- I think these all stink .. remove
+all the frames and overlays, keep the ghosts, filters, and posters"),
+the Frame feature (every `FrameKey`/`FRAME_KEYS`/`FRAME_LABELS`,
+`drawFrame`, and every procedural frame including the just-shipped
+Heisterkamp raster bloody-hands border) and the Overlays feature
+(`OverlayKey`/`OVERLAY_KEYS`/`OVERLAY_LABELS`, `drawOverlays`, and every
+procedural overlay draw function) are gone from the app, guest-facing UI
+through to operator settings. Ghost (cameo picker), Filter (horror
+filters), and Poster (tint) are untouched and still work exactly as
+before.
+
+Deleted outright: `src/effects/Frames.ts`, `src/effects/Overlays.ts`
+(both only ever implemented these two features), and
+`public/frames/heisterkamp-hands-border.png` (the raster border asset,
+now unreferenced).
+
+Trimmed:
+
+- `src/effects/HalloweenEffects.ts` -- removed the `OverlayKey` type;
+  `CAPTIONS`/`pickCaption`/the other caption and processing-message data
+  are untouched (that's a separate guest toggle, not part of this
+  removal).
+- `src/rendering/CompositionEngine.ts` -- `CompositionConfig` no longer
+  has `frame`/`overlays`/`overlaySeed`; `compose()` no longer imports or
+  calls `drawFrame`/`drawOverlays`, and its layer order is now just
+  foreground -> caption.
+- `src/app/CapturePipeline.ts` -- `CapturePipelineSettings`,
+  `PhotoOptions`, `DefaultSelection`, and `PhotoSelection` all lost their
+  frame/overlay fields; `PhotoRecipe` lost `overlaySeed` (nothing
+  consumes it anymore); `composeSelectedBitmap` no longer passes
+  `frame`/`overlays`/`overlaySeed` to `compose()`.
+- `src/app/App.tsx` -- removed `frameKey`/`overlayKeys` state,
+  `handleSelectFrame`/`handleToggleOverlayKey`, and every place that read
+  or threaded frame/overlay values through `currentSelection`,
+  `handleCountdownComplete`, `handleShowOriginal`, `resetGuestPicks`,
+  `RenderScreenArgs`, and the props handed to `ResultScreen`.
+- `src/components/FeatureCarousel.tsx` -- removed the Frame and Overlays
+  tab categories entirely (including the poster-disables-frame graying
+  logic, which no longer applies to anything); Ghost/Filter/Poster tabs
+  are unchanged.
+- `src/components/ResultScreen.tsx` -- removed the frame/overlay props
+  and their pass-through to `FeatureCarousel`.
+- `src/components/OperatorPanel.tsx` -- removed the "Frame" select
+  dropdown and the "Overlays" checkbox fieldset (and their now-unused
+  imports); the Horror Filters fieldset directly below reuses the same
+  `operator-overlay-fieldset`/`operator-overlay-grid` CSS classes as
+  before, so those styles stay in `app.css`.
+- `src/app/Settings.ts` -- removed `BoothSettings.frame` and
+  `BoothSettings.overlays` and their defaults; existing persisted
+  settings objects that still have those keys are simply ignored going
+  forward (`SettingsStore.ts` merges onto `defaultSettings`, so no
+  migration was needed).
+- `src/app/app.css` -- removed the now-dead `.feature-carousel-hint`
+  rule (only ever shown for the disabled-by-Poster Frame tab) and
+  touched up a couple of comments that mentioned frame/overlay.
+- `tests/CompositionEngine.test.ts` -- removed the overlay-drawing test,
+  the frame-drawing test, and reworked the layer-order and
+  field-pass-through tests to drop frame/overlay config.
+- `tests/CapturePipeline.test.ts` -- dropped frame/overlay fields from
+  every `CapturePipelineSettings`/`PhotoSelection`/`PhotoRecipe` fixture
+  and the assertions that checked frame/overlay options and defaults;
+  the Poster-forces-frame-off test was reworded since there's no frame
+  to force off anymore, and the "independent seeds" test now checks
+  result identity instead of `recipe.overlaySeed` (which no longer
+  exists).
+
+No `tests/Frames.test.ts`, `tests/Overlays.test.ts`, or frame/overlay-
+specific parts of `tests/HalloweenEffects.test.ts` existed to delete --
+`HalloweenEffects.test.ts` only ever covered `pickCaption`, which is
+unaffected.
+
+Verified: `tsc -b --force`, `npx vitest run` (178 tests, down from 180 --
+two overlay/frame-specific `CompositionEngine` tests were removed with
+nothing to replace them), `npx oxlint`, and `npm run build` all clean.
+A final repo-wide grep for `FrameKey|frameKey|frameOptions|onSelectFrame|
+drawFrame|OverlayKey|overlayKeys|overlayOptions|onToggleOverlay|
+drawOverlays|FRAME_KEYS|FRAME_LABELS|OVERLAY_KEYS|OVERLAY_LABELS` across
+`src/`, `tests/`, and `public/` came back empty.

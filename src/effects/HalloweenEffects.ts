@@ -59,28 +59,3 @@ export function pickCaption(
   const idx = Math.floor(rng() * CAPTIONS.length);
   return CAPTIONS[idx];
 }
-
-/** Overlay keys (CLAUDE.md section 24). Drawn procedurally with Canvas 2D -- see effects/Overlays.ts -- not raster assets, so there's nothing in public/overlays to ship. */
-export type OverlayKey =
-  | "bloodSplatter"
-  | "cobwebs"
-  | "spiders"
-  | "bats"
-  | "skulls"
-  | "eyeballs"
-  | "horns"
-  | "vampireFangs"
-  | "graveyard"
-  | "moon"
-  | "candles"
-  | "fog"
-  | "crackedGlass"
-  | "scratches"
-  | "filmGrain"
-  | "vignette"
-  | "pumpkins"
-  | "witchHat"
-  | "lightning"
-  | "ravens"
-  | "hauntedTrees"
-  | "handprint";

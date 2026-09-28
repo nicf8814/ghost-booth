@@ -5,14 +5,9 @@ import {
   type CompositionConfig,
 } from "../src/rendering/CompositionEngine";
 
-// jsdom has no OffscreenCanvas/2D-context at all. Frames.ts and
-// Overlays.ts each draw with a fairly large surface of Canvas2D calls
-// (arcs, gradients, paths, text...) that this test doesn't care about the
-// exact shape of -- what these tests care about is *which layers got
-// drawn, in what order, and with what data* (CLAUDE.md section 28's
-// foreground -> overlays -> caption -> frame order), not the pixels. So
-// the fake context auto-mocks any method it's asked for via a Proxy,
-// rather than hand-listing every ctx.* call both modules make.
+// jsdom has no OffscreenCanvas/2D-context at all. The fake context
+// auto-mocks any method it's asked for via a Proxy, rather than
+// hand-listing every ctx.* call compose() makes.
 function makeAutoMockCtx() {
   const calls: string[] = [];
   const ctx = new Proxy(
@@ -97,29 +92,12 @@ describe("Canvas2DCompositionEngine.compose", () => {
     expect(result).toBe(foreground);
   });
 
-  it("skips the overlay layer when overlays is omitted or empty", async () => {
+  it("skips the caption stroke when no caption is given", async () => {
     const engine = new Canvas2DCompositionEngine();
     await engine.compose({ foreground: fakeBitmap() });
-    await engine.compose({ foreground: fakeBitmap(), overlays: [] });
-    // Neither call should have drawn a frame or caption stroke either --
-    // spot check via strokeText (caption) not being called since no caption given.
     for (const canvas of FakeOffscreenCanvas.instances) {
       expect(canvas.lastCtx?.ctx.strokeText).not.toHaveBeenCalled();
     }
-  });
-
-  it("draws overlays when a non-empty overlay list is given", async () => {
-    const engine = new Canvas2DCompositionEngine();
-    await engine.compose({ foreground: fakeBitmap(), overlays: ["bats", "cobwebs"], overlaySeed: "photo-1" });
-    const canvas = FakeOffscreenCanvas.instances[0];
-    // Overlays.ts draws with Canvas2D primitives -- arc is used by several
-    // overlay types (bats, cobwebs, spiders, moon...), so its presence is
-    // a reasonable signal something was actually drawn, without coupling
-    // this test to Overlays.ts's exact internal call sequence.
-    const anyDrawCallMade = Object.keys(canvas.lastCtx!.ctx as unknown as Record<string, unknown>).some(
-      (key) => key !== "drawImage" && (canvas.lastCtx!.ctx as unknown as Record<string, ReturnType<typeof vi.fn>>)[key]?.mock?.calls?.length > 0,
-    );
-    expect(anyDrawCallMade).toBe(true);
   });
 
   it("draws the caption with fill + stroke text when a caption is given, and skips it otherwise", async () => {
@@ -134,35 +112,20 @@ describe("Canvas2DCompositionEngine.compose", () => {
     expect(withoutCaption.fillText).not.toHaveBeenCalled();
   });
 
-  it("draws a frame only when a frame key other than the default is given", async () => {
-    const engine = new Canvas2DCompositionEngine();
-    await engine.compose({ foreground: fakeBitmap(), frame: "classic" });
-    const canvas = FakeOffscreenCanvas.instances[0];
-    // drawFrame("classic", ...) draws a stroked border -- strokeRect or
-    // stroke() are the plausible primitives; assert at least one path/rect
-    // stroking call happened beyond what compose() itself always does.
-    const ctx = canvas.lastCtx!.ctx as unknown as Record<string, ReturnType<typeof vi.fn>>;
-    const strokeCalled = (ctx.strokeRect?.mock.calls.length ?? 0) + (ctx.stroke?.mock.calls.length ?? 0) > 0;
-    expect(strokeCalled).toBe(true);
-  });
-
-  it("layers foreground -> overlays -> caption -> frame in that order (CLAUDE.md section 28)", async () => {
+  it("layers foreground -> caption in that order (CLAUDE.md section 28)", async () => {
     const engine = new Canvas2DCompositionEngine();
     const order: string[] = [];
     const foreground = fakeBitmap();
     await engine.compose({
       foreground,
-      overlays: ["bats"],
-      overlaySeed: "seed",
       caption: "0% DIGNITY.",
-      frame: "classic",
     });
     const ctx = FakeOffscreenCanvas.instances[0].lastCtx!.ctx as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
-    // drawImage(foreground) happens before any overlay/caption/frame calls
-    // -- verified by construction order since the Proxy lazily creates
-    // each mock on first access, so accessing .mock.invocationCallOrder
-    // on drawImage vs fillText/strokeText/strokeRect gives us the order.
+    // drawImage(foreground) happens before any caption call -- verified by
+    // construction order since the Proxy lazily creates each mock on first
+    // access, so accessing .mock.invocationCallOrder on drawImage vs
+    // fillText gives us the order.
     const drawImageOrder = ctx.drawImage.mock.invocationCallOrder[0];
     const fillTextOrder = ctx.fillText.mock.invocationCallOrder[0];
     order.push("drawImage:" + drawImageOrder, "fillText:" + fillTextOrder);
@@ -174,9 +137,6 @@ describe("Canvas2DCompositionEngine.compose", () => {
     const config: CompositionConfig = {
       foreground: fakeBitmap(),
       caption: "HAUNTED AND THIRSTY.",
-      frame: "filmStrip",
-      overlays: ["skulls", "moon"],
-      overlaySeed: "abc",
     };
     const snapshot = { ...config };
     await engine.compose(config);

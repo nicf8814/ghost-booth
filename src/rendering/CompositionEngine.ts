@@ -1,18 +1,8 @@
 // CLAUDE.md sections 28-29: layered composition, GPU-tiered rendering.
 
-import { drawFrame } from "../effects/Frames";
-import { drawOverlays } from "../effects/Overlays";
-import type { OverlayKey } from "../effects/HalloweenEffects";
-import { seededRandom } from "../utils/random";
-
 export interface CompositionConfig {
   foreground: ImageBitmap; // caricatured people
   caption?: string;
-  frame?: string; // key into public/frames
-  /** Halloween overlays (CLAUDE.md section 24) to draw between the foreground and the caption -- "decorative effects" in section 28's layer order. Empty/omitted draws nothing. */
-  overlays?: OverlayKey[];
-  /** Seeds overlay placement (which corner a cobweb lands in, etc). Pass the same value across repeated compose() calls for one photo so toggling overlays on/off doesn't shuffle their layout; omit for a fixed default (fine for a one-off compose). */
-  overlaySeed?: string;
 }
 
 export interface CompositionEngine {
@@ -38,7 +28,7 @@ export function detectRenderTier(): RenderTier {
 /**
  * Canvas2D composition, used as the baseline implementation and as the
  * guaranteed fallback when WebGL2/WebGPU are unavailable. Layers
- * foreground -> overlays -> caption -> frame (CLAUDE.md section 28's full
+ * foreground -> caption (CLAUDE.md section 28's full
  * layer order is background/fog/ghosts/foreground/decorative-effects/
  * caption/frame/branding -- this engine only implements the layers this
  * app actually populates today: "My Cameo" ghosts are composited directly
@@ -64,16 +54,8 @@ export class Canvas2DCompositionEngine implements CompositionEngine {
 
     ctx.drawImage(foreground, 0, 0);
 
-    if (config.overlays && config.overlays.length > 0) {
-      drawOverlays(ctx, config.overlays, canvas.width, canvas.height, seededRandom(config.overlaySeed ?? "overlay"));
-    }
-
     if (config.caption) {
       drawCaption(ctx, config.caption, canvas.width, canvas.height);
-    }
-
-    if (config.frame) {
-      await drawFrame(ctx, config.frame, canvas.width, canvas.height);
     }
 
     return canvas.transferToImageBitmap();

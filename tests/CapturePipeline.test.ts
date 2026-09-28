@@ -87,8 +87,6 @@ const baseSettings: CapturePipelineSettings = {
   ownerCameoMode: "off",
   captionMode: "random",
   fixedCaption: CAPTIONS[0],
-  frame: "classic",
-  overlays: ["bats", "cobwebs"],
   posterMode: true,
   filters: ["vhs", "noir"],
 };
@@ -99,8 +97,6 @@ function baseSelection(overrides: Partial<PhotoSelection> = {}): PhotoSelection 
     ghostKey: null,
     ghostOpacity: 0.5,
     captioned: false,
-    frameKey: "none",
-    overlayKeys: [],
     posterTint: null,
     filterKey: null,
     ...overrides,
@@ -161,7 +157,7 @@ describe("analyzeAndWarpPhoto", () => {
     expect(on.defaults.ghostKey).toBeNull();
   });
 
-  it("builds a recipe respecting the operator's caption mode, and exposes the available frame/overlay/poster/filter options and defaults", async () => {
+  it("builds a recipe respecting the operator's caption mode, and exposes the available poster/filter options and defaults", async () => {
     const master = fakeBitmap("master");
     const deps: AnalyzePhotoDeps = {
       faceDetector: { detect: vi.fn().mockResolvedValue([]) },
@@ -171,10 +167,7 @@ describe("analyzeAndWarpPhoto", () => {
     const result = await analyzeAndWarpPhoto(master, deps, baseSettings);
 
     expect(CAPTIONS).toContain(result.recipe.caption);
-    expect(result.recipe.overlaySeed).toEqual(expect.any(String));
 
-    expect(result.options.frameOptions).toEqual(["none", "classic", "filmStrip", "polaroid", "spooky", "torn", "heisterkamp"]);
-    expect(result.options.overlayOptions).toEqual(["bats", "cobwebs"]);
     expect(result.options.posterTints).toEqual([
       "crimson",
       "teal",
@@ -187,8 +180,6 @@ describe("analyzeAndWarpPhoto", () => {
     ]);
     expect(result.options.filterOptions).toEqual(["vhs", "noir"]);
 
-    expect(result.defaults.frameKey).toBe("classic");
-    expect(result.defaults.overlayKeys).toEqual(["bats", "cobwebs"]);
     expect(result.defaults.posterTint).toBeNull();
     expect(result.defaults.filterKey).toBeNull();
     expect(result.defaults.ghostKey).toBeNull();
@@ -204,8 +195,6 @@ describe("analyzeAndWarpPhoto", () => {
     const result = await analyzeAndWarpPhoto(master, deps, {
       ...baseSettings,
       captionMode: "off",
-      frame: "none",
-      overlays: [],
       posterMode: false,
       filters: [],
     });
@@ -214,8 +203,6 @@ describe("analyzeAndWarpPhoto", () => {
     expect(result.options).toEqual({
       ghostOptions: [],
       caption: false,
-      frameOptions: ["none", "classic", "filmStrip", "polaroid", "spooky", "torn", "heisterkamp"],
-      overlayOptions: [],
       posterTints: [],
       filterOptions: [],
     });
@@ -231,18 +218,15 @@ describe("analyzeAndWarpPhoto", () => {
     const results = await Promise.all(
       Array.from({ length: 20 }, () => analyzeAndWarpPhoto(master, deps, baseSettings)),
     );
-    const seeds = new Set(results.map((r) => r.recipe.overlaySeed));
-    // 20 independent createSeed() calls landing on the same UUID would be
-    // astronomically unlikely -- this just guards against an accidental
-    // shared/cached seed.
-    expect(seeds.size).toBe(20);
+    // Confirms results aren't literally the same object (not
+    // memoized/cached across calls).
+    expect(new Set(results).size).toBe(20);
   });
 });
 
 describe("composeSelectedBitmap", () => {
   const recipe: PhotoRecipe = {
     caption: "HAUNTED AND THIRSTY.",
-    overlaySeed: "seed-123",
   };
 
   function base(): PhotoBaseBitmaps {
@@ -291,7 +275,7 @@ describe("composeSelectedBitmap", () => {
     expect(composite).toHaveBeenCalledWith(b.original, null, { opacity: 0.5 });
   });
 
-  it("passes frame/overlays/caption through to compose() with the picked keys", async () => {
+  it("passes caption through to compose() when captioned", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const ownerCameoEngine = noopCameoEngine();
     const b = base();
@@ -299,24 +283,20 @@ describe("composeSelectedBitmap", () => {
     await composeSelectedBitmap(
       b,
       recipe,
-      baseSelection({ frameKey: "classic", overlayKeys: ["bats"], captioned: true }),
+      baseSelection({ captioned: true }),
       { compositionEngine: { compose }, ownerCameoEngine },
     );
     expect(compose.mock.calls[0][0]).toMatchObject({
-      frame: "classic",
-      overlays: ["bats"],
       caption: "HAUNTED AND THIRSTY.",
     });
 
     await composeSelectedBitmap(b, recipe, baseSelection(), { compositionEngine: { compose }, ownerCameoEngine });
     expect(compose.mock.calls[1][0]).toMatchObject({
-      frame: "none",
-      overlays: [],
       caption: undefined,
     });
   });
 
-  it("still routes through compose() when a posterTint is picked, but forces frame to \"none\"", async () => {
+  it("still routes through compose() when a posterTint is picked", async () => {
     const compose = vi.fn().mockResolvedValue(fakeBitmap("composed"));
     const ownerCameoEngine = noopCameoEngine();
     const b = base();
@@ -324,18 +304,15 @@ describe("composeSelectedBitmap", () => {
     const bitmap = await composeSelectedBitmap(
       b,
       recipe,
-      baseSelection({ frameKey: "classic", overlayKeys: ["bats"], posterTint: "crimson" }),
+      baseSelection({ posterTint: "crimson" }),
       { compositionEngine: { compose }, ownerCameoEngine },
     );
 
     // Poster grades the source before compose() runs (via the faked
     // OffscreenCanvas, always resolving to "canvas-output"), so compose()
-    // receives the poster-graded bitmap, not the plain caricatured one --
-    // and frame is forced off even though "classic" was picked, while
-    // overlays still pass through untouched.
+    // receives the poster-graded bitmap, not the plain caricatured one.
     expect(compose).toHaveBeenCalledTimes(1);
     expect(compose.mock.calls[0][0].foreground).not.toBe(b.caricatured);
-    expect(compose.mock.calls[0][0]).toMatchObject({ frame: "none", overlays: ["bats"] });
     expect(bitmap).not.toBeNull();
   });
 

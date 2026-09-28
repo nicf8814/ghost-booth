@@ -2,8 +2,6 @@ import { useRef, useState, type SyntheticEvent } from "react";
 import type { FaceModel } from "../vision/VisionTypes";
 import { DebugLandmarkOverlay } from "./DebugLandmarkOverlay";
 import { FeatureCarousel } from "./FeatureCarousel";
-import type { FrameKey } from "../effects/Frames";
-import type { OverlayKey } from "../effects/HalloweenEffects";
 import type { PosterTint } from "../effects/PosterEffect";
 import type { FilterKey } from "../effects/HorrorFilters";
 import type { CameoKey } from "../effects/Cameos";
@@ -44,16 +42,10 @@ interface ResultScreenProps {
   /** One-tap revert: turns every toggle above off/back to defaults at once,
    * back to the plain candid capture. */
   onShowOriginal: () => void;
-  /** Frame/Overlays/Poster/Filter pickers, rendered inline via
+  /** Poster/Filter pickers, rendered inline via
    * FeatureCarousel below the photo -- see that component. Everything the
    * guest needs (see the photo, pick features, print) stays on this one
    * screen; there's no separate customize screen to navigate to/from. */
-  frameOptions: FrameKey[];
-  frameKey: FrameKey;
-  onSelectFrame: (key: FrameKey) => void;
-  overlayOptions: OverlayKey[];
-  overlayKeys: OverlayKey[];
-  onToggleOverlay: (key: OverlayKey) => void;
   posterTints: PosterTint[];
   posterTint: PosterTint | null;
   onSelectPoster: (tint: PosterTint | null) => void;
@@ -84,12 +76,6 @@ export function ResultScreen({
   onToggleCaption,
   captionAvailable,
   onShowOriginal,
-  frameOptions,
-  frameKey,
-  onSelectFrame,
-  overlayOptions,
-  overlayKeys,
-  onToggleOverlay,
   posterTints,
   posterTint,
   onSelectPoster,
@@ -208,12 +194,6 @@ export function ResultScreen({
         )}
 
         <FeatureCarousel
-          frameOptions={frameOptions}
-          frameKey={frameKey}
-          onSelectFrame={onSelectFrame}
-          overlayOptions={overlayOptions}
-          overlayKeys={overlayKeys}
-          onToggleOverlay={onToggleOverlay}
           posterTints={posterTints}
           posterTint={posterTint}
           onSelectPoster={onSelectPoster}

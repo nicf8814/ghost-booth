@@ -531,7 +531,7 @@
 
 /* ---- Guest-facing feature carousel (FeatureCarousel.tsx) ----
    Embedded inline on ResultScreen (not a separate screen/overlay) so
-   picking a frame/overlay/filter/poster never leaves the photo the guest
+   picking a ghost/filter/poster never leaves the photo the guest
    is looking at. A tab strip switches between categories; only the active
    category's chip row is shown, scrolling horizontally if it overflows. */
 .feature-carousel {
@@ -594,13 +594,6 @@
   border-radius: 50%;
   background: #ff9433;
   vertical-align: middle;
-}
-
-.feature-carousel-hint {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.55);
-  margin: 6px 0 0;
-  text-align: center;
 }
 
 .feature-carousel-chip-row {
