@@ -20,12 +20,32 @@ describe("computeCoverCropRect", () => {
     expect(rect.x).toBeCloseTo((1920 - rect.width) / 2, 6);
   });
 
-  it("trims a portrait source's height to fit a 2:3 shape, keeping width", () => {
+  it("trims a portrait source's height to fit a 2:3 shape, keeping width, anchored to the bottom", () => {
     const rect = computeCoverCropRect(1080, 1920, 2 / 3);
     expect(rect.width).toBe(1080);
     expect(rect.height).toBeCloseTo(1080 * 1.5, 6);
     expect(rect.x).toBe(0);
-    expect(rect.y).toBeCloseTo((1920 - rect.height) / 2, 6);
+    // Anchored to the bottom edge (y = source height - crop height), not
+    // centered -- see computeCoverCropRect's comment: a height trim would
+    // otherwise clip straight through CompositionEngine.compose()'s caption,
+    // which always sits in a strip at the very bottom of the full photo.
+    expect(rect.y).toBeCloseTo(1920 - rect.height, 6);
+  });
+
+  it("trims a landscape source's height to fit a 2:3 shape, keeping width, anchored to the bottom", () => {
+    // A landscape capture whose actual aspect ratio isn't quite 16:9 (e.g.
+    // getUserMedia's { ideal: 1920x1080 } constraint wasn't honored exactly
+    // -- see CameraManager.ts) can be relatively "fatter" than the 2:3
+    // target, which trims HEIGHT instead of width. This is the case that
+    // was silently slicing captions off Kodak prints: a plain centered crop
+    // trims equally from top and bottom, right through the caption strip at
+    // the bottom of the frame.
+    const rect = computeCoverCropRect(1440, 1080, 2 / 3);
+    expect(rect.width).toBe(1440);
+    expect(rect.height).toBeCloseTo(1440 * (2 / 3), 6);
+    expect(rect.x).toBe(0);
+    expect(rect.y).toBeCloseTo(1080 - rect.height, 6);
+    expect(rect.y).toBeGreaterThan(0); // confirms height is actually being trimmed in this case
   });
 
   it("crops a landscape source to a square, trimming the width", () => {

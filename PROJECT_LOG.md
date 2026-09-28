@@ -1409,3 +1409,36 @@ before since two separate stacking-specific `composeSelectedBitmap` tests
 collapsed into the merged single-grade behavior; `tests/PosterEffect.test.ts`
 untouched and still green since it tests `applyPosterEffect` directly,
 which didn't change), `oxlint`, `npm run build` all clean.
+
+## Fixed: caption sliced off the printed/saved photo, but visible on screen -- done
+
+Reported: filters showed up fine in the photo sent to the Kodak app, but
+the caption was missing. Root cause: `cropToPrintLayout()` (PrintLayout.ts)
+runs once, right before handing the composed photo to the printer adapter,
+cropping it to the Kodak Mini 2 Retro's 2:3 shape. `getUserMedia`'s camera
+constraint (`{ width: { ideal: 1920 }, height: { ideal: 1080 } }`,
+CameraManager.ts) is only a hint -- the iPad's actual capture can come back
+at a different aspect ratio. When that happens, matching the 2:3 print
+shape means trimming HEIGHT rather than width, and the crop was centered:
+it removed equal slices from the top *and* bottom of the frame. The
+caption `CompositionEngine.compose()` draws is always in a strip right at
+the bottom of the full, uncropped photo -- so a centered height trim could
+slice straight through it, even though the caption is clearly visible on
+the result screen (which deliberately never applies this crop -- see
+PrintLayout.ts's own top-of-file comment).
+
+Fixed in `computeCoverCropRect()`: whenever a crop needs to trim height
+(on either orientation), the crop is now anchored to the bottom edge
+(`y = sourceHeight - cropHeight`) instead of centered, trimming only from
+the top. Guarantees the caption strip always survives, at the cost of
+slightly less headroom above the subjects in the (should be rare) case
+where the actual capture ratio doesn't match the print layout's ratio --
+the right trade-off, since a print with less headroom is fine and one
+with no caption isn't.
+
+Verified: `tests/PrintLayout.test.ts` updated -- the existing portrait
+height-trim test's expectation flipped from centered to bottom-anchored,
+plus a new landscape height-trim test (1440x1080 source into a 2:3
+target) covering the exact scenario that was silently eating captions.
+`tsc -b`, `npx vitest run` (183 tests, all green), `oxlint`,
+`npm run build` all clean.

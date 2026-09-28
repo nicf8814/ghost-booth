@@ -68,6 +68,10 @@ export function computeCoverCropRect(
 
   let cropWidth: number;
   let cropHeight: number;
+  // Height trims are biased toward the bottom edge (see below) rather than
+  // centered like every other case -- default false, flipped on for the
+  // one branch that actually needs it.
+  let anchorCropToBottom = false;
 
   if (sourceShortToLong > shortToLongRatio) {
     // Source is relatively "fatter" than the target shape (its short side
@@ -75,6 +79,7 @@ export function computeCoverCropRect(
     if (isSourceLandscape) {
       cropWidth = sourceWidth;
       cropHeight = sourceWidth * shortToLongRatio;
+      anchorCropToBottom = true;
     } else {
       cropHeight = sourceHeight;
       cropWidth = sourceHeight * shortToLongRatio;
@@ -88,6 +93,7 @@ export function computeCoverCropRect(
     } else {
       cropWidth = sourceWidth;
       cropHeight = sourceWidth / shortToLongRatio;
+      anchorCropToBottom = true;
     }
   }
 
@@ -97,9 +103,31 @@ export function computeCoverCropRect(
   cropWidth = Math.min(cropWidth, sourceWidth);
   cropHeight = Math.min(cropHeight, sourceHeight);
 
+  // Every other crop (trimming width, or trimming height for a case that
+  // can't happen with this booth's fixed landscape mount -- see below) stays
+  // centered, the ordinary "cover crop" default. But whenever HEIGHT gets
+  // trimmed on the source's actual landscape/portrait orientation
+  // (`anchorCropToBottom`), a plain centered crop removes equal slices from
+  // the top *and* bottom -- and the caption CompositionEngine.compose()
+  // draws (CLAUDE.md section 25) always sits in a strip right at the
+  // bottom edge of the full, uncropped photo. This function runs once,
+  // right before handing the image to a printer adapter, on a bitmap that
+  // already has the caption baked in (see composeSelectedBitmap) -- a
+  // centered height trim can slice straight through it even though it
+  // looks fine on the un-cropped result screen (confirmed: reported as
+  // "caption missing in the Kodak print" when the iPad's actual camera
+  // capture ratio isn't exactly 16:9, since getUserMedia's { ideal: 1920x1080
+  // } constraint is only a hint -- see CameraManager.ts). Anchoring the
+  // crop to the bottom edge instead (trimming only from the top) guarantees
+  // the caption survives, at the cost of slightly more headroom lost above
+  // the subjects in that mismatched-aspect-ratio case, which is the
+  // correct trade-off here: a printed photo with less headroom is fine, one
+  // with no caption defeats the point of picking one at all.
+  const cropY = anchorCropToBottom ? sourceHeight - cropHeight : (sourceHeight - cropHeight) / 2;
+
   return {
     x: (sourceWidth - cropWidth) / 2,
-    y: (sourceHeight - cropHeight) / 2,
+    y: cropY,
     width: cropWidth,
     height: cropHeight,
   };
