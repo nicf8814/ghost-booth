@@ -82,7 +82,13 @@ describe("ShareSheetPrinterAdapter", () => {
     expect(arg.files).toHaveLength(1);
     expect(arg.files[0]).toBeInstanceOf(File);
     expect(arg.files[0].type).toBe("image/jpeg");
-    expect(arg.title).toBe("Ghost Booth Photo");
+    // files only -- no title/text. A Shortcut's "Receive ... and N more
+    // from Share Sheet" step picks up title/text as their own separate
+    // shared items and can save them as junk extra "images" in the target
+    // album alongside the real photo (confirmed on the real device).
+    expect(arg.title).toBeUndefined();
+    expect(arg.text).toBeUndefined();
+    expect(Object.keys(arg)).toEqual(["files"]);
   });
 
   it("print() converts an ImageBitmap to a blob first when not already given a Blob", async () => {

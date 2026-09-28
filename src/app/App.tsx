@@ -515,7 +515,12 @@ export default function App() {
         const blob = await imageBitmapToBlob(printReady);
         const file = new File([blob], `ghost-booth-${Date.now()}.jpg`, { type: "image/jpeg" });
         if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: "Ghost Booth Photo" });
+          // files only, no title/text -- see ShareSheetPrinterAdapter.ts's
+          // print() docstring for why: a Shortcut's "Receive ... and N
+          // more from Share Sheet" step picks up title/text as their own
+          // separate shared items and can save them as junk extra
+          // "images" in the target album alongside the real photo.
+          await navigator.share({ files: [file] });
         } else {
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");

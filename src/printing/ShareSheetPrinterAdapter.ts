@@ -63,6 +63,15 @@ export class ShareSheetPrinterAdapter implements PhotoPrinter {
    * failure, so it shouldn't trigger the "PRINTER HAS BEEN POSSESSED"
    * failure screen). Only throws for a genuine capability problem (the
    * browser/device can't share files at all) or an unexpected share error.
+   *
+   * Deliberately passes `files` only -- no `title`/`text`. Confirmed on
+   * the real device: the Web Share API hands `title`/`text` to receivers
+   * as their own separate shared items alongside the file, and a
+   * Shortcut's "Receive Images and 2 more from Share Sheet" step picks up
+   * ALL of them, not just the image -- "Save to Photo Album" then saved
+   * that text string as a second, junk "image" in the album right next to
+   * the real photo. Dropping them avoids feeding anything but the actual
+   * photo to whatever's on the other end of the share sheet.
    */
   async print(image: Blob | ImageBitmap): Promise<void> {
     const blob = image instanceof Blob ? image : await imageBitmapToBlob(image);
@@ -76,11 +85,7 @@ export class ShareSheetPrinterAdapter implements PhotoPrinter {
     }
 
     try {
-      await navigator.share({
-        files: [file],
-        title: "Ghost Booth Photo",
-        text: 'Tap "Print to Kodak" if set up, or Save Image and open the Kodak Photo Printer app yourself -- Kodak\'s app can\'t be picked directly from this sheet.',
-      });
+      await navigator.share({ files: [file] });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         // The operator/guest backed out of the share sheet -- treat as a

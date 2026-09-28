@@ -1233,3 +1233,31 @@ shortcut's settings.
 
 Verified: `tsc -b --force`, `npx vitest run` (178 tests, all green --
 copy-only change), `oxlint`, `npm run build` all clean.
+
+## Fixed: share sheet's title/text were saving as a junk extra "image" -- done
+
+The user got "Print to Kodak" working (see the permission-troubleshooting
+entry above) but reported an unwanted second item landing in the
+Halloween 2026 album alongside each real photo. Root cause: `navigator
+.share()` in both `ShareSheetPrinterAdapter.print()` and `App.tsx`'s
+`handleSavePhoto` passed `title`/`text` fields alongside `files`. The Web
+Share API hands those to whatever's on the other end of the share sheet
+as their own separate shared items, not just descriptive metadata for the
+sheet's header -- and the "Print to Kodak" Shortcut's "Receive Images and
+2 more from Share Sheet" step (the "2 more" being exactly this) picked up
+all of them, so "Save to Photo Album" saved the text string as a second,
+junk "image" right next to the real photo.
+
+Fixed by dropping `title`/`text` entirely from both `navigator.share()`
+calls -- `files: [file]` only. The instructional copy that used to live
+in the share sheet's `text` field (pointing the operator at "Print to
+Kodak") isn't needed there anyway now that the shortcut has its own name
+and icon in the sheet; the surrounding app copy (PrintingScreen's success
+message, OperatorPanel's dropdown label) already explains the workflow
+elsewhere.
+
+Verified: `tests/ShareSheetPrinterAdapter.test.ts` updated to assert the
+share call's argument object has *only* a `files` key (previously
+asserted `title` was set, which is exactly what needed to change).
+`tsc -b --force`, `npx vitest run` (178 tests, all green), `oxlint`,
+`npm run build` all clean.
