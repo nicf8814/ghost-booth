@@ -161,13 +161,21 @@
 
 /* ---- Result ---- */
 .result-screen {
-  /* Tighter than the default .screen gap, and tighter still than the
-     original header+subtitle version -- content-first/chrome-minimal:
-     the photo stage is the thing that should dominate this screen, so
-     every other element (branding, dock) is trimmed to just what it
-     needs. Branding no longer sits in flow at all (see the corner marks
-     below), so this gap/padding is purely photo <-> dock <-> carousel
-     spacing now. */
+  /* Overrides .screen's center/center flex: a fixed-size stage guessed at
+     in vh (the previous two attempts here) either didn't fill the leftover
+     space or overflowed it and pushed the button dock off the bottom of
+     the viewport, depending on how tall the dock actually rendered on a
+     given device -- the number was always a guess. `flex-direction: column`
+     plus the stage below being `flex: 1; min-height: 0` instead makes the
+     stage *exactly* however tall "whatever's left after the dock" is, on
+     any viewport, with zero overflow risk: the dock's real rendered height
+     is what determines the split, not a hardcoded vh figure. `align-items:
+     stretch` (in place of .screen's `center`) lets the stage and dock use
+     the full width instead of shrinking to their content. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   gap: 12px;
   padding: 14px 16px 18px;
 }
@@ -201,34 +209,34 @@
 }
 
 .result-photo-frame {
-  /* Sized to fit the viewport, not to a fixed aspect ratio -- the composed
-     photo (see effects/Frames.ts) already has its own baked-in frame at its
-     real aspect ratio, so forcing a second, different aspect box here just
-     re-cropped it via object-fit: cover, cutting off heads/cameos (the bug
-     reported: "photo booth window cuts a lot of the image off"). `contain`
-     on the img below still guarantees the whole photo is always visible,
-     never cropped -- but the box itself now has explicit `width`/`height`
-     (not just `max-*` on an `inline-flex`, which sized to the photo's own
-     rendered pixel size and silently ignored a larger cap whenever the
-     captured photo's resolution was already smaller than that cap -- the
-     bug behind "doesn't look any bigger" after the first pass at this).
-     An explicit width/height claims the full stage footprint regardless
-     of the source photo's resolution; any aspect-ratio mismatch just
-     letterboxes against this box's own black background, which reads as
-     part of the stage rather than as cropping. Sized as large as the
-     stage can go now that branding no longer eats flow space above it and
-     the dock below is tightened -- near-edge-to-edge full-bleed stage per
-     the "make the stage bigger" / Instagram-style full-bleed photo
-     request, while still leaving room for the always-big, always-labeled
-     control dock underneath (CLAUDE.md section 32 -- this app is not a
-     full Instagram-style layout precisely because it drops the labeled
-     buttons, which this booth still needs). */
+  /* `flex: 1` + `min-height: 0` is what actually solves "bigger stage
+     without overflowing" -- two earlier attempts guessed a fixed vh height
+     (52vh, then 68vh) and both were wrong on this device: too small the
+     first time, and enough to overflow the viewport and push the button
+     dock off-screen the second time, because a hardcoded number can't know
+     how tall the dock below will actually render. `flex: 1` instead makes
+     this box claim exactly the vertical space left over after the dock
+     (result-icon-row + feature-carousel) takes what it needs -- always
+     fills the true remaining space, on any viewport, with the dock always
+     fully visible below it. `min-height: 0` is required here: without it a
+     flex child defaults to a min-height equal to its content, which for an
+     -- object-fit: contain -- image can be its full intrinsic height, and
+     that alone was enough to blow past the available space and reintroduce
+     the same overflow. Width is 100% of the padded column (near-edge-to-
+     edge, the "full-bleed"/"bigger stage" ask); `contain` on the img below
+     still guarantees the whole photo is always visible, never cropped
+     (cropping via object-fit: cover was the earlier "cuts off heads" bug)
+     -- any letterboxing that remains is only the genuine, now-minimal
+     mismatch between this box's shape (mostly however landscape/portrait
+     the leftover space naturally ends up) and the photo's own aspect
+     ratio, not an arbitrary guessed box shape. */
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: min(96vw, 82vh);
-  height: 68vh;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   border-radius: 16px;
   overflow: hidden;
   background: #000;
@@ -242,8 +250,10 @@
 
 .result-photo {
   display: block;
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
 }
 
@@ -264,6 +274,10 @@
   justify-content: center;
   gap: 20px;
   flex-wrap: wrap;
+  /* Sized to content, never squeezed by the flexible stage above --
+     result-photo-frame's flex: 1 is what absorbs any extra/short space,
+     not this. */
+  flex: none;
 }
 
 .icon-button {
@@ -496,8 +510,10 @@
    category's chip row is shown, scrolling horizontally if it overflows. */
 .feature-carousel {
   width: 100%;
-  max-width: min(96vw, 82vh);
   text-align: left;
+  /* Sized to content, never squeezed by the flexible stage above -- see
+     .result-icon-row's flex: none for the same reasoning. */
+  flex: none;
 }
 
 .feature-carousel-tabs {

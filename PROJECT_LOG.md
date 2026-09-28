@@ -868,3 +868,35 @@ deliberately small stand-in image (400x300): the box measured exactly
 `min(96vw, 82vh)` x `68vh` as specified, confirming the fix, before
 re-verifying `tsc -b --force`, `oxlint`, `npm run build`, and the full
 suite (180 tests) and redeploying.
+
+## Result stage: switched to flex-based sizing (fixes overflow + letterboxing) -- done
+
+The vh-number approach to the stage box (52vh, then 68vh) was fundamentally
+the wrong tool -- confirmed by the user's screenshot showing both black
+letterbox bars inside the frame (its fixed aspect didn't match the photo's)
+and the button dock partially pushed off the bottom of the viewport (68vh
+plus the dock's real height exceeded 100vh on that device). A hardcoded
+vh number can't know how tall the dock will actually render, so it was
+always going to be wrong on some device.
+
+Replaced with flexbox: `result-screen` is now `display: flex;
+flex-direction: column`, and `result-photo-frame` is `flex: 1; min-height:
+0; width: 100%` -- the stage claims exactly whatever vertical space is
+left over after the dock (result-icon-row + feature-carousel, both
+`flex: none` so they stay sized to their content) takes what it needs.
+This can't overflow by construction: the stage's height is *defined* as
+"the remainder," not a guess that might exceed it. `min-height: 0` is the
+detail that makes this actually work -- without it a flex child's default
+min-height is its content's intrinsic size, and an `object-fit: contain`
+image's intrinsic height could still force the box past the available
+space, reproducing the same overflow.
+
+Verified two ways: a Playwright harness rendered the real built CSS
+against mocked dock markup at three iPad viewport sizes (1024, 820, 768px
+tall, covering iPad Pro/Air/classic landscape) -- confirmed zero page
+overflow and the full icon row always ending inside the viewport at all
+three -- plus a screenshot showing the photo filling nearly the entire
+leftover space with only the letterboxing genuinely required by aspect
+mismatch (not the layout's own guesswork). Then `tsc -b --force`,
+`oxlint`, `npm run build`, and the full suite (180 tests, no test touches
+this CSS) all clean.
