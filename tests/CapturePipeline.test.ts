@@ -66,7 +66,12 @@ afterEach(() => {
 });
 
 function fakeBitmap(label: string): ImageBitmap {
-  return { __label: label } as unknown as ImageBitmap;
+  // `close` mocked like the real ImageBitmap interface's -- both
+  // analyzeAndWarpPhoto and composeSelectedBitmap now explicitly close
+  // superseded intermediate bitmaps (memory-pressure fix), so any fake
+  // bitmap that can be passed through a "supersede the previous one" path
+  // needs a callable close().
+  return { __label: label, close: vi.fn() } as unknown as ImageBitmap;
 }
 
 function fakeFace(): FaceModel {

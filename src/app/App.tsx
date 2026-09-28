@@ -19,6 +19,7 @@ import { AirPrintAdapter } from "../printing/AirPrintAdapter";
 import type { PrinterAdapterKind } from "./Settings";
 import type { PhotoPrinter } from "../printing/PrinterAdapter";
 import { loadSettings, saveSettings } from "../storage/SettingsStore";
+import { clearAllPhotos, purgeExpiredPhotos, storePhoto } from "../storage/PhotoStore";
 import { WorkerFaceDetector } from "../vision/WorkerFaceDetector";
 import type { FaceModel } from "../vision/VisionTypes";
 import { MeshWarpCaricatureEngine } from "../effects/CaricatureEngine";
@@ -189,6 +190,12 @@ export default function App() {
   // re-picking poster/filter never reshuffles which caption the photo uses.
   const photoRecipeRef = useRef<PhotoRecipe | null>(null);
   const settingsLoadedRef = useRef(false);
+  // One id per captured photo (CLAUDE.md sections 43-44's temporary local
+  // storage): applyPhotoSelection below stores/overwrites this same id in
+  // IndexedDB every time the guest changes a pick, so there's one row per
+  // in-progress photo rather than one per tap, and the periodic sweep can
+  // find and delete it once it's past the operator's retention window.
+  const currentPhotoIdRef = useRef<string>("");
 
   // Load persisted operator settings once on startup.
   useEffect(() => {
@@ -222,6 +229,24 @@ export default function App() {
   useEffect(() => {
     printerManager.setAdapter(createPrinterAdapter(state.settings.printerAdapter));
   }, [state.settings.printerAdapter]);
+
+  // Enforces the operator's "Photo Retention (minutes)" setting
+  // continuously through a long unattended event (CLAUDE.md sections
+  // 43-44), not just when a guest happens to trigger a cleanup. Runs every
+  // minute rather than on some booth-state transition, since a photo can
+  // age past its retention window while the booth just sits idle in
+  // attract mode. Best-effort (section 49): a failed sweep is silently
+  // retried on the next tick.
+  useEffect(() => {
+    const sweep = () => {
+      purgeExpiredPhotos(state.settings.photoRetentionMinutes).catch((err) => {
+        console.warn("Photo retention sweep failed:", err);
+      });
+    };
+    sweep();
+    const timer = setInterval(sweep, 60_000);
+    return () => clearInterval(timer);
+  }, [state.settings.photoRetentionMinutes]);
 
   // Idle timeout: return to attract from any non-attract, non-error state
   // after the configured window of inactivity (CLAUDE.md sections 33, 43).
@@ -274,6 +299,18 @@ export default function App() {
     const bitmap = await composeSelectedBitmap(base, recipe, selection, { compositionEngine, ownerCameoEngine });
     if (!bitmap) return;
 
+    // Free the bitmap this composed one is replacing. It's almost always a
+    // fresh allocation from the previous compose() call (see
+    // CapturePipeline.ts), never `original`/`caricatured` themselves --
+    // guarded anyway since a disabled-everything selection can make
+    // composeSelectedBitmap hand back one of those unchanged. Runs on every
+    // single guest toggle tap, so this is the highest-frequency source of
+    // the ImageBitmap accumulation a multi-hour unattended event would feel.
+    const prevMaster = masterBitmapRef.current;
+    if (prevMaster && prevMaster !== bitmap && prevMaster !== original && prevMaster !== caricatured) {
+      prevMaster.close();
+    }
+
     masterBitmapRef.current = bitmap;
     const blob = await imageBitmapToBlob(bitmap);
     const url = URL.createObjectURL(blob);
@@ -281,6 +318,16 @@ export default function App() {
       if (prev) URL.revokeObjectURL(prev);
       return url;
     });
+
+    // Best-effort temp storage (CLAUDE.md sections 43-44): overwrites the
+    // same id every time this photo's selection changes, so there's one
+    // row per in-progress photo, not one per tap. Never blocks the guest --
+    // a failed/unavailable IndexedDB write just means retention has
+    // nothing to enforce for this photo, not a broken booth (section 49).
+    void storePhoto({ id: currentPhotoIdRef.current, blob, createdAt: Date.now() }).catch((err) => {
+      console.warn("Failed to store photo for retention tracking:", err);
+    });
+
     // Every guest pick is activity -- see activityTick's declaration.
     setActivityTick((t) => t + 1);
   }, []);
@@ -384,6 +431,22 @@ export default function App() {
     }
     try {
       const master = await captureMasterFrame(camera, { mirrorPreview: true });
+
+      // Free the previous photo's bitmaps now that this capture is
+      // replacing them (a retake, or the next group's photo) -- original,
+      // caricatured, and whatever was last composed/displayed can all be
+      // distinct full-resolution allocations. Deduped via Set since
+      // `original` and `caricatured` end up pointing at the same bitmap
+      // whenever no faces were detected (CapturePipeline.ts's warp loop is
+      // then a no-op).
+      const stale = new Set<ImageBitmap>();
+      if (originalBitmapRef.current) stale.add(originalBitmapRef.current);
+      if (caricaturedBitmapRef.current) stale.add(caricaturedBitmapRef.current);
+      if (masterBitmapRef.current) stale.add(masterBitmapRef.current);
+      for (const bitmap of stale) bitmap.close();
+
+      currentPhotoIdRef.current = crypto.randomUUID();
+
       masterBitmapRef.current = master;
       dispatch({ kind: "booth", event: { type: "FRAME_CAPTURED" } });
 
@@ -453,8 +516,11 @@ export default function App() {
     applyPhotoSelection,
   ]);
 
-  const handlePrintRequested = useCallback(async () => {
-    dispatch({ kind: "booth", event: { type: "PRINT_REQUESTED" } });
+  // Shared by the first print attempt and every retry after a failure.
+  // Assumes the booth state is already (or is about to be, via a dispatch
+  // the caller fires first) "printing" -- PRINT_SUCCESS/PRINT_FAILED are
+  // only valid transitions from that state (BoothStateMachine.ts).
+  const attemptPrint = useCallback(async () => {
     setPrintStatus("printing");
     try {
       if (masterBitmapRef.current) {
@@ -463,7 +529,14 @@ export default function App() {
         // handing off to the printer adapter -- doesn't touch what's cached
         // for the result screen or affect any of the on-screen toggles.
         const printReady = await cropToPrintLayout(masterBitmapRef.current, state.settings.printLayout);
-        await printerManager.print(printReady, state.settings.copies);
+        try {
+          await printerManager.print(printReady, state.settings.copies);
+        } finally {
+          // A fresh crop is allocated on every print attempt (including
+          // every retry) -- free it once the adapter's had it, rather than
+          // leaving it for GC.
+          if (printReady !== masterBitmapRef.current) printReady.close();
+        }
       }
       setPrintStatus("success");
       dispatch({ kind: "booth", event: { type: "PRINT_SUCCESS" } });
@@ -475,6 +548,20 @@ export default function App() {
       });
     }
   }, [dispatch, state.settings.copies, state.settings.printLayout]);
+
+  const handlePrintRequested = useCallback(async () => {
+    dispatch({ kind: "booth", event: { type: "PRINT_REQUESTED" } });
+    await attemptPrint();
+  }, [dispatch, attemptPrint]);
+
+  // TRY AGAIN on the print-failure screen. The booth is in "error" with
+  // retryTarget "printing" -- RETRY moves it back to "printing" (see
+  // BoothStateMachine.ts), then this actually re-attempts the print rather
+  // than just flipping state with nothing behind it.
+  const handleRetryPrint = useCallback(async () => {
+    dispatch({ kind: "booth", event: { type: "RETRY" } });
+    await attemptPrint();
+  }, [dispatch, attemptPrint]);
 
   const resetGuestPicks = useCallback(() => {
     setFaces([]);
@@ -510,8 +597,9 @@ export default function App() {
   const handleSavePhoto = useCallback(async () => {
     const bitmap = masterBitmapRef.current;
     if (bitmap) {
+      let printReady: ImageBitmap | null = null;
       try {
-        const printReady = await cropToPrintLayout(bitmap, state.settings.printLayout);
+        printReady = await cropToPrintLayout(bitmap, state.settings.printLayout);
         const blob = await imageBitmapToBlob(printReady);
         const file = new File([blob], `ghost-booth-${Date.now()}.jpg`, { type: "image/jpeg" });
         if (navigator.canShare?.({ files: [file] })) {
@@ -538,6 +626,10 @@ export default function App() {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
           console.warn("Save photo failed:", err);
         }
+      } finally {
+        // A fresh crop is allocated on every save attempt -- free it, same
+        // as the print path.
+        if (printReady && printReady !== bitmap) printReady.close();
       }
     }
     handleDone();
@@ -571,6 +663,7 @@ export default function App() {
           {renderScreen({
             boothState: state.booth.state,
             error: state.booth.error,
+            retryTarget: state.booth.retryTarget,
             countdownSeconds: state.settings.countdownSeconds,
             resultImageUrl,
             printStatus,
@@ -596,6 +689,7 @@ export default function App() {
             onDone: handleDone,
             onSavePhoto: handleSavePhoto,
             onRetry: handleRetry,
+            onRetryPrint: handleRetryPrint,
             onToggleGoofyFilter: handleToggleGoofyFilter,
             onSelectGhost: handleSelectGhost,
             onToggleCaption: handleToggleCaption,
@@ -624,6 +718,11 @@ export default function App() {
               onClearTempPhotos={() => {
                 if (resultImageUrl) URL.revokeObjectURL(resultImageUrl);
                 setResultImageUrl(null);
+                // Actually clears the IndexedDB temp-photo store now, not
+                // just the on-screen preview -- see PhotoStore.ts.
+                clearAllPhotos().catch((err) => {
+                  console.warn("Failed to clear temp photo store:", err);
+                });
               }}
             />
           )}
@@ -636,6 +735,13 @@ export default function App() {
 interface RenderScreenArgs {
   boothState: import("../state/BoothStateMachine").BoothState;
   error?: string;
+  // Which state RETRY returns to (see BoothStateMachine.ts). When the booth
+  // is in "error" because a print failed, this is "printing" -- used below
+  // to route to PrintingScreen's failure UI (SAVE PHOTO / CONTINUE WITHOUT
+  // PRINTING) instead of the generic single-button error screen, so
+  // CLAUDE.md section 39's "never discard the finished image" fallback
+  // actually renders on a real print failure.
+  retryTarget: import("../state/BoothStateMachine").BoothState;
   countdownSeconds: number;
   resultImageUrl: string | null;
   printStatus: "printing" | "success" | "failed";
@@ -661,6 +767,7 @@ interface RenderScreenArgs {
   onDone: () => void;
   onSavePhoto: () => void;
   onRetry: () => void;
+  onRetryPrint: () => void;
   onToggleGoofyFilter: () => void;
   onSelectGhost: (key: CameoKey | null) => void;
   onToggleCaption: () => void;
@@ -735,6 +842,23 @@ function renderScreen(args: RenderScreenArgs) {
         />
       );
     case "error":
+      // A failed print lands here (BoothStateMachine's "printing" state
+      // moves to "error" on PRINT_FAILED, retryTarget: "printing") -- route
+      // it through PrintingScreen's failure branch instead of the generic
+      // single-button error screen below, so TRY AGAIN / SAVE PHOTO /
+      // CONTINUE WITHOUT PRINTING are all actually reachable (CLAUDE.md
+      // section 39: never discard the finished image over a print failure).
+      if (args.retryTarget === "printing") {
+        return (
+          <PrintingScreen
+            status="failed"
+            printerAdapter={args.printerAdapter}
+            onRetry={args.onRetryPrint}
+            onSavePhoto={args.onSavePhoto}
+            onContinueWithoutPrinting={args.onDone}
+          />
+        );
+      }
       return (
         <div className="screen error-screen">
           <h2>SOMETHING SPOOKY WENT WRONG</h2>

@@ -134,6 +134,15 @@ export async function analyzeAndWarpPhoto(
     const config = scaleTowardNeutral(varyConfigForFace(baseConfig, i, rng), settings.caricatureStrength);
     const warped = await deps.caricatureEngine.warp(working, face, config);
     if (warped !== working) {
+      // Free the previous per-face intermediate now that the next face's
+      // warp has superseded it -- never `master` itself, which is kept
+      // alive as `original` on the returned AnalyzedPhoto. With up to 6
+      // faces (CLAUDE.md section 10) each producing a full-resolution
+      // bitmap, leaving these for GC instead of closing them explicitly
+      // was a real memory-pressure risk over a multi-hour unattended event.
+      if (working !== master) {
+        working.close();
+      }
       working = warped;
     }
   }
@@ -216,22 +225,43 @@ export async function composeSelectedBitmap(
   const source = selection.goofy ? base.caricatured : base.original;
   if (!source) return null;
 
+  // Every stage below either passes `source`/the previous stage's bitmap
+  // straight through (a disabled/failed step) or allocates a brand-new one
+  // via a fresh OffscreenCanvas. This function is called on every single
+  // guest toggle tap (goofy/ghost/filter/poster/caption), so leaving those
+  // fresh intermediates for GC instead of closing them explicitly adds up
+  // fast over a multi-hour event. `fresh` tracks only the bitmaps this call
+  // allocated -- never `source` itself, which is owned by `base` and reused
+  // across every future call for this same photo.
+  const fresh: ImageBitmap[] = [];
+
   const ghosted = await deps.ownerCameoEngine.composite(source, selection.ghostKey, {
     opacity: selection.ghostOpacity,
   });
+  if (ghosted !== source) fresh.push(ghosted);
 
   const postered = selection.posterTint !== null;
 
   const filteredSource = selection.filterKey
     ? await applyHorrorFilter(ghosted, { key: selection.filterKey })
     : ghosted;
+  if (filteredSource !== ghosted) fresh.push(filteredSource);
 
   const gradedSource = postered
     ? await applyPosterEffect(filteredSource, { tint: selection.posterTint as PosterTint })
     : filteredSource;
+  if (gradedSource !== filteredSource) fresh.push(gradedSource);
 
-  return deps.compositionEngine.compose({
+  const result = await deps.compositionEngine.compose({
     foreground: gradedSource,
     caption: selection.captioned ? recipe.caption : undefined,
   });
+
+  for (const bitmap of fresh) {
+    if (bitmap !== result) {
+      bitmap.close();
+    }
+  }
+
+  return result;
 }

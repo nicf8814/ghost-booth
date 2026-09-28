@@ -84,13 +84,16 @@ export function OperatorPanel({
               onChange={(e) => onChange({ countdownSeconds: Number(e.target.value) })}
             />
           </label>
+          {/* Phase 10 (CLAUDE.md section 34's face-detected auto-start) hasn't
+              been built yet -- nothing reads this setting today, so it's
+              disabled with a note rather than left live and silently doing
+              nothing, which is misleading for an operator relying on it at
+              a live event. Left in Settings (not removed) so a persisted
+              value isn't lost once Phase 10 does ship. */}
           <label>
             Auto Start
-            <input
-              type="checkbox"
-              checked={settings.autoStart}
-              onChange={(e) => onChange({ autoStart: e.target.checked })}
-            />
+            <input type="checkbox" checked={settings.autoStart} disabled onChange={() => {}} />
+            <span className="operator-panel-note">Not yet implemented -- BOO must still be tapped to start.</span>
           </label>
           <label>
             Idle timeout (seconds)

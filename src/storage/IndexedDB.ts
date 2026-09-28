@@ -65,6 +65,27 @@ export async function idbDelete(store: string, key: string): Promise<void> {
   });
 }
 
+/** Every [key, value] pair currently in `store` -- used by PhotoStore.ts's retention sweep, which needs to check every stored photo's age against the operator's configured window. */
+export async function idbGetAllEntries<T>(store: string): Promise<Array<[string, T]>> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, "readonly");
+    const objectStore = tx.objectStore(store);
+    const entries: Array<[string, T]> = [];
+    const req = objectStore.openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        entries.push([String(cursor.key), cursor.value as T]);
+        cursor.continue();
+      } else {
+        resolve(entries);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export async function idbClearStore(store: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {

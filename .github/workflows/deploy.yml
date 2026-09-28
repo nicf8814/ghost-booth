@@ -1,0 +1,63 @@
+# Automates what PROJECT_LOG.md's manual deploy checklist used to describe
+# by hand (npm run build, then a git-worktree dance to copy dist/ onto the
+# gh-pages branch). That process worked but was fully manual -- a skipped
+# `npm run build`, a stale local dist/, or a typo in the worktree steps
+# could all silently ship a build that doesn't match main, with nothing
+# flagging the mismatch (see the review this workflow was added in response
+# to). This removes that class of mistake entirely: every push to main
+# builds from a clean checkout and publishes exactly that build, or the
+# workflow fails loudly instead of deploying something wrong.
+#
+# Publishes to the gh-pages branch (same branch GitHub Pages has been
+# configured to serve from throughout this project) rather than switching
+# to GitHub's newer "Deploy from GitHub Actions" Pages source, so no Pages
+# settings change is required for this to start working -- it's a
+# drop-in replacement for the manual process, not a different deployment
+# model.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc -b
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist

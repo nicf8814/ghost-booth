@@ -1261,3 +1261,103 @@ share call's argument object has *only* a `files` key (previously
 asserted `title` was set, which is exactly what needed to change).
 `tsc -b --force`, `npx vitest run` (178 tests, all green), `oxlint`,
 `npm run build` all clean.
+
+## End-to-end reliability review, then fixed every P0/P1 finding -- done
+
+Asked for a full review of the app for inefficiencies/red flags before
+going live. Findings, prioritized, then every P0 and P1 item fixed in
+the same session:
+
+**P0-1: the print-failure screen was unreachable.** `BoothStateMachine`'s
+`PRINT_FAILED` moves `boothState` to `"error"` (`retryTarget: "printing"`),
+but `App.tsx`'s `renderScreen()` only rendered `PrintingScreen` (with its
+TRY AGAIN / SAVE PHOTO / CONTINUE WITHOUT PRINTING buttons) while
+`boothState === "printing"`. Once it flipped to `"error"`, guests hit the
+generic single-button "SOMETHING SPOOKY WENT WRONG" screen instead --
+directly contradicting section 39's "never discard the finished image
+merely because printing failed," on the exact path that requirement is
+about. Fixed by routing the `"error"` case through `PrintingScreen`'s
+failure branch whenever `retryTarget === "printing"`. Also had to fix
+TRY AGAIN itself: it previously just dispatched RETRY (a state-machine
+transition with no actual retry behind it); added `attemptPrint()`
+(shared print-attempt logic) and a new `handleRetryPrint` that dispatches
+RETRY *then* actually re-attempts the print, so TRY AGAIN really retries.
+
+**P0-2: `ImageBitmap.close()` was never called anywhere in the app.**
+Every capture and every guest toggle tap (goofy/ghost/filter/poster)
+allocates full-resolution intermediate bitmaps that were just left for GC
+instead of freed explicitly -- a real memory-pressure risk over a
+multi-hour unattended event with many groups each tapping through several
+combinations. Fixed at every allocation point: `analyzeAndWarpPhoto`'s
+per-face warp loop now closes each superseded intermediate (never
+`master` itself); `composeSelectedBitmap` now tracks which stage outputs
+it actually allocated fresh (vs. passed through unchanged) and closes all
+of them except the final result; `App.tsx`'s `applyPhotoSelection` closes
+the previous `masterBitmapRef` bitmap on every swap (guarded against it
+aliasing `original`/`caricatured`, which stay alive for the whole photo);
+`handleCountdownComplete` closes the previous photo's original/
+caricatured/master bitmaps (deduped via `Set`) right before a new
+capture; and both the print and save-photo paths now close their
+`cropToPrintLayout()` output once the printer adapter/share sheet has it.
+`tests/CapturePipeline.test.ts`'s `fakeBitmap()` helper updated to mock
+`close()` like the real interface.
+
+**P0-3: "Photo Retention" and CLEAR TEMP PHOTOS were dead code.**
+`PhotoStore.storePhoto()` had zero callers anywhere -- no photo was ever
+actually written to IndexedDB, so the operator's "Photo Retention
+(minutes)" setting did nothing, and CLEAR TEMP PHOTOS only revoked the
+on-screen preview URL, not any persisted store. Wired up for real rather
+than just removing the misleading UI: `applyPhotoSelection` now stores
+(and overwrites, via one stable id per captured photo) each composed
+photo's blob in IndexedDB; a new periodic sweep (`PhotoStore.
+purgeExpiredPhotos`, backed by a new `idbGetAllEntries` cursor helper in
+`IndexedDB.ts`) runs every 60s and deletes anything past the operator's
+retention window, independent of any guest interaction; and
+`onClearTempPhotos` now actually calls `clearAllPhotos()` in addition to
+revoking the preview URL. New `tests/PhotoStore.test.ts` covers
+`isExpired`/`purgeExpiredPhotos` against a mocked `IndexedDB.ts` (jsdom
+has no real IndexedDB and this project has no fake-indexeddb dependency).
+
+**P1-4: "Auto Start" was a dead operator toggle.** Nothing reads
+`settings.autoStart` -- Phase 10's face-detected auto-start (CLAUDE.md
+section 34) was never built. Rather than remove the setting (and lose a
+persisted value once Phase 10 does ship), the checkbox is now disabled
+with an inline note ("Not yet implemented -- BOO must still be tapped to
+start.") so an operator can't mistakenly rely on it at a live event.
+
+**P1-5: no offline/PWA cache existed**, despite section 45 explicitly
+requiring the core booth keep working without a network connection.
+Added a hand-written `public/sw.js` (no new dependency -- section 1's
+"prefer browser-native APIs" -- rather than pulling in vite-plugin-pwa)
+with a deliberately asymmetric strategy: navigation requests and the
+worker script itself are network-first (falling back to cache only when
+the network request fails outright), while every other same-origin GET
+(hashed JS/CSS chunks, face-model files, cameo/overlay images) is
+cache-first. The asymmetry is deliberate -- this project already got
+bitten once by a stale cached JS bundle (see the share-sheet debugging
+entries above), so the worker is built to never lock in an old deploy
+while online; it only ever serves from cache when the network is
+genuinely unavailable, which is the actual scenario section 45 is about.
+Registered from `main.tsx` after first render, best-effort. Verified the
+built `dist/sw.js` and its relative-path core-shell list resolve
+correctly under the `base: './'` GitHub Pages subpath setup.
+
+**P1-6: the gh-pages deploy process was fully manual** (a hand-typed
+git-worktree dance, repeated 38+ times per `git log`, with no automated
+verification that the copied `dist/` actually matched the latest `main`
+build) -- exactly the class of process that could silently ship a stale
+or mismatched build with nothing flagging it. Added `.github/workflows/
+deploy.yml`: on every push to `main`, a clean-checkout job runs `tsc -b`,
+lint, the full test suite, and `npm run build`, then publishes `dist/` to
+the `gh-pages` branch via `peaceiris/actions-gh-pages@v4`. Deliberately
+keeps publishing to the existing `gh-pages` branch (not GitHub's newer
+"Deploy from GitHub Actions" Pages source) so this is a drop-in
+replacement for the manual process with no Pages settings change
+required. The manual worktree process documented earlier in this log is
+now superseded by this workflow for ordinary deploys; keep it as a
+fallback for a one-off manual push if the workflow itself needs
+debugging.
+
+Verified for every item above: `tsc -b`, `npx vitest run` (183 tests, up
+from 178 -- new `tests/PhotoStore.test.ts`, all green), `oxlint`, and
+`npm run build` all clean.
