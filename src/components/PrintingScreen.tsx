@@ -43,8 +43,10 @@ export function PrintingScreen({
       <div className="screen printing-screen">
         {printerAdapter === "shareSheet" ? (
           <>
-            <p className="processing-message">PHOTO SAVED TO YOUR PHOTOS.</p>
-            <p className="processing-submessage">Open the Kodak Photo Printer app to print it from there.</p>
+            <p className="processing-message">PHOTO SAVED.</p>
+            <p className="processing-submessage">
+              If you tapped "Print to Kodak," the Kodak app is opening now -- otherwise open it yourself to print.
+            </p>
           </>
         ) : (
           <p className="processing-message">YOUR PHOTO HAS BEEN CONJURED.</p>

@@ -1185,3 +1185,51 @@ promised away.
 Verified: `tsc -b --force`, `npx vitest run` (178 tests, all green -- no
 test exercises PrintingScreen/ShareSheetPrinterAdapter copy directly, so
 none needed changes), `oxlint`, `npm run build` all clean.
+
+## "Print to Kodak" Shortcut path -- one tap to album + auto-open
+
+The user asked whether photos could land in their existing "Halloween
+2026" Photos album and have a shortcut automatically open the Kodak app.
+Checked Apple's current Shortcuts docs before proposing anything: iOS
+Shortcuts' Personal Automations have no "photo added to album" trigger at
+all (confirmed against Apple's own trigger list -- Wi-Fi, Bluetooth,
+Focus, Low Power Mode, Battery Level, Charger, NFC, App open/close,
+Airplane Mode; nothing Photos-related), so a background automation on
+album changes isn't possible on this platform, full stop.
+
+The mechanism that actually gets the same practical result: a Shortcut
+can be set to **appear directly in the share sheet** (Shortcuts app ->
+shortcut's Details/settings -> "Show in Share Sheet", a real, long-
+standing iOS feature -- also confirmed against Apple's docs). Since the
+booth's ShareSheetPrinterAdapter already opens that exact share sheet, a
+shortcut named "Print to Kodak" with that toggle on, built once by the
+operator with two actions --  "Save to Photo Album" (pointed at
+"Halloween 2026") then "Open App" (pointed at Kodak Photo Printer) --
+shows up as its own tappable icon right next to "Save Image." One tap
+there does both things at once: saves to the correct album *and*
+launches Kodak automatically, no manual app-switching. Not a fully
+unattended zero-tap print (Kodak's own Print button still needs one
+tap once it's open, and there's no Kodak-published Shortcuts action to
+drive that programmatically), but a real improvement over the
+Save-Image-then-hunt-for-the-app flow from earlier this session.
+
+This lives entirely in Settings-app/Shortcuts-app configuration on the
+user's device -- nothing here can build it remotely -- so the code
+change is just updating references to match once it exists:
+`ShareSheetPrinterAdapter.ts`'s docstring and the share sheet's own
+`text` now mention "Print to Kodak" by the exact name the operator
+should give the shortcut, and `PrintingScreen.tsx`'s success message
+covers both paths ("If you tapped 'Print to Kodak,' the Kodak app is
+opening now -- otherwise open it yourself to print") since the app has
+no way to know from here which of the two share-sheet options the
+operator actually tapped.
+
+**Setup steps handed to the user directly (not committed anywhere, since
+it's one-time manual device configuration, not app behavior)**: create
+the shortcut in the Shortcuts app, add "Save to Photo Album" targeting
+Halloween 2026, add "Open App" targeting Kodak Photo Printer, then turn
+on "Show in Share Sheet" (optionally restricted to Images) in the
+shortcut's settings.
+
+Verified: `tsc -b --force`, `npx vitest run` (178 tests, all green --
+copy-only change), `oxlint`, `npm run build` all clean.

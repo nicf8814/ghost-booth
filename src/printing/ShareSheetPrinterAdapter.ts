@@ -21,11 +21,20 @@ import { imageBitmapToBlob } from "../utils/image";
  * Printer app is NOT a registered iOS share extension, so it never
  * appears as a row in the share sheet no matter what's shared to it, and
  * it isn't AirPrint-compatible either -- there is no web mechanism, this
- * one included, that can hand a photo to it directly. The only working
- * path is: this adapter saves the photo to the Photos library via the
- * share sheet's built-in "Save Image" action, and the operator then opens
- * the Kodak app themselves and picks the photo from their camera roll to
- * print it. That's a real two-app handoff, not a one-tap print -- the
+ * one included, that can hand a photo to it directly. Two paths work from
+ * this same share sheet:
+ *   1. The plain built-in "Save Image" action -- saves to the general
+ *      camera roll, operator then opens the Kodak app and finds it
+ *      themselves. Always available, zero setup.
+ *   2. A **custom Shortcut named "Print to Kodak"** the operator builds
+ *      once in the Shortcuts app (see PROJECT_LOG.md's "Print to Kodak
+ *      Shortcut setup" for the exact steps) with "Show in Share Sheet"
+ *      turned on: it saves straight into a specific Photos album (e.g.
+ *      "Halloween 2026") *and* opens the Kodak app automatically, so it
+ *      appears as its own tappable icon right alongside "Save Image" in
+ *      this same sheet -- one tap gets both the right album and the app
+ *      switch, instead of two separate manual steps.
+ * Either way this is a real app hand-off, not a one-tap print -- the
  * share-sheet text and the result screen's copy are written to make that
  * expectation clear rather than implying the print itself finished.
  *
@@ -70,7 +79,7 @@ export class ShareSheetPrinterAdapter implements PhotoPrinter {
       await navigator.share({
         files: [file],
         title: "Ghost Booth Photo",
-        text: "Tap Save Image, then open the Kodak Photo Printer app to print it -- Kodak's app can't be picked directly from this sheet.",
+        text: 'Tap "Print to Kodak" if set up, or Save Image and open the Kodak Photo Printer app yourself -- Kodak\'s app can\'t be picked directly from this sheet.',
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
