@@ -205,20 +205,30 @@
      photo (see effects/Frames.ts) already has its own baked-in frame at its
      real aspect ratio, so forcing a second, different aspect box here just
      re-cropped it via object-fit: cover, cutting off heads/cameos (the bug
-     reported: "photo booth window cuts a lot of the image off"). Letting
-     the box size to the image's natural ratio and using `contain` below
-     means the whole photo is always visible. Sized as large as the stage
-     can go now that branding no longer eats flow space above it and the
-     dock below is tightened -- near-edge-to-edge full-bleed stage per the
-     "make the stage bigger" / Instagram-style full-bleed photo request,
-     while still leaving room for the always-big, always-labeled control
-     dock underneath (CLAUDE.md section 32 -- this app is not a full
-     Instagram-style layout precisely because it drops the labeled buttons,
-     which this booth still needs). */
+     reported: "photo booth window cuts a lot of the image off"). `contain`
+     on the img below still guarantees the whole photo is always visible,
+     never cropped -- but the box itself now has explicit `width`/`height`
+     (not just `max-*` on an `inline-flex`, which sized to the photo's own
+     rendered pixel size and silently ignored a larger cap whenever the
+     captured photo's resolution was already smaller than that cap -- the
+     bug behind "doesn't look any bigger" after the first pass at this).
+     An explicit width/height claims the full stage footprint regardless
+     of the source photo's resolution; any aspect-ratio mismatch just
+     letterboxes against this box's own black background, which reads as
+     part of the stage rather than as cropping. Sized as large as the
+     stage can go now that branding no longer eats flow space above it and
+     the dock below is tightened -- near-edge-to-edge full-bleed stage per
+     the "make the stage bigger" / Instagram-style full-bleed photo
+     request, while still leaving room for the always-big, always-labeled
+     control dock underneath (CLAUDE.md section 32 -- this app is not a
+     full Instagram-style layout precisely because it drops the labeled
+     buttons, which this booth still needs). */
   position: relative;
-  display: inline-flex;
-  max-width: min(96vw, 82vh);
-  max-height: 68vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(96vw, 82vh);
+  height: 68vh;
   border-radius: 16px;
   overflow: hidden;
   background: #000;
@@ -232,10 +242,8 @@
 
 .result-photo {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 68vh;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 

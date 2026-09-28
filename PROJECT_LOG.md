@@ -848,3 +848,23 @@ UI wholesale, so only the parts that don't fight that were taken):
   Verified: `tsc -b --force`, `oxlint`, `npm run build`, and the full
   suite (180 tests, no test referenced the removed header/footer markup)
   all clean.
+
+## Fixed: stage-size CSS bug from the previous pass -- done
+
+The user correctly called out that the result photo didn't actually look
+any bigger after the full-bleed pass above. Root cause: `.result-photo-frame`
+used `display: inline-flex` with only `max-width`/`max-height` -- that
+sizes the box to its content's rendered size, so it only ever shrank a
+photo bigger than the cap; a captured photo already smaller than the
+(new, bigger) cap left the box exactly as small as before. Bumping the
+vh/vw ceiling numbers did nothing in that case, which is exactly what got
+reported. Fixed by giving the box explicit `width`/`height` (not just
+`max-*`) so it always claims the full stage footprint the CSS specifies,
+independent of the source photo's resolution; `object-fit: contain` on
+the `<img>` still guarantees no cropping -- any aspect mismatch just
+letterboxes against the box's own black background instead. Verified
+with a minimal Playwright harness reusing the built CSS against a
+deliberately small stand-in image (400x300): the box measured exactly
+`min(96vw, 82vh)` x `68vh` as specified, confirming the fix, before
+re-verifying `tsc -b --force`, `oxlint`, `npm run build`, and the full
+suite (180 tests) and redeploying.
