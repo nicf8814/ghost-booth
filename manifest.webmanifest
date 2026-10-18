@@ -1,18 +1,12 @@
 {
-  "name": "Ghost Booth",
-  "short_name": "Ghost Booth",
-  "description": "Haunted Halloween photo booth",
+  "name": "Human Photobooth",
+  "short_name": "Photobooth",
+  "description": "Halloween human photobooth",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "orientation": "landscape",
-  "background_color": "#05050a",
-  "theme_color": "#05050a",
-  "icons": [
-    {
-      "src": "favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    }
-  ]
+  "orientation": "portrait",
+  "background_color": "#0b0a0f",
+  "theme_color": "#0b0a0f",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
 }

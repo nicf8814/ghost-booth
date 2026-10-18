@@ -5,18 +5,98 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Photobooth" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#05050a" />
+    <meta name="theme-color" content="#0b0a0f" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>Ghost Booth</title>
-    <script type="module" crossorigin src="./assets/index-CneK3aQb.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-C-wXTOCO.css">
+    <title>Human Photobooth</title>
+    <script type="module" crossorigin src="./assets/index-DzOCA7Pu.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DAVTD-Oz.css">
   </head>
   <body>
-    <div id="root"></div>
+    <main id="app" data-screen="attract">
+      <video id="preview" autoplay muted playsinline></video>
+      <div class="shade"></div>
+
+      <header class="top">
+        <h1 id="title">Human Photobooth</h1>
+      </header>
+
+      <!-- Waiting for a guest -->
+      <section class="screen" data-for="attract">
+        <button id="start" class="big-button" type="button">
+          <svg viewBox="0 0 64 64" aria-hidden="true" class="ghost">
+            <path d="M32 6c-12 0-20 9-20 21v27l6-5 6 5 6-5 4 0 6 5 6-5 6 5V27C52 15 44 6 32 6z" />
+            <circle cx="25" cy="28" r="4" class="eye" />
+            <circle cx="39" cy="28" r="4" class="eye" />
+            <ellipse cx="32" cy="40" rx="4" ry="5" class="eye" />
+          </svg>
+          <span>Tap to take a photo</span>
+        </button>
+      </section>
+
+      <!-- Countdown -->
+      <section class="screen" data-for="countdown">
+        <div id="count" aria-live="assertive"></div>
+      </section>
+
+      <!-- Review the framed photo -->
+      <section class="screen" data-for="review">
+        <img id="result" alt="Your photo" />
+        <div class="actions">
+          <button id="retake" class="pill" type="button">Retake</button>
+          <button id="print" class="pill primary" type="button">Print</button>
+          <button id="done" class="pill" type="button">Done</button>
+        </div>
+      </section>
+
+      <!-- After sending to the printer -->
+      <section class="screen" data-for="sent">
+        <div class="message">
+          <p class="spooky">Boo-tiful!</p>
+          <p>Your print is on its way.</p>
+        </div>
+      </section>
+
+      <!-- Camera or other problem -->
+      <section class="screen" data-for="error">
+        <div class="message">
+          <p class="spooky">Uh oh</p>
+          <p id="error-text">Something went wrong.</p>
+          <button id="retry" class="pill primary" type="button">Try again</button>
+        </div>
+      </section>
+
+      <div id="flash"></div>
+    </main>
+
+    <dialog id="settings">
+      <form method="dialog">
+        <h2>Booth settings</h2>
+        <label>Title on print <input name="title" maxlength="40" /></label>
+        <label>Second line <input name="subtitle" maxlength="40" /></label>
+        <label>
+          Countdown
+          <select name="countdown">
+            <option value="3">3 seconds</option>
+            <option value="5">5 seconds</option>
+            <option value="10">10 seconds</option>
+          </select>
+        </label>
+        <label class="check">
+          <input type="checkbox" name="rotateCounterClockwise" />
+          Photos come out upside down (flip rotation)
+        </label>
+        <div class="row">
+          <button value="reload" type="submit" class="pill">Reload app</button>
+          <button value="save" type="submit" class="pill primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
   </body>
 </html>
