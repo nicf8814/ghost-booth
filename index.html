@@ -14,8 +14,8 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Heisterkamp Halloween 2026</title>
-    <script type="module" crossorigin src="./assets/index-DF6gZKws.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BJcqiejq.css">
+    <script type="module" crossorigin src="./assets/index-B_tKIAaJ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-D96w4g67.css">
   </head>
   <body>
     <main id="app" data-screen="attract">
@@ -47,6 +47,14 @@
       <!-- Review the framed photo -->
       <section class="screen" data-for="review">
         <img id="result" alt="Your photo" />
+        <button id="ghost" class="pill ghost-toggle" type="button" aria-pressed="false" hidden>
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M32 6c-12 0-20 9-20 21v27l6-5 6 5 6-5 4 0 6 5 6-5 6 5V27C52 15 44 6 32 6z" />
+            <circle cx="25" cy="28" r="4" class="eye" />
+            <circle cx="39" cy="28" r="4" class="eye" />
+          </svg>
+          <span>Add a ghost</span>
+        </button>
         <div class="actions">
           <button id="retake" class="pill" type="button">Retake</button>
           <button id="print" class="pill primary" type="button">Print</button>
@@ -92,6 +100,14 @@
             <option value="none">Normal</option>
             <option value="cw">Turn right</option>
             <option value="ccw">Turn left</option>
+          </select>
+        </label>
+        <label>
+          Ghost cameo
+          <select name="ghost">
+            <option value="toggle">Guests tap to add it</option>
+            <option value="random">Random surprise (about half)</option>
+            <option value="off">Off</option>
           </select>
         </label>
         <div class="row">
