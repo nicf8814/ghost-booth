@@ -2,16 +2,14 @@ import type { Rotation } from "./layout";
 
 export interface Settings {
   title: string;
-  subtitle: string;
   countdown: number;
   rotation: Rotation;
 }
 
-const KEY = "ghost-booth-settings-v3";
+const KEY = "ghost-booth-settings-v4";
 
 export const DEFAULTS: Settings = {
-  title: "Human Photobooth",
-  subtitle: `Halloween ${new Date().getFullYear()}`,
+  title: "Heisterkamp Halloween 2026",
   countdown: 3,
   rotation: "none",
 };

@@ -41,3 +41,14 @@ describe("rotatedSize", () => {
     expect(rotatedSize(1920, 1440, "ccw")).toEqual({ w: 1440, h: 1920 });
   });
 });
+
+import { splitBalanced } from "../src/frame";
+
+describe("splitBalanced", () => {
+  it("splits into two even lines", () => {
+    expect(splitBalanced("Heisterkamp Halloween 2026")).toEqual(["Heisterkamp", "Halloween 2026"]);
+  });
+  it("leaves a single word alone", () => {
+    expect(splitBalanced("Boo")).toEqual(["Boo"]);
+  });
+});

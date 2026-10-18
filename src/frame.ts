@@ -2,11 +2,25 @@ import { CAPTION, PHOTO, PRINT_H, PRINT_W, coverCrop } from "./layout";
 
 export const ORANGE = "#ff7a1a";
 const BG = "#0e0c12";
-const MUTED = "#b9b2c6";
 
 export interface FrameText {
   title: string;
-  subtitle: string;
+}
+
+/** Splits text into two lines of roughly equal length at a space. */
+export function splitBalanced(text: string): string[] {
+  const words = text.trim().split(/\s+/);
+  if (words.length < 2) return [text];
+  let best = 1;
+  let bestDiff = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const diff = Math.abs(words.slice(0, i).join(" ").length - words.slice(i).join(" ").length);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = i;
+    }
+  }
+  return [words.slice(0, best).join(" "), words.slice(best).join(" ")];
 }
 
 /** Draws a little bat silhouette centered at (x, y). */
@@ -136,28 +150,32 @@ export function renderPrint(
   ctx.stroke();
   ctx.restore();
 
-  // Caption
+  // Caption: one spooky line, or two balanced lines if it won't fit big
   const bandH = CAPTION.bottom - CAPTION.top;
-  const titleY = CAPTION.top + bandH * 0.5;
+  const centerY = CAPTION.top + bandH * 0.5;
+  const maxW = PHOTO.w - 320;
+  const fontAt = (px: number) => `${px}px Creepster, Impact, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+
+  let lines = [text.title];
+  ctx.font = fontAt(112);
+  if (ctx.measureText(text.title).width > maxW) lines = splitBalanced(text.title);
+  let size = lines.length === 1 ? 112 : 100;
+  ctx.font = fontAt(size);
+  while (Math.max(...lines.map((l) => ctx.measureText(l).width)) > maxW && size > 40) {
+    size -= 4;
+    ctx.font = fontAt(size);
+  }
+
   ctx.fillStyle = ORANGE;
   ctx.shadowColor = "rgba(255,122,26,0.55)";
   ctx.shadowBlur = 24;
-  let titleSize = 112;
-  ctx.font = `${titleSize}px Creepster, Impact, sans-serif`;
-  while (ctx.measureText(text.title).width > PHOTO.w - 320 && titleSize > 48) {
-    titleSize -= 4;
-    ctx.font = `${titleSize}px Creepster, Impact, sans-serif`;
-  }
-  ctx.fillText(text.title, PRINT_W / 2, titleY);
+  const lineH = size * 1.05;
+  const firstY = centerY - ((lines.length - 1) * lineH) / 2;
+  lines.forEach((line, i) => ctx.fillText(line, PRINT_W / 2, firstY + i * lineH));
   ctx.shadowBlur = 0;
-
-  ctx.fillStyle = MUTED;
-  ctx.font = "600 40px Inter, Helvetica, Arial, sans-serif";
-  ctx.letterSpacing = "6px";
-  ctx.fillText(text.subtitle.toUpperCase(), PRINT_W / 2, titleY + titleSize * 0.78);
-  ctx.letterSpacing = "0px";
+  const titleY = centerY;
 
   // Bats flanking the title
   const batColor = "#e9e3f2";

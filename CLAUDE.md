@@ -12,7 +12,7 @@ the `backup-before-simple-rebuild` branch. Don't bring features back unless aske
 attract (live mirrored front camera, tap anywhere) -> countdown -> review
 (framed photo; Print / Retake / Done) -> sent -> back to attract.
 Review auto-resets after 90s. Hold the title for 2s to open hidden settings
-(print title, second line, countdown length, photo rotation).
+(text on print and screen, countdown length, photo rotation).
 
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot

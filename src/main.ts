@@ -127,10 +127,7 @@ async function takePhoto() {
   flash.classList.add("go");
 
   await document.fonts.ready;
-  const print = renderPrint(frame, frame.width, frame.height, {
-    title: settings.title,
-    subtitle: settings.subtitle,
-  });
+  const print = renderPrint(frame, frame.width, frame.height, { title: settings.title });
   const blob = await canvasToJpeg(print);
   // Share only the file. Extra title/text fields arrive in the share sheet as
   // separate items and the "Print to Kodak" shortcut would save them as junk.
@@ -185,7 +182,6 @@ async function printPhoto() {
 function openSettings() {
   const form = settingsDialog.querySelector("form")!;
   (form.elements.namedItem("title") as HTMLInputElement).value = settings.title;
-  (form.elements.namedItem("subtitle") as HTMLInputElement).value = settings.subtitle;
   (form.elements.namedItem("countdown") as HTMLSelectElement).value = String(settings.countdown);
   (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
   settingsDialog.showModal();
@@ -200,15 +196,20 @@ settingsDialog.addEventListener("close", () => {
   if (settingsDialog.returnValue !== "save") return;
   settings = {
     title: (form.elements.namedItem("title") as HTMLInputElement).value.trim() || settings.title,
-    subtitle: (form.elements.namedItem("subtitle") as HTMLInputElement).value.trim(),
     countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,
     rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
   };
   saveSettings(settings);
+  showTitle();
 });
 
 let holdTimer: number | undefined;
 const title = $<HTMLHeadingElement>("title");
+function showTitle() {
+  title.textContent = settings.title;
+  document.title = settings.title;
+}
+showTitle();
 title.addEventListener("pointerdown", (e) => {
   e.stopPropagation();
   holdTimer = window.setTimeout(openSettings, 2000);

@@ -111,12 +111,14 @@ body {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 26px 46px 26px 34px;
+  max-width: calc(100vw - 32px);
+  padding: 22px clamp(24px, 5vw, 46px) 22px clamp(20px, 4vw, 34px);
+  white-space: nowrap;
   border: 0;
   border-radius: 999px;
   background: linear-gradient(180deg, var(--orange), var(--orange-deep));
   color: #1a0d02;
-  font: 800 clamp(24px, 4.2vw, 40px) / 1 var(--ui);
+  font: 800 clamp(18px, 4.2vw, 40px) / 1 var(--ui);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   box-shadow:
