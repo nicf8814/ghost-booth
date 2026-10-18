@@ -1,31 +1,59 @@
-// Ghost cameo: Nic's face cutout, turned into a pale see-through ghost that
-// peeks into the photo from the left edge.
+// Ghost cameos: cutouts turned into pale, see-through ghosts that haunt the
+// photo. Each ghost has its own look and spot in the frame.
 
 export type GhostMode = "off" | "toggle" | "random";
+export type GhostName = "nic" | "couple";
 
-const CUTOUT_URL = "./cameo/nic-cutout.png";
+/** What the review button cycles through, in order. */
+export const GHOST_CHOICES: GhostName[][] = [[], ["nic"], ["couple"], ["nic", "couple"]];
 
-let ghostPromise: Promise<HTMLCanvasElement | null> | null = null;
+export const GHOST_LABELS = ["Add a ghost", "Ghost: Nic", "Ghost: the couple", "Ghosts: all three"];
 
-/** Loads and pre-processes the ghost once; later calls reuse it. */
-export function loadGhost(): Promise<HTMLCanvasElement | null> {
-  ghostPromise ??= new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("ghost image failed to load"));
-    img.src = CUTOUT_URL;
-  })
-    .then(ghostify)
-    .catch(() => null);
-  return ghostPromise;
+interface GhostStyle {
+  url: string;
+  /** overall opacity, 0-1 */
+  opacity: number;
+  /** where the fade-out at the bottom starts (0 top, 1 bottom) */
+  fadeStart: number;
+  /**
+   * How much dark areas turn invisible (0 = not at all, 1 = fully). Dark
+   * clothing vanishing while faces and collars glow is what makes a full
+   * figure read as a spirit instead of a cutout.
+   */
+  darkFade: number;
+}
+
+const STYLES: Record<GhostName, GhostStyle> = {
+  nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
+  couple: { url: "./cameo/victorian-couple.png", opacity: 0.72, fadeStart: 0.45, darkFade: 0.7 },
+};
+
+const cache = new Map<GhostName, Promise<HTMLCanvasElement | null>>();
+
+/** Loads and pre-processes a ghost once; later calls reuse it. */
+export function loadGhost(name: GhostName): Promise<HTMLCanvasElement | null> {
+  let p = cache.get(name);
+  if (!p) {
+    const style = STYLES[name];
+    p = new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`ghost ${name} failed to load`));
+      img.src = style.url;
+    })
+      .then((img) => ghostify(img, style))
+      .catch(() => null);
+    cache.set(name, p);
+  }
+  return p;
 }
 
 /**
  * Pale blue-white, see-through, soft edges, and the bottom fades away so it
- * reads as a floating spirit instead of a pasted-on head. Done with plain
- * pixel math (not ctx.filter) so it works on older iPads too.
+ * reads as a floating spirit. Plain pixel math (not ctx.filter) so it works
+ * on older iPads too.
  */
-function ghostify(img: HTMLImageElement): HTMLCanvasElement {
+function ghostify(img: HTMLImageElement, style: GhostStyle): HTMLCanvasElement {
   const w = img.naturalWidth;
   const h = img.naturalHeight;
   const canvas = document.createElement("canvas");
@@ -36,25 +64,31 @@ function ghostify(img: HTMLImageElement): HTMLCanvasElement {
   const data = ctx.getImageData(0, 0, w, h);
   const px = data.data;
 
-  // Soften the cutout edge: blur just the alpha channel a few pixels.
+  // Soften the cutout edge: blur just the alpha channel.
   const alpha = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) alpha[i] = px[i * 4 + 3];
   const soft = boxBlur(boxBlur(alpha, w, h, 10), w, h, 10);
 
+  const span = 1 - style.fadeStart;
   for (let y = 0; y < h; y++) {
-    // fade out the bottom 45% so it trails off like a wisp
     const t = y / h;
-    const fade = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45) ** 1.5;
+    const fade = t < style.fadeStart ? 1 : Math.max(0, 1 - (t - style.fadeStart) / span) ** 1.5;
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
       const o = i * 4;
+      // feather the left and right 15% so cutouts clipped by their original
+      // photo's edge don't leave a hard line
+      const edge = Math.min(1, Math.min(x, w - 1 - x) / (w * 0.15));
+      const side = edge * edge * (3 - 2 * edge);
       const lum = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2];
       // lift shadows and tint toward icy blue
       const v = 95 + lum * 0.7;
       px[o] = Math.min(255, v * 0.86);
       px[o + 1] = Math.min(255, v * 0.95);
       px[o + 2] = Math.min(255, v * 1.08 + 20);
-      px[o + 3] = Math.min(soft[i], alpha[i]) * 0.55 * fade;
+      const bright = Math.min(1, lum / 140);
+      const darkKeep = 1 - style.darkFade * (1 - bright);
+      px[o + 3] = Math.min(soft[i], alpha[i]) * style.opacity * fade * darkKeep * side;
     }
   }
   ctx.putImageData(data, 0, 0);
@@ -84,31 +118,30 @@ function boxBlur(src: Float32Array, w: number, h: number, r: number): Float32Arr
   return out;
 }
 
-/** Where the ghost goes inside the photo area: peeking in from the left. */
-export function ghostPlacement(photo: { x: number; y: number; w: number; h: number }, ghostW: number, ghostH: number) {
+type Rect = { x: number; y: number; w: number; h: number };
+
+/** Where each ghost goes inside the photo area. */
+export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number) {
+  if (name === "couple") {
+    // standing in the background on the right, partly off the edge
+    const w = photo.w * 0.7;
+    const h = (w * ghostH) / ghostW;
+    return { x: photo.x + photo.w - w * 0.97, y: photo.y + photo.h * 0.04, w, h, tilt: 0 };
+  }
+  // Nic: small head peeking in from the left edge
   const w = photo.w * 0.4;
   const h = (w * ghostH) / ghostW;
-  return {
-    x: photo.x - w * 0.28, // partly hidden behind the left edge
-    y: photo.y + photo.h * 0.16,
-    w,
-    h,
-    tilt: 0.24, // radians, leaning in
-  };
+  return { x: photo.x - w * 0.28, y: photo.y + photo.h * 0.16, w, h, tilt: 0.24 };
 }
 
-/** Draws the ghost; caller should already be clipped to the photo area. */
-export function drawGhost(
-  ctx: CanvasRenderingContext2D,
-  ghost: HTMLCanvasElement,
-  photo: { x: number; y: number; w: number; h: number },
-) {
-  const p = ghostPlacement(photo, ghost.width, ghost.height);
+/** Draws a ghost; caller should already be clipped to the photo area. */
+export function drawGhost(ctx: CanvasRenderingContext2D, name: GhostName, ghost: HTMLCanvasElement, photo: Rect) {
+  const p = ghostPlacement(name, photo, ghost.width, ghost.height);
   ctx.save();
   ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
   ctx.rotate(p.tilt);
   ctx.shadowColor = "rgba(170, 215, 255, 0.85)";
-  ctx.shadowBlur = 60;
+  ctx.shadowBlur = name === "couple" ? 45 : 60;
   ctx.drawImage(ghost, -p.w / 2, -p.h / 2, p.w, p.h);
   ctx.restore();
 }

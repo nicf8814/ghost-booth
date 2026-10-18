@@ -1,4 +1,4 @@
-import { drawGhost } from "./ghost";
+import { drawGhost, type GhostName } from "./ghost";
 import { CAPTION, PHOTO, PRINT_H, PRINT_W, coverCrop } from "./layout";
 
 export const ORANGE = "#ff7a1a";
@@ -6,8 +6,8 @@ const BG = "#0e0c12";
 
 export interface FrameText {
   title: string;
-  /** Pre-processed ghost cameo to drop into the photo, if any. */
-  ghost?: HTMLCanvasElement | null;
+  /** Pre-processed ghost cameos to drop into the photo. */
+  ghosts?: { name: GhostName; canvas: HTMLCanvasElement }[];
 }
 
 /** Splits text into two lines of roughly equal length at a space. */
@@ -142,7 +142,10 @@ export function renderPrint(
   vig.addColorStop(1, "rgba(10,0,20,0.35)");
   ctx.fillStyle = vig;
   ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
-  if (text.ghost) drawGhost(ctx, text.ghost, PHOTO);
+  // couple first so a peeking Nic sits on top if both are on
+  for (const g of [...(text.ghosts ?? [])].sort((a, b) => Number(a.name !== "couple") - Number(b.name !== "couple"))) {
+    drawGhost(ctx, g.name, g.canvas, PHOTO);
+  }
   drawCornerWeb(ctx, PHOTO.x + PHOTO.w, PHOTO.y, 230);
   ctx.restore();
 

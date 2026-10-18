@@ -5,7 +5,7 @@ import "./style.css";
 
 import { grabFrame, startCamera } from "./camera";
 import { canvasToJpeg, renderPrint } from "./frame";
-import { loadGhost } from "./ghost";
+import { GHOST_CHOICES, GHOST_LABELS, loadGhost } from "./ghost";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 
 type Screen = "attract" | "countdown" | "review" | "sent" | "error";
@@ -26,7 +26,7 @@ let photoFile: File | null = null;
 let photoUrl: string | null = null;
 let idleTimer: number | undefined;
 let lastFrame: HTMLCanvasElement | null = null;
-let ghostOn = false;
+let ghostIndex = 0; // index into GHOST_CHOICES
 const ghostBtn = $<HTMLButtonElement>("ghost");
 let busy = false;
 
@@ -132,7 +132,10 @@ async function takePhoto() {
   flash.classList.add("go");
 
   lastFrame = frame;
-  ghostOn = settings.ghost === "random" ? Math.random() < 0.5 : false;
+  ghostIndex =
+    settings.ghost === "random" && Math.random() < 0.5
+      ? 1 + Math.floor(Math.random() * (GHOST_CHOICES.length - 1))
+      : 0;
   await renderResult();
   busy = false;
   show("review");
@@ -142,8 +145,12 @@ async function takePhoto() {
 async function renderResult() {
   if (!lastFrame) return;
   await document.fonts.ready;
-  const ghost = ghostOn ? await loadGhost() : null;
-  const print = renderPrint(lastFrame, lastFrame.width, lastFrame.height, { title: settings.title, ghost });
+  const ghosts = [];
+  for (const name of GHOST_CHOICES[ghostIndex]) {
+    const canvas = await loadGhost(name);
+    if (canvas) ghosts.push({ name, canvas });
+  }
+  const print = renderPrint(lastFrame, lastFrame.width, lastFrame.height, { title: settings.title, ghosts });
   const blob = await canvasToJpeg(print);
   // Share only the file. Extra title/text fields arrive in the share sheet as
   // separate items and the "Print to Kodak" shortcut would save them as junk.
@@ -152,8 +159,8 @@ async function renderResult() {
   photoUrl = URL.createObjectURL(blob);
   result.src = photoUrl;
   ghostBtn.hidden = settings.ghost !== "toggle";
-  ghostBtn.setAttribute("aria-pressed", String(ghostOn));
-  ghostBtn.querySelector("span")!.textContent = ghostOn ? "Remove ghost" : "Add a ghost";
+  ghostBtn.setAttribute("aria-pressed", String(ghostIndex > 0));
+  ghostBtn.querySelector("span")!.textContent = GHOST_LABELS[ghostIndex];
 }
 
 function cameraErrorMessage(err: unknown): string {
@@ -258,7 +265,7 @@ $("print").addEventListener("click", printPhoto);
 ghostBtn.addEventListener("click", async () => {
   if (busy) return;
   busy = true;
-  ghostOn = !ghostOn;
+  ghostIndex = (ghostIndex + 1) % GHOST_CHOICES.length;
   await renderResult();
   busy = false;
   // reset the idle timer since someone is still here
@@ -271,7 +278,7 @@ $("retry").addEventListener("click", () => {
 });
 
 ensureCamera().catch((err) => showError(cameraErrorMessage(err)));
-loadGhost(); // warm up so the first toggle is instant
+for (const names of GHOST_CHOICES) for (const n of names) loadGhost(n); // warm up
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register("./sw.js").catch(() => undefined);

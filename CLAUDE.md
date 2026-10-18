@@ -15,11 +15,15 @@ Review auto-resets after 90s. Hold the title for 2s to open hidden settings
 (text on print and screen, countdown length, photo rotation, ghost cameo mode).
 
 ## Ghost cameo
-Revived from the old version at Nic's request. public/cameo/nic-cutout.png
-(his face cutout) is turned into a small see-through icy-blue ghost that peeks
-in from the left edge of the photo (src/ghost.ts). Modes in settings:
-"toggle" (default, guests tap Add a ghost on the review screen), "random"
-(about half of photos, Nic plans to switch to this eventually), "off".
+Two cutouts in public/cameo/, turned into see-through icy-blue ghosts by
+src/ghost.ts:
+- nic-cutout.png: Nic's face, small, peeking in from the left edge.
+- victorian-couple.png: an AI-made Victorian couple Nic created, cut out with
+  rembg; standing on the right side. Dark clothing fades away so faces and
+  collars glow.
+The review button cycles: none -> Nic -> the couple -> all three. Settings
+modes: "toggle" (default), "random" (about half of photos get a random ghost
+choice; Nic plans to switch to this eventually), "off".
 
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot

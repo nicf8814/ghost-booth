@@ -58,11 +58,19 @@ import { PHOTO as P } from "../src/layout";
 
 describe("ghostPlacement", () => {
   it("peeks in from the left, partly off the photo, below the top", () => {
-    const g = ghostPlacement(P, 700, 785);
+    const g = ghostPlacement("nic", P, 700, 785);
     expect(g.x).toBeLessThan(P.x);
     expect(g.x + g.w).toBeGreaterThan(P.x);
     expect(g.w).toBeLessThan(P.w * 0.5);
     expect(g.y).toBeGreaterThan(P.y);
     expect(g.y + g.h).toBeLessThan(P.y + P.h);
+  });
+});
+
+describe("couple ghost placement", () => {
+  it("stands on the right edge", () => {
+    const g = ghostPlacement("couple", P, 700, 963);
+    expect(g.x + g.w).toBeGreaterThanOrEqual(P.x + P.w);
+    expect(g.x).toBeGreaterThan(P.x + P.w * 0.3);
   });
 });
