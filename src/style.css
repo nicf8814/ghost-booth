@@ -1,0 +1,347 @@
+:root {
+  --bg: #0b0a0f;
+  --ink: #f4f0fa;
+  --muted: #b9b2c6;
+  --orange: #ff7a1a;
+  --orange-deep: #e05a00;
+  --purple: #6b3fa0;
+  --spooky: "Creepster", Impact, sans-serif;
+  --ui: "Inter", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--ui);
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+}
+
+/* Live camera fills the screen, mirrored like a mirror */
+#preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  background: #000;
+}
+
+/* Soft dark edges with a hint of purple so text reads on any background */
+.shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(11, 10, 15, 0.75) 0%, rgba(11, 10, 15, 0) 22%),
+    linear-gradient(to top, rgba(40, 14, 60, 0.75) 0%, rgba(11, 10, 15, 0) 30%),
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%);
+  transition: background-color 0.3s;
+}
+
+.top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: calc(env(safe-area-inset-top) + 28px) 24px 0;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+#title {
+  display: inline-block;
+  margin: 0;
+  font-family: var(--spooky);
+  font-weight: 400;
+  font-size: clamp(44px, 9vw, 96px);
+  line-height: 1;
+  color: var(--orange);
+  text-shadow:
+    0 0 18px rgba(255, 122, 26, 0.55),
+    0 3px 0 #000;
+  letter-spacing: 1px;
+  pointer-events: auto;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+#app[data-screen="attract"] .screen[data-for="attract"],
+#app[data-screen="countdown"] .screen[data-for="countdown"],
+#app[data-screen="review"] .screen[data-for="review"],
+#app[data-screen="sent"] .screen[data-for="sent"],
+#app[data-screen="error"] .screen[data-for="error"] {
+  display: flex;
+}
+
+/* ---------- Attract ---------- */
+
+.screen[data-for="attract"] {
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 6vh);
+  cursor: pointer;
+}
+
+.big-button {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 26px 46px 26px 34px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--orange), var(--orange-deep));
+  color: #1a0d02;
+  font: 800 clamp(24px, 4.2vw, 40px) / 1 var(--ui);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  box-shadow:
+    0 0 0 6px rgba(255, 122, 26, 0.25),
+    0 18px 40px rgba(0, 0, 0, 0.5);
+  animation: breathe 2.6s ease-in-out infinite;
+  cursor: pointer;
+}
+
+.ghost {
+  width: clamp(40px, 6vw, 60px);
+  height: clamp(40px, 6vw, 60px);
+  fill: #fff;
+  animation: float 2.6s ease-in-out infinite;
+}
+.ghost .eye {
+  fill: #1a0d02;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-6px) rotate(4deg); }
+}
+
+/* ---------- Countdown ---------- */
+
+.screen[data-for="countdown"] {
+  align-items: center;
+  justify-content: center;
+}
+
+#count {
+  font-family: var(--spooky);
+  font-size: clamp(180px, 42vw, 420px);
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 0 40px rgba(255, 122, 26, 0.9),
+    0 8px 0 rgba(0, 0, 0, 0.6);
+}
+
+#count.tick {
+  animation: tick 1s ease-out;
+}
+
+@keyframes tick {
+  0% { transform: scale(1.6); opacity: 0; }
+  20% { transform: scale(1); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0; }
+}
+
+#flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+#flash.go {
+  animation: flash 0.6s ease-out;
+}
+@keyframes flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- Review ---------- */
+
+#app[data-screen="review"] .top,
+#app[data-screen="countdown"] .top {
+  opacity: 0;
+}
+
+#app[data-screen="review"] .shade,
+#app[data-screen="sent"] .shade,
+#app[data-screen="error"] .shade {
+  background-color: rgba(11, 10, 15, 0.88);
+}
+
+.screen[data-for="review"] {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+  padding: calc(env(safe-area-inset-top) + 4vh) 24px calc(env(safe-area-inset-bottom) + 4vh);
+}
+
+#result {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 2px rgba(255, 122, 26, 0.35),
+    0 24px 60px rgba(0, 0, 0, 0.6);
+  animation: drop-in 0.45s ease-out;
+}
+
+@keyframes drop-in {
+  from { transform: translateY(24px) scale(0.96); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.actions {
+  display: flex;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.pill {
+  min-width: 140px;
+  padding: 20px 30px;
+  border-radius: 999px;
+  border: 2px solid rgba(244, 240, 250, 0.35);
+  background: rgba(244, 240, 250, 0.08);
+  color: var(--ink);
+  font: 800 clamp(18px, 2.8vw, 26px) / 1 var(--ui);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.pill.primary {
+  min-width: 200px;
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--orange), var(--orange-deep));
+  color: #1a0d02;
+  box-shadow: 0 0 0 5px rgba(255, 122, 26, 0.22);
+}
+
+.pill:active,
+.big-button:active {
+  transform: scale(0.96);
+}
+
+/* ---------- Sent / error ---------- */
+
+.screen[data-for="sent"],
+.screen[data-for="error"] {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.message p {
+  margin: 0 0 18px;
+  font-size: clamp(20px, 3vw, 28px);
+  color: var(--muted);
+  max-width: 34ch;
+  line-height: 1.4;
+}
+
+.message .spooky {
+  font-family: var(--spooky);
+  font-size: clamp(72px, 14vw, 140px);
+  color: var(--orange);
+  text-shadow: 0 0 24px rgba(255, 122, 26, 0.6);
+  line-height: 1;
+}
+
+/* ---------- Settings ---------- */
+
+dialog {
+  width: min(520px, calc(100vw - 32px));
+  border: 1px solid rgba(255, 122, 26, 0.4);
+  border-radius: 20px;
+  background: #16131d;
+  color: var(--ink);
+  padding: 28px;
+}
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+dialog h2 {
+  margin: 0 0 18px;
+  font-family: var(--spooky);
+  font-weight: 400;
+  font-size: 40px;
+  color: var(--orange);
+}
+dialog label {
+  display: block;
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 15px;
+}
+dialog input:not([type="checkbox"]),
+dialog select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(244, 240, 250, 0.2);
+  background: #0b0a0f;
+  color: var(--ink);
+  font: 600 18px var(--ui);
+}
+dialog label.check {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+dialog input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--orange);
+}
+dialog .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+dialog .pill {
+  min-width: 0;
+  padding: 14px 22px;
+  font-size: 16px;
+}
