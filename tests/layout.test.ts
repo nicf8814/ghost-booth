@@ -67,10 +67,15 @@ describe("ghostPlacement", () => {
   });
 });
 
-describe("couple ghost placement", () => {
-  it("stands on the right edge", () => {
-    const g = ghostPlacement("couple", P, 700, 963);
-    expect(g.x + g.w).toBeGreaterThanOrEqual(P.x + P.w);
-    expect(g.x).toBeGreaterThan(P.x + P.w * 0.3);
+describe("Victorian pair placement", () => {
+  it("keeps them in the top corners, clear of the center", () => {
+    const man = ghostPlacement("man", P, 345, 963);
+    const woman = ghostPlacement("woman", P, 375, 860);
+    const center = P.x + P.w / 2;
+    expect(man.x + man.w).toBeLessThan(center - P.w * 0.1);
+    expect(woman.x).toBeGreaterThan(center + P.w * 0.1);
+  });
+  it("moves Nic down when the gentleman is in the left corner", () => {
+    expect(ghostPlacement("nic", P, 700, 785, true).y).toBeGreaterThan(ghostPlacement("nic", P, 700, 785).y);
   });
 });

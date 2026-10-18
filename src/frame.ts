@@ -56,42 +56,6 @@ function drawBat(ctx: CanvasRenderingContext2D, x: number, y: number, size: numb
   ctx.restore();
 }
 
-/** A faint cobweb tucked into the top-right corner of the photo. */
-function drawCornerWeb(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-  ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.38)";
-  ctx.lineWidth = 2.5;
-  const spokes = 6;
-  const start = Math.PI / 2; // pointing down
-  const end = Math.PI; // pointing left
-  const angles: number[] = [];
-  for (let i = 0; i <= spokes; i++) angles.push(start + ((end - start) * i) / spokes);
-  for (const a of angles) {
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-    ctx.stroke();
-  }
-  for (let ring = 1; ring <= 4; ring++) {
-    const rr = (r * ring) / 4.4;
-    ctx.beginPath();
-    for (let i = 0; i < angles.length; i++) {
-      const px = cx + Math.cos(angles[i]) * rr;
-      const py = cy + Math.sin(angles[i]) * rr;
-      if (i === 0) {
-        ctx.moveTo(px, py);
-      } else {
-        // sag toward the center between spokes
-        const mid = (angles[i] + angles[i - 1]) / 2;
-        const sag = rr * 0.86;
-        ctx.quadraticCurveTo(cx + Math.cos(mid) * sag, cy + Math.sin(mid) * sag, px, py);
-      }
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -104,7 +68,7 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 
 /**
  * Renders the finished print: the photo in a dark frame with a light
- * Halloween touch (corner cobweb, a few bats, spooky title).
+ * Halloween touch (a few bats, spooky title).
  */
 export function renderPrint(
   source: CanvasImageSource,
@@ -142,11 +106,11 @@ export function renderPrint(
   vig.addColorStop(1, "rgba(10,0,20,0.35)");
   ctx.fillStyle = vig;
   ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
-  // couple first so a peeking Nic sits on top if both are on
-  for (const g of [...(text.ghosts ?? [])].sort((a, b) => Number(a.name !== "couple") - Number(b.name !== "couple"))) {
-    drawGhost(ctx, g.name, g.canvas, PHOTO);
-  }
-  drawCornerWeb(ctx, PHOTO.x + PHOTO.w, PHOTO.y, 230);
+  // the pair first so a peeking Nic sits on top if all three are on
+  const ghosts = text.ghosts ?? [];
+  const withPair = ghosts.some((g) => g.name === "man");
+  for (const g of ghosts.filter((g) => g.name !== "nic")) drawGhost(ctx, g.name, g.canvas, PHOTO);
+  for (const g of ghosts.filter((g) => g.name === "nic")) drawGhost(ctx, g.name, g.canvas, PHOTO, withPair);
   ctx.restore();
 
   // Thin orange outline around the photo

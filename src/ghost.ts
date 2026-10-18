@@ -2,10 +2,10 @@
 // photo. Each ghost has its own look and spot in the frame.
 
 export type GhostMode = "off" | "toggle" | "random";
-export type GhostName = "nic" | "couple";
+export type GhostName = "nic" | "man" | "woman";
 
 /** What the review button cycles through, in order. */
-export const GHOST_CHOICES: GhostName[][] = [[], ["nic"], ["couple"], ["nic", "couple"]];
+export const GHOST_CHOICES: GhostName[][] = [[], ["nic"], ["man", "woman"], ["nic", "man", "woman"]];
 
 export const GHOST_LABELS = ["Add a ghost", "Ghost: Nic", "Ghost: the couple", "Ghosts: all three"];
 
@@ -25,7 +25,8 @@ interface GhostStyle {
 
 const STYLES: Record<GhostName, GhostStyle> = {
   nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
-  couple: { url: "./cameo/victorian-couple.png", opacity: 0.72, fadeStart: 0.45, darkFade: 0.7 },
+  man: { url: "./cameo/victorian-man.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
+  woman: { url: "./cameo/victorian-woman.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
 };
 
 const cache = new Map<GhostName, Promise<HTMLCanvasElement | null>>();
@@ -120,28 +121,42 @@ function boxBlur(src: Float32Array, w: number, h: number, r: number): Float32Arr
 
 type Rect = { x: number; y: number; w: number; h: number };
 
-/** Where each ghost goes inside the photo area. */
-export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number) {
-  if (name === "couple") {
-    // standing in the background on the right, partly off the edge
-    const w = photo.w * 0.7;
+/**
+ * Where each ghost goes inside the photo area. The Victorian pair haunt the
+ * top corners so the middle stays clear for guests' faces. Nic peeks in from
+ * the left edge, lower down when the gentleman is already up in that corner.
+ */
+export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number, withPair = false) {
+  if (name === "man") {
+    const w = photo.w * 0.3;
     const h = (w * ghostH) / ghostW;
-    return { x: photo.x + photo.w - w * 0.97, y: photo.y + photo.h * 0.04, w, h, tilt: 0 };
+    return { x: photo.x - w * 0.1, y: photo.y + photo.h * 0.02, w, h, tilt: 0 };
+  }
+  if (name === "woman") {
+    const w = photo.w * 0.3;
+    const h = (w * ghostH) / ghostW;
+    return { x: photo.x + photo.w - w * 0.9, y: photo.y + photo.h * 0.08, w, h, tilt: 0 };
   }
   // Nic: small head peeking in from the left edge
   const w = photo.w * 0.4;
   const h = (w * ghostH) / ghostW;
-  return { x: photo.x - w * 0.28, y: photo.y + photo.h * 0.16, w, h, tilt: 0.24 };
+  return { x: photo.x - w * 0.28, y: photo.y + photo.h * (withPair ? 0.4 : 0.16), w, h, tilt: 0.24 };
 }
 
 /** Draws a ghost; caller should already be clipped to the photo area. */
-export function drawGhost(ctx: CanvasRenderingContext2D, name: GhostName, ghost: HTMLCanvasElement, photo: Rect) {
-  const p = ghostPlacement(name, photo, ghost.width, ghost.height);
+export function drawGhost(
+  ctx: CanvasRenderingContext2D,
+  name: GhostName,
+  ghost: HTMLCanvasElement,
+  photo: Rect,
+  withPair = false,
+) {
+  const p = ghostPlacement(name, photo, ghost.width, ghost.height, withPair);
   ctx.save();
   ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
   ctx.rotate(p.tilt);
   ctx.shadowColor = "rgba(170, 215, 255, 0.85)";
-  ctx.shadowBlur = name === "couple" ? 45 : 60;
+  ctx.shadowBlur = name === "nic" ? 60 : 45;
   ctx.drawImage(ghost, -p.w / 2, -p.h / 2, p.w, p.h);
   ctx.restore();
 }
