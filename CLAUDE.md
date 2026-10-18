@@ -5,14 +5,21 @@ chest (screen facing guests) and acts as a "Human Photobooth". Inspired by the
 Simple Booth Halo app: tap, countdown, one framed photo, print.
 
 The previous, much larger version (face detection, caricature warps, filters,
-ghost cameo, operator panel) was intentionally removed in Oct 2026. It lives on
+operator panel) was intentionally removed in Oct 2026. It lives on
 the `backup-before-simple-rebuild` branch. Don't bring features back unless asked.
 
 ## Flow
 attract (live mirrored front camera, tap anywhere) -> countdown -> review
 (framed photo; Print / Retake / Done) -> sent -> back to attract.
 Review auto-resets after 90s. Hold the title for 2s to open hidden settings
-(text on print and screen, countdown length, photo rotation).
+(text on print and screen, countdown length, photo rotation, ghost cameo mode).
+
+## Ghost cameo
+Revived from the old version at Nic's request. public/cameo/nic-cutout.png
+(his face cutout) is turned into a small see-through icy-blue ghost that peeks
+in from the left edge of the photo (src/ghost.ts). Modes in settings:
+"toggle" (default, guests tap Add a ghost on the review screen), "random"
+(about half of photos, Nic plans to switch to this eventually), "off".
 
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot

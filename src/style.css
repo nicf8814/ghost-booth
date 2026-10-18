@@ -217,7 +217,7 @@ body {
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: calc(100dvh - 200px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - 280px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   border-radius: 14px;
   box-shadow:
     0 0 0 2px rgba(255, 122, 26, 0.35),
@@ -359,4 +359,40 @@ dialog .pill {
   min-width: 0;
   padding: 14px 22px;
   font-size: 16px;
+}
+
+/* ---------- Ghost toggle ---------- */
+
+.ghost-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 12px 24px 12px 18px;
+  font-size: clamp(15px, 2.2vw, 20px);
+  border-color: rgba(170, 215, 255, 0.5);
+  background: rgba(170, 215, 255, 0.1);
+}
+.ghost-toggle[hidden] {
+  display: none;
+}
+.ghost-toggle svg {
+  width: 28px;
+  height: 28px;
+  fill: #dff0ff;
+}
+.ghost-toggle svg .eye {
+  fill: #0b0a0f;
+}
+.ghost-toggle[aria-pressed="true"] {
+  border-color: transparent;
+  background: #cfe8ff;
+  color: #0b0a0f;
+  box-shadow: 0 0 24px rgba(170, 215, 255, 0.7);
+}
+.ghost-toggle[aria-pressed="true"] svg {
+  fill: #0b0a0f;
+}
+.ghost-toggle[aria-pressed="true"] svg .eye {
+  fill: #cfe8ff;
 }

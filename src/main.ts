@@ -5,6 +5,7 @@ import "./style.css";
 
 import { grabFrame, startCamera } from "./camera";
 import { canvasToJpeg, renderPrint } from "./frame";
+import { loadGhost } from "./ghost";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 
 type Screen = "attract" | "countdown" | "review" | "sent" | "error";
@@ -24,6 +25,9 @@ let stream: MediaStream | null = null;
 let photoFile: File | null = null;
 let photoUrl: string | null = null;
 let idleTimer: number | undefined;
+let lastFrame: HTMLCanvasElement | null = null;
+let ghostOn = false;
+const ghostBtn = $<HTMLButtonElement>("ghost");
 let busy = false;
 
 const REVIEW_IDLE_MS = 90_000;
@@ -44,6 +48,7 @@ function reset() {
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = null;
   photoFile = null;
+  lastFrame = null;
   result.removeAttribute("src");
   busy = false;
   show("attract");
@@ -126,8 +131,19 @@ async function takePhoto() {
   void flash.offsetWidth;
   flash.classList.add("go");
 
+  lastFrame = frame;
+  ghostOn = settings.ghost === "random" ? Math.random() < 0.5 : false;
+  await renderResult();
+  busy = false;
+  show("review");
+}
+
+/** Builds the framed print from the last frame (with or without the ghost). */
+async function renderResult() {
+  if (!lastFrame) return;
   await document.fonts.ready;
-  const print = renderPrint(frame, frame.width, frame.height, { title: settings.title });
+  const ghost = ghostOn ? await loadGhost() : null;
+  const print = renderPrint(lastFrame, lastFrame.width, lastFrame.height, { title: settings.title, ghost });
   const blob = await canvasToJpeg(print);
   // Share only the file. Extra title/text fields arrive in the share sheet as
   // separate items and the "Print to Kodak" shortcut would save them as junk.
@@ -135,8 +151,9 @@ async function takePhoto() {
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(blob);
   result.src = photoUrl;
-  busy = false;
-  show("review");
+  ghostBtn.hidden = settings.ghost !== "toggle";
+  ghostBtn.setAttribute("aria-pressed", String(ghostOn));
+  ghostBtn.querySelector("span")!.textContent = ghostOn ? "Remove ghost" : "Add a ghost";
 }
 
 function cameraErrorMessage(err: unknown): string {
@@ -184,6 +201,7 @@ function openSettings() {
   (form.elements.namedItem("title") as HTMLInputElement).value = settings.title;
   (form.elements.namedItem("countdown") as HTMLSelectElement).value = String(settings.countdown);
   (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
+  (form.elements.namedItem("ghost") as HTMLSelectElement).value = settings.ghost;
   settingsDialog.showModal();
 }
 
@@ -198,6 +216,7 @@ settingsDialog.addEventListener("close", () => {
     title: (form.elements.namedItem("title") as HTMLInputElement).value.trim() || settings.title,
     countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,
     rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
+    ghost: (form.elements.namedItem("ghost") as HTMLSelectElement).value as Settings["ghost"],
   };
   saveSettings(settings);
   showTitle();
@@ -236,6 +255,15 @@ $("retake").addEventListener("click", () => {
   takePhoto();
 });
 $("print").addEventListener("click", printPhoto);
+ghostBtn.addEventListener("click", async () => {
+  if (busy) return;
+  busy = true;
+  ghostOn = !ghostOn;
+  await renderResult();
+  busy = false;
+  // reset the idle timer since someone is still here
+  show("review");
+});
 $("done").addEventListener("click", reset);
 $("retry").addEventListener("click", () => {
   reset();
@@ -243,6 +271,7 @@ $("retry").addEventListener("click", () => {
 });
 
 ensureCamera().catch((err) => showError(cameraErrorMessage(err)));
+loadGhost(); // warm up so the first toggle is instant
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register("./sw.js").catch(() => undefined);

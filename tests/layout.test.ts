@@ -52,3 +52,17 @@ describe("splitBalanced", () => {
     expect(splitBalanced("Boo")).toEqual(["Boo"]);
   });
 });
+
+import { ghostPlacement } from "../src/ghost";
+import { PHOTO as P } from "../src/layout";
+
+describe("ghostPlacement", () => {
+  it("peeks in from the left, partly off the photo, below the top", () => {
+    const g = ghostPlacement(P, 700, 785);
+    expect(g.x).toBeLessThan(P.x);
+    expect(g.x + g.w).toBeGreaterThan(P.x);
+    expect(g.w).toBeLessThan(P.w * 0.5);
+    expect(g.y).toBeGreaterThan(P.y);
+    expect(g.y + g.h).toBeLessThan(P.y + P.h);
+  });
+});
