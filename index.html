@@ -85,9 +85,13 @@
             <option value="10">10 seconds</option>
           </select>
         </label>
-        <label class="check">
-          <input type="checkbox" name="rotateCounterClockwise" />
-          Photos come out upside down (flip rotation)
+        <label>
+          Photo rotation (only if prints come out sideways)
+          <select name="rotation">
+            <option value="none">Normal</option>
+            <option value="cw">Turn right</option>
+            <option value="ccw">Turn left</option>
+          </select>
         </label>
         <div class="row">
           <button value="reload" type="submit" class="pill">Reload app</button>

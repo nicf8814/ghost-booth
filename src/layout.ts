@@ -48,13 +48,9 @@ export function coverCrop(srcW: number, srcH: number, dstW: number, dstH: number
   return { x: 0, y: (srcH - h) / 2, w: srcW, h };
 }
 
-/**
- * Whether a captured frame needs a 90 degree turn to match the screen.
- * On some iPads the live preview shows correctly in portrait but a frame
- * grabbed from the same stream comes back landscape.
- */
-export function needsRotation(frameW: number, frameH: number, viewW: number, viewH: number): boolean {
-  const viewPortrait = viewH >= viewW;
-  const framePortrait = frameH >= frameW;
-  return viewPortrait !== framePortrait;
+export type Rotation = "none" | "cw" | "ccw";
+
+/** Canvas size after applying a rotation to a frame. */
+export function rotatedSize(w: number, h: number, rotation: Rotation): { w: number; h: number } {
+  return rotation === "none" ? { w, h } : { w: h, h: w };
 }

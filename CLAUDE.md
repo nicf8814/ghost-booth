@@ -12,7 +12,7 @@ the `backup-before-simple-rebuild` branch. Don't bring features back unless aske
 attract (live mirrored front camera, tap anywhere) -> countdown -> review
 (framed photo; Print / Retake / Done) -> sent -> back to attract.
 Review auto-resets after 90s. Hold the title for 2s to open hidden settings
-(print title, second line, countdown length, rotation flip).
+(print title, second line, countdown length, photo rotation).
 
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot
@@ -27,9 +27,9 @@ the Kodak app may trim edges. See src/layout.ts.
 
 ## iPad quirks handled
 - getUserMedia asks for a portrait-shaped stream (1440x1920 hint).
-- Some iPads return a sideways frame from canvas capture even though the
-  preview looks right; grabFrame rotates when frame and screen orientation
-  disagree. Settings has a flip if it comes out upside down.
+- Safari returns upright frames; auto-rotation was removed after it turned an
+  upright iPhone photo sideways. Settings has a manual "Photo rotation"
+  override (Normal / Turn right / Turn left) if a device ever needs it.
 - iOS stops the camera when switching to the Kodak app; it restarts on
   visibilitychange.
 

@@ -116,7 +116,7 @@ async function takePhoto() {
 
   let frame: HTMLCanvasElement;
   try {
-    frame = grabFrame(video, settings.rotateCounterClockwise);
+    frame = grabFrame(video, settings.rotation);
   } catch (err) {
     busy = false;
     showError(err instanceof Error ? err.message : "Couldn't take the photo.");
@@ -187,7 +187,7 @@ function openSettings() {
   (form.elements.namedItem("title") as HTMLInputElement).value = settings.title;
   (form.elements.namedItem("subtitle") as HTMLInputElement).value = settings.subtitle;
   (form.elements.namedItem("countdown") as HTMLSelectElement).value = String(settings.countdown);
-  (form.elements.namedItem("rotateCounterClockwise") as HTMLInputElement).checked = settings.rotateCounterClockwise;
+  (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
   settingsDialog.showModal();
 }
 
@@ -202,7 +202,7 @@ settingsDialog.addEventListener("close", () => {
     title: (form.elements.namedItem("title") as HTMLInputElement).value.trim() || settings.title,
     subtitle: (form.elements.namedItem("subtitle") as HTMLInputElement).value.trim(),
     countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,
-    rotateCounterClockwise: (form.elements.namedItem("rotateCounterClockwise") as HTMLInputElement).checked,
+    rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
   };
   saveSettings(settings);
 });

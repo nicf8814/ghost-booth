@@ -1,4 +1,4 @@
-import { needsRotation } from "./layout";
+import { rotatedSize, type Rotation } from "./layout";
 
 export async function startCamera(video: HTMLVideoElement): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -24,21 +24,23 @@ export async function startCamera(video: HTMLVideoElement): Promise<MediaStream>
 
 /**
  * Grabs the current frame, un-mirrored (the preview is mirrored so guests see
- * themselves like a mirror; the print shows them the way everyone else does)
- * and turned upright if the iPad hands back a sideways frame.
+ * themselves like a mirror; the print shows them the way everyone else does).
+ * Safari already hands back an upright frame, so no rotation by default.
+ * Settings can force a 90 degree turn if a device ever comes out sideways.
  */
-export function grabFrame(video: HTMLVideoElement, rotateCounterClockwise: boolean): HTMLCanvasElement {
+export function grabFrame(video: HTMLVideoElement, rotation: Rotation): HTMLCanvasElement {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (!vw || !vh) throw new Error("Camera isn't ready yet");
 
-  const rotate = needsRotation(vw, vh, window.innerWidth, window.innerHeight);
+  const size = rotatedSize(vw, vh, rotation);
   const canvas = document.createElement("canvas");
-  canvas.width = rotate ? vh : vw;
-  canvas.height = rotate ? vw : vh;
+  canvas.width = size.w;
+  canvas.height = size.h;
   const ctx = canvas.getContext("2d")!;
   ctx.translate(canvas.width / 2, canvas.height / 2);
-  if (rotate) ctx.rotate(rotateCounterClockwise ? -Math.PI / 2 : Math.PI / 2);
+  if (rotation === "cw") ctx.rotate(Math.PI / 2);
+  if (rotation === "ccw") ctx.rotate(-Math.PI / 2);
   ctx.drawImage(video, -vw / 2, -vh / 2, vw, vh);
   return canvas;
 }

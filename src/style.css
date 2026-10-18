@@ -212,10 +212,10 @@ body {
 
 #result {
   display: block;
-  flex: 1 1 auto;
-  min-height: 0;
+  width: auto;
+  height: auto;
   max-width: 100%;
-  object-fit: contain;
+  max-height: calc(100dvh - 200px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   border-radius: 14px;
   box-shadow:
     0 0 0 2px rgba(255, 122, 26, 0.35),
@@ -230,8 +230,21 @@ body {
 
 .actions {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex: 0 0 auto;
+  width: 100%;
+  max-width: 640px;
+}
+
+.actions .pill {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 20px 12px;
+}
+
+.actions .pill.primary {
+  min-width: 0;
+  flex-grow: 1.4;
 }
 
 .pill {

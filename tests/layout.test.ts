@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CAPTION, PHOTO, PRINT_H, PRINT_W, SAFE, coverCrop, needsRotation } from "../src/layout";
+import { CAPTION, PHOTO, PRINT_H, PRINT_W, SAFE, coverCrop, rotatedSize } from "../src/layout";
 
 describe("print layout", () => {
   it("is 2:3 portrait for the Kodak 2x3 paper", () => {
@@ -32,12 +32,12 @@ describe("coverCrop", () => {
   });
 });
 
-describe("needsRotation", () => {
-  it("rotates a landscape frame on a portrait screen", () => {
-    expect(needsRotation(1920, 1440, 820, 1180)).toBe(true);
+describe("rotatedSize", () => {
+  it("leaves the frame alone by default", () => {
+    expect(rotatedSize(1440, 1920, "none")).toEqual({ w: 1440, h: 1920 });
   });
-  it("leaves a matching frame alone", () => {
-    expect(needsRotation(1440, 1920, 820, 1180)).toBe(false);
-    expect(needsRotation(1920, 1440, 1180, 820)).toBe(false);
+  it("swaps width and height when turning", () => {
+    expect(rotatedSize(1920, 1440, "cw")).toEqual({ w: 1440, h: 1920 });
+    expect(rotatedSize(1920, 1440, "ccw")).toEqual({ w: 1440, h: 1920 });
   });
 });
