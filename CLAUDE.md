@@ -20,7 +20,7 @@ src/ghost.ts:
 - nic-cutout.png: Nic's face, small, peeking in from the left edge.
 - ghost-bride.png: a bride photo Nic supplied (Oct 24), cut out with rembg
   and cropped head through the full bouquet. Stands upright (no tilt) along the
-  right edge, far enough in that the whole bouquet shows (Nic asked for both).
+  right edge with about a quarter of her off the edge (Nic asked for both).
 - victorian-man.png / victorian-woman.png: an AI-made Victorian couple Nic
   created, cut out with rembg and split in two. They haunt the top-left and
   top-right corners so the middle stays clear for guests' faces (Nic asked
