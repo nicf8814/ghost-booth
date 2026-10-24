@@ -153,7 +153,7 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
   }
   if (name === "bride") {
     // peeking in from the right edge, upright, bouquet in view
-    const w = photo.w * 0.42;
+    const w = photo.w * 0.357; // 15% smaller than the original 0.42
     const h = (w * ghostH) / ghostW;
     return { x: photo.x + photo.w - w * 0.95, y: photo.y + photo.h * (withPair ? 0.36 : 0.12), w, h, tilt: 0 };
   }
