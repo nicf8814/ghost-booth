@@ -37,7 +37,7 @@ interface GhostStyle {
 
 const STYLES: Record<GhostName, GhostStyle> = {
   nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
-  bride: { url: "./cameo/ghost-bride.png", opacity: 0.6, fadeStart: 0.45, darkFade: 0.3 },
+  bride: { url: "./cameo/ghost-bride.png", opacity: 0.6, fadeStart: 0.85, darkFade: 0.1 },
   man: { url: "./cameo/victorian-man.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
   woman: { url: "./cameo/victorian-woman.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
 };
@@ -152,10 +152,10 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     return { x: photo.x + photo.w - w * 0.9, y: photo.y + photo.h * 0.08, w, h, tilt: 0 };
   }
   if (name === "bride") {
-    // mirror of Nic: peeking in from the right edge
+    // peeking in from the right edge, upright, bouquet in view
     const w = photo.w * 0.42;
     const h = (w * ghostH) / ghostW;
-    return { x: photo.x + photo.w - w * 0.72, y: photo.y + photo.h * (withPair ? 0.42 : 0.14), w, h, tilt: -0.2 };
+    return { x: photo.x + photo.w - w * 0.95, y: photo.y + photo.h * (withPair ? 0.36 : 0.12), w, h, tilt: 0 };
   }
   // Nic: small head peeking in from the left edge
   const w = photo.w * 0.4;
