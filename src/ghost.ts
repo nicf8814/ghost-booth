@@ -38,8 +38,8 @@ interface GhostStyle {
 const STYLES: Record<GhostName, GhostStyle> = {
   nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
   bride: { url: "./cameo/ghost-bride.png", opacity: 0.6, fadeStart: 0.85, darkFade: 0.1 },
-  man: { url: "./cameo/victorian-man.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
-  woman: { url: "./cameo/victorian-woman.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
+  man: { url: "./cameo/victorian-man.png", opacity: 0.83, fadeStart: 0.4, darkFade: 0.7 },
+  woman: { url: "./cameo/victorian-woman.png", opacity: 0.83, fadeStart: 0.4, darkFade: 0.7 },
 };
 
 const cache = new Map<GhostName, Promise<HTMLCanvasElement | null>>();
