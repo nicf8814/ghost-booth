@@ -106,11 +106,12 @@ export function renderPrint(
   vig.addColorStop(1, "rgba(10,0,20,0.35)");
   ctx.fillStyle = vig;
   ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
-  // the pair first so a peeking Nic sits on top if all three are on
+  // the corner pair first so the edge peekers (Nic, the bride) sit on top
   const ghosts = text.ghosts ?? [];
   const withPair = ghosts.some((g) => g.name === "man");
-  for (const g of ghosts.filter((g) => g.name !== "nic")) drawGhost(ctx, g.name, g.canvas, PHOTO);
-  for (const g of ghosts.filter((g) => g.name === "nic")) drawGhost(ctx, g.name, g.canvas, PHOTO, withPair);
+  const peeks = (g: { name: GhostName }) => g.name === "nic" || g.name === "bride";
+  for (const g of ghosts.filter((g) => !peeks(g))) drawGhost(ctx, g.name, g.canvas, PHOTO);
+  for (const g of ghosts.filter(peeks)) drawGhost(ctx, g.name, g.canvas, PHOTO, withPair);
   ctx.restore();
 
   // Thin orange outline around the photo

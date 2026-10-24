@@ -15,15 +15,17 @@ Review auto-resets after 90s. Hold the title for 2s to open hidden settings
 (text on print and screen, countdown length, photo rotation, ghost cameo mode).
 
 ## Ghost cameo
-Two cutouts in public/cameo/, turned into see-through icy-blue ghosts by
+Cutouts in public/cameo/, turned into see-through icy-blue ghosts by
 src/ghost.ts:
 - nic-cutout.png: Nic's face, small, peeking in from the left edge.
+- ghost-bride.png: a bride photo Nic supplied (Oct 24), cut out with rembg
+  and cropped head to bouquet. Peeks in from the right edge, mirroring Nic.
 - victorian-man.png / victorian-woman.png: an AI-made Victorian couple Nic
   created, cut out with rembg and split in two. They haunt the top-left and
   top-right corners so the middle stays clear for guests' faces (Nic asked
   for this after they covered too much). Dark clothing fades away so faces
-  and collars glow. Nic's head moves lower when the pair is on.
-The review button cycles: none -> Nic -> the couple -> all three.
+  and collars glow. Nic and the bride move lower when the pair is on.
+The review button cycles: none -> Nic -> the bride -> the couple -> everyone.
 No cobweb on the frame (Nic asked to remove it). Settings
 modes: "toggle" (default), "random" (about half of photos get a random ghost
 choice; Nic plans to switch to this eventually), "off".

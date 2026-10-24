@@ -2,12 +2,24 @@
 // photo. Each ghost has its own look and spot in the frame.
 
 export type GhostMode = "off" | "toggle" | "random";
-export type GhostName = "nic" | "man" | "woman";
+export type GhostName = "nic" | "bride" | "man" | "woman";
 
 /** What the review button cycles through, in order. */
-export const GHOST_CHOICES: GhostName[][] = [[], ["nic"], ["man", "woman"], ["nic", "man", "woman"]];
+export const GHOST_CHOICES: GhostName[][] = [
+  [],
+  ["nic"],
+  ["bride"],
+  ["man", "woman"],
+  ["nic", "bride", "man", "woman"],
+];
 
-export const GHOST_LABELS = ["Add a ghost", "Ghost: Nic", "Ghost: the couple", "Ghosts: all three"];
+export const GHOST_LABELS = [
+  "Add a ghost",
+  "Ghost: Nic",
+  "Ghost: the bride",
+  "Ghost: the couple",
+  "Ghosts: everyone",
+];
 
 interface GhostStyle {
   url: string;
@@ -25,6 +37,7 @@ interface GhostStyle {
 
 const STYLES: Record<GhostName, GhostStyle> = {
   nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
+  bride: { url: "./cameo/ghost-bride.png", opacity: 0.6, fadeStart: 0.45, darkFade: 0.3 },
   man: { url: "./cameo/victorian-man.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
   woman: { url: "./cameo/victorian-woman.png", opacity: 0.72, fadeStart: 0.4, darkFade: 0.7 },
 };
@@ -124,7 +137,8 @@ type Rect = { x: number; y: number; w: number; h: number };
 /**
  * Where each ghost goes inside the photo area. The Victorian pair haunt the
  * top corners so the middle stays clear for guests' faces. Nic peeks in from
- * the left edge, lower down when the gentleman is already up in that corner.
+ * the left edge and the bride from the right edge, both lower down when the
+ * pair is already up in the corners.
  */
 export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number, withPair = false) {
   if (name === "man") {
@@ -136,6 +150,12 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     const w = photo.w * 0.3;
     const h = (w * ghostH) / ghostW;
     return { x: photo.x + photo.w - w * 0.9, y: photo.y + photo.h * 0.08, w, h, tilt: 0 };
+  }
+  if (name === "bride") {
+    // mirror of Nic: peeking in from the right edge
+    const w = photo.w * 0.42;
+    const h = (w * ghostH) / ghostW;
+    return { x: photo.x + photo.w - w * 0.72, y: photo.y + photo.h * (withPair ? 0.42 : 0.14), w, h, tilt: -0.2 };
   }
   // Nic: small head peeking in from the left edge
   const w = photo.w * 0.4;
@@ -156,7 +176,7 @@ export function drawGhost(
   ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
   ctx.rotate(p.tilt);
   ctx.shadowColor = "rgba(170, 215, 255, 0.85)";
-  ctx.shadowBlur = name === "nic" ? 60 : 45;
+  ctx.shadowBlur = name === "nic" || name === "bride" ? 60 : 45;
   ctx.drawImage(ghost, -p.w / 2, -p.h / 2, p.w, p.h);
   ctx.restore();
 }
