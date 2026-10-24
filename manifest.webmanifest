@@ -4,7 +4,7 @@
   "description": "Halloween human photobooth",
   "start_url": ".",
   "scope": ".",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#0b0a0f",
   "theme_color": "#0b0a0f",
