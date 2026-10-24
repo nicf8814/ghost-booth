@@ -40,7 +40,8 @@ navigator.share: they become junk items in the Shortcut.
 the Kodak app may trim edges. See src/layout.ts.
 
 ## iPad quirks handled
-- getUserMedia asks for a portrait-shaped stream (1440x1920 hint).
+- getUserMedia asks for a portrait-shaped stream (1440x1920 hint), capped at
+  30fps to keep the iPad cooler and save battery.
 - Safari returns upright frames; auto-rotation was removed after it turned an
   upright iPhone photo sideways. Settings has a manual "Photo rotation"
   override (Normal / Turn right / Turn left) if a device ever needs it.

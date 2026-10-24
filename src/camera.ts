@@ -13,6 +13,9 @@ export async function startCamera(video: HTMLVideoElement): Promise<MediaStream>
       facingMode: "user",
       width: { ideal: 1440 },
       height: { ideal: 1920 },
+      // 30fps is plenty for a preview and keeps the iPad cooler and the
+      // battery lasting longer on a long party night.
+      frameRate: { ideal: 30, max: 30 },
     },
   });
   video.srcObject = stream;

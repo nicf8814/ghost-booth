@@ -122,7 +122,9 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   box-shadow:
-    0 0 0 6px rgba(255, 122, 26, 0.25),
+    0 0 0 3px #0b0a0f,
+    0 0 0 8px rgba(255, 122, 26, 0.5),
+    0 0 40px rgba(255, 122, 26, 0.75),
     0 18px 40px rgba(0, 0, 0, 0.5);
   animation: breathe 2.6s ease-in-out infinite;
   cursor: pointer;
@@ -160,9 +162,19 @@ body {
   font-size: clamp(180px, 42vw, 420px);
   line-height: 1;
   color: #fff;
+  /* Dark outline plus orange glow so the number pops over a dim, noisy
+     party-light camera preview. */
+  -webkit-text-stroke: 6px #0b0a0f;
+  paint-order: stroke fill;
   text-shadow:
-    0 0 40px rgba(255, 122, 26, 0.9),
+    0 0 40px rgba(255, 122, 26, 0.95),
+    0 0 80px rgba(255, 122, 26, 0.6),
     0 8px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* Darken the camera a little during the countdown so the number reads */
+#app[data-screen="countdown"] .shade {
+  background-color: rgba(11, 10, 15, 0.35);
 }
 
 #count.tick {
@@ -253,9 +265,10 @@ body {
   min-width: 140px;
   padding: 20px 30px;
   border-radius: 999px;
-  border: 2px solid rgba(244, 240, 250, 0.35);
-  background: rgba(244, 240, 250, 0.08);
-  color: var(--ink);
+  border: 3px solid rgba(244, 240, 250, 0.85);
+  background: rgba(244, 240, 250, 0.14);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(244, 240, 250, 0.25);
   font: 800 clamp(18px, 2.8vw, 26px) / 1 var(--ui);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -267,7 +280,9 @@ body {
   border-color: transparent;
   background: linear-gradient(180deg, var(--orange), var(--orange-deep));
   color: #1a0d02;
-  box-shadow: 0 0 0 5px rgba(255, 122, 26, 0.22);
+  box-shadow:
+    0 0 0 5px rgba(255, 122, 26, 0.35),
+    0 0 32px rgba(255, 122, 26, 0.7);
 }
 
 .pill:active,
