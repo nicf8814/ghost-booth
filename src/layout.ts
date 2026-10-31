@@ -5,6 +5,9 @@
 export const PRINT_W = 1200;
 export const PRINT_H = 1800;
 
+/** Hi-res export: same framed photo, scaled so it is 3840 pixels tall (4K). */
+export const HD_SCALE = 3840 / PRINT_H;
+
 /**
  * Margin kept clear of anything important on every side. The Kodak app may
  * trim a little off the edges when it fits the image to the paper, so the

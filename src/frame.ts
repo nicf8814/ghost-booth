@@ -75,11 +75,15 @@ export function renderPrint(
   srcW: number,
   srcH: number,
   text: FrameText,
+  scale = 1,
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
-  canvas.width = PRINT_W;
-  canvas.height = PRINT_H;
+  canvas.width = Math.round(PRINT_W * scale);
+  canvas.height = Math.round(PRINT_H * scale);
   const ctx = canvas.getContext("2d")!;
+  // Everything below is drawn in 1200x1800 print coordinates; scale > 1 just
+  // renders the same picture with more pixels (the hi-res export).
+  ctx.scale(canvas.width / PRINT_W, canvas.height / PRINT_H);
   // The camera frame is now larger than the print, so downscale it carefully.
   ctx.imageSmoothingQuality = "high";
 
@@ -112,8 +116,8 @@ export function renderPrint(
   const ghosts = text.ghosts ?? [];
   const withPair = ghosts.some((g) => g.name === "man");
   const peeks = (g: { name: GhostName }) => g.name === "nic" || g.name === "bride";
-  for (const g of ghosts.filter((g) => !peeks(g))) drawGhost(ctx, g.name, g.canvas, PHOTO);
-  for (const g of ghosts.filter(peeks)) drawGhost(ctx, g.name, g.canvas, PHOTO, withPair);
+  for (const g of ghosts.filter((g) => !peeks(g))) drawGhost(ctx, g.name, g.canvas, PHOTO, false, scale);
+  for (const g of ghosts.filter(peeks)) drawGhost(ctx, g.name, g.canvas, PHOTO, withPair, scale);
   ctx.restore();
 
   // Thin orange outline around the photo
@@ -144,7 +148,7 @@ export function renderPrint(
 
   ctx.fillStyle = ORANGE;
   ctx.shadowColor = "rgba(255,122,26,0.55)";
-  ctx.shadowBlur = 24;
+  ctx.shadowBlur = 24 * scale;
   const lineH = size * 1.05;
   const firstY = centerY - ((lines.length - 1) * lineH) / 2;
   lines.forEach((line, i) => ctx.fillText(line, PRINT_W / 2, firstY + i * lineH));
@@ -160,12 +164,12 @@ export function renderPrint(
   return canvas;
 }
 
-export function canvasToJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
+export function canvasToJpeg(canvas: HTMLCanvasElement, quality = 0.92): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error("Could not encode photo"))),
       "image/jpeg",
-      0.92,
+      quality,
     );
   });
 }

@@ -6,6 +6,8 @@ export interface Settings {
   countdown: number;
   rotation: Rotation;
   ghost: GhostMode;
+  /** Show the "Save HD" button on the review screen. */
+  hd: "show" | "hide";
 }
 
 const KEY = "ghost-booth-settings-v4";
@@ -15,6 +17,7 @@ export const DEFAULTS: Settings = {
   countdown: 3,
   rotation: "none",
   ghost: "toggle",
+  hd: "show",
 };
 
 export function loadSettings(): Settings {

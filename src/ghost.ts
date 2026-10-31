@@ -170,13 +170,14 @@ export function drawGhost(
   ghost: HTMLCanvasElement,
   photo: Rect,
   withPair = false,
+  scale = 1,
 ) {
   const p = ghostPlacement(name, photo, ghost.width, ghost.height, withPair);
   ctx.save();
   ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
   ctx.rotate(p.tilt);
   ctx.shadowColor = "rgba(170, 215, 255, 0.85)";
-  ctx.shadowBlur = name === "nic" || name === "bride" ? 60 : 45;
+  ctx.shadowBlur = (name === "nic" || name === "bride" ? 60 : 45) * scale;
   ctx.drawImage(ghost, -p.w / 2, -p.h / 2, p.w, p.h);
   ctx.restore();
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CAPTION, PHOTO, PRINT_H, PRINT_W, SAFE, coverCrop, rotatedSize } from "../src/layout";
+import { CAPTION, HD_SCALE, PHOTO, PRINT_H, PRINT_W, SAFE, coverCrop, rotatedSize } from "../src/layout";
 
 describe("print layout", () => {
   it("is 2:3 portrait for the Kodak 2x3 paper", () => {
@@ -12,6 +12,13 @@ describe("print layout", () => {
     expect(CAPTION.top).toBe(PHOTO.y + PHOTO.h);
     expect(CAPTION.bottom).toBeLessThanOrEqual(PRINT_H - SAFE);
     expect(CAPTION.bottom - CAPTION.top).toBeGreaterThan(250);
+  });
+});
+
+describe("hi-res export", () => {
+  it("is 4K tall and keeps the 2:3 shape", () => {
+    expect(Math.round(PRINT_H * HD_SCALE)).toBe(3840);
+    expect(Math.round(PRINT_W * HD_SCALE)).toBe(2560);
   });
 });
 

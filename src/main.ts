@@ -5,6 +5,7 @@ import "./style.css";
 
 import { grabFrame, startCamera } from "./camera";
 import { canvasToJpeg, renderPrint } from "./frame";
+import { HD_SCALE } from "./layout";
 import { GHOST_CHOICES, GHOST_LABELS, loadGhost } from "./ghost";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 
@@ -29,6 +30,10 @@ let lastFrame: HTMLCanvasElement | null = null;
 let ghostIndex = 0; // index into GHOST_CHOICES
 const ghostBtn = $<HTMLButtonElement>("ghost");
 let busy = false;
+const hdBtn = $<HTMLButtonElement>("hd");
+// The 4K version is built in the background after each photo so the Save HD
+// tap can share it right away (iOS wants share() to follow the tap closely).
+let hdFile: Promise<File> | null = null;
 
 // Timer choices on the landing page. The settings value is just the default.
 const TIMER_CHOICES = [3, 7, 10];
@@ -64,6 +69,7 @@ function reset() {
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = null;
   photoFile = null;
+  hdFile = null;
   lastFrame = null;
   result.removeAttribute("src");
   busy = false;
@@ -166,7 +172,9 @@ async function renderResult() {
     const canvas = await loadGhost(name);
     if (canvas) ghosts.push({ name, canvas });
   }
-  const print = renderPrint(lastFrame, lastFrame.width, lastFrame.height, { title: settings.title, ghosts });
+  const frame = lastFrame;
+  const text = { title: settings.title, ghosts };
+  const print = renderPrint(frame, frame.width, frame.height, text);
   const blob = await canvasToJpeg(print);
   // Share only the file. Extra title/text fields arrive in the share sheet as
   // separate items and the "Print to Kodak" shortcut would save them as junk.
@@ -174,6 +182,23 @@ async function renderResult() {
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(blob);
   result.src = photoUrl;
+  // Build the 4K copy while the guest looks at the preview.
+  hdBtn.hidden = settings.hd !== "show";
+  hdBtn.disabled = false;
+  hdFile = null;
+  if (settings.hd === "show") {
+    const mine = new Promise<File>((resolve, reject) => {
+      window.setTimeout(() => {
+        const big = renderPrint(frame, frame.width, frame.height, text, HD_SCALE);
+        canvasToJpeg(big, 0.95).then(
+          (b) => resolve(new File([b], `booth-hd-${Date.now()}.jpg`, { type: "image/jpeg" })),
+          reject,
+        );
+      }, 50);
+    });
+    mine.catch(() => undefined);
+    hdFile = mine;
+  }
   ghostBtn.hidden = settings.ghost !== "toggle";
   ghostBtn.setAttribute("aria-pressed", String(ghostIndex > 0));
   ghostBtn.querySelector("span")!.textContent = GHOST_LABELS[ghostIndex];
@@ -217,6 +242,32 @@ async function printPhoto() {
   window.setTimeout(reset, SENT_SHOW_MS);
 }
 
+async function saveHd() {
+  const pending = hdFile;
+  if (!pending) return;
+  hdBtn.disabled = true;
+  try {
+    const file = await pending;
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] });
+    } else {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    }
+  } catch (err) {
+    if (!(err instanceof DOMException && err.name === "AbortError")) {
+      showError("Couldn't save the HD photo. Try again.");
+      return;
+    }
+  }
+  hdBtn.disabled = false;
+  show("review"); // someone is still here, restart the idle timer
+}
+
 // ---------- Hidden settings (press and hold the title for 2 seconds) ----------
 
 function openSettings() {
@@ -225,6 +276,7 @@ function openSettings() {
   (form.elements.namedItem("countdown") as HTMLSelectElement).value = String(settings.countdown);
   (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
   (form.elements.namedItem("ghost") as HTMLSelectElement).value = settings.ghost;
+  (form.elements.namedItem("hd") as HTMLSelectElement).value = settings.hd;
   const info = $<HTMLParagraphElement>("cam-info");
   info.textContent = video.videoWidth
     ? `Camera is sending ${video.videoWidth} x ${video.videoHeight}`
@@ -243,6 +295,7 @@ settingsDialog.addEventListener("close", () => {
     title: (form.elements.namedItem("title") as HTMLInputElement).value.trim() || settings.title,
     countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,    rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
     ghost: (form.elements.namedItem("ghost") as HTMLSelectElement).value as Settings["ghost"],
+    hd: (form.elements.namedItem("hd") as HTMLSelectElement).value as Settings["hd"],
   };
   saveSettings(settings);
   if (TIMER_CHOICES.includes(settings.countdown)) setTimer(settings.countdown);
@@ -282,6 +335,7 @@ $("retake").addEventListener("click", () => {
   takePhoto();
 });
 $("print").addEventListener("click", printPhoto);
+hdBtn.addEventListener("click", saveHd);
 ghostBtn.addEventListener("click", async () => {
   if (busy) return;
   busy = true;
