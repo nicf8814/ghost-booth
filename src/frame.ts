@@ -1,13 +1,15 @@
 import { drawGhost, type GhostName } from "./ghost";
-import { CAPTION, PHOTO, PRINT_H, PRINT_W, coverCrop } from "./layout";
+import { FRAMES, drawFullPrint, type LoadedFrame } from "./frames";
+import { PRINT_H, PRINT_W, coverCrop } from "./layout";
 
 export const ORANGE = "#ff7a1a";
-const BG = "#0e0c12";
 
 export interface FrameText {
   title: string;
   /** Pre-processed ghost cameos to drop into the photo. */
   ghosts?: { name: GhostName; canvas: HTMLCanvasElement }[];
+  /** Border style; the classic dark frame when left out. */
+  frame?: LoadedFrame;
 }
 
 /** Splits text into two lines of roughly equal length at a space. */
@@ -87,17 +89,24 @@ export function renderPrint(
   // The camera frame is now larger than the print, so downscale it carefully.
   ctx.imageSmoothingQuality = "high";
 
-  // Background with a soft purple glow behind the caption
-  ctx.fillStyle = BG;
+  const frame = text.frame ?? { id: "classic" as const, spec: FRAMES.classic };
+  const spec = frame.spec;
+  const PHOTO = spec.photo;
+
+  // Background (classic: dark with a soft purple glow behind the caption)
+  ctx.fillStyle = spec.bg;
   ctx.fillRect(0, 0, PRINT_W, PRINT_H);
-  const glow = ctx.createRadialGradient(PRINT_W / 2, PRINT_H, 50, PRINT_W / 2, PRINT_H, 700);
-  glow.addColorStop(0, "rgba(120,60,170,0.35)");
-  glow.addColorStop(1, "rgba(120,60,170,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, PRINT_W, PRINT_H);
+  if (frame.bgImage) drawFullPrint(ctx, frame.bgImage);
+  if (spec.glow) {
+    const glow = ctx.createRadialGradient(PRINT_W / 2, PRINT_H, 50, PRINT_W / 2, PRINT_H, 700);
+    glow.addColorStop(0, "rgba(120,60,170,0.35)");
+    glow.addColorStop(1, "rgba(120,60,170,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, PRINT_W, PRINT_H);
+  }
 
   // Photo
-  const radius = 28;
+  const radius = spec.outline.radius;
   const crop = coverCrop(srcW, srcH, PHOTO.w, PHOTO.h);
   ctx.save();
   roundRectPath(ctx, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h, radius);
@@ -120,17 +129,20 @@ export function renderPrint(
   for (const g of ghosts.filter(peeks)) drawGhost(ctx, g.name, g.canvas, PHOTO, withPair, scale);
   ctx.restore();
 
-  // Thin orange outline around the photo
+  // Thin outline around the photo
   ctx.save();
-  ctx.strokeStyle = ORANGE;
-  ctx.lineWidth = 5;
+  ctx.strokeStyle = spec.outline.color;
+  ctx.lineWidth = spec.outline.width;
   roundRectPath(ctx, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h, radius);
   ctx.stroke();
   ctx.restore();
 
+  // Ornaments go on top of the photo so the corners can overlap it.
+  if (frame.overlay) drawFullPrint(ctx, frame.overlay);
+
   // Caption: one spooky line, or two balanced lines if it won't fit big
-  const bandH = CAPTION.bottom - CAPTION.top;
-  const centerY = CAPTION.top + bandH * 0.5;
+  const bandH = spec.captionBottom - spec.captionTop;
+  const centerY = spec.captionTop + bandH * 0.5;
   const maxW = PHOTO.w - 320;
   const fontAt = (px: number) => `${px}px Creepster, Impact, sans-serif`;
   ctx.textAlign = "center";
@@ -146,9 +158,11 @@ export function renderPrint(
     ctx.font = fontAt(size);
   }
 
-  ctx.fillStyle = ORANGE;
-  ctx.shadowColor = "rgba(255,122,26,0.55)";
-  ctx.shadowBlur = 24 * scale;
+  ctx.fillStyle = spec.textColor;
+  if (spec.glow) {
+    ctx.shadowColor = "rgba(255,122,26,0.55)";
+    ctx.shadowBlur = 24 * scale;
+  }
   const lineH = size * 1.05;
   const firstY = centerY - ((lines.length - 1) * lineH) / 2;
   lines.forEach((line, i) => ctx.fillText(line, PRINT_W / 2, firstY + i * lineH));
@@ -156,10 +170,12 @@ export function renderPrint(
   const titleY = centerY;
 
   // Bats flanking the title
-  const batColor = "#e9e3f2";
-  drawBat(ctx, PHOTO.x + 70, titleY - 40, 110, -0.25, batColor);
-  drawBat(ctx, PHOTO.x + 150, titleY - 95, 62, 0.15, batColor);
-  drawBat(ctx, PHOTO.x + PHOTO.w - 70, titleY - 30, 96, 0.3, batColor);
+  if (spec.bats) {
+    const batColor = "#e9e3f2";
+    drawBat(ctx, PHOTO.x + 70, titleY - 40, 110, -0.25, batColor);
+    drawBat(ctx, PHOTO.x + 150, titleY - 95, 62, 0.15, batColor);
+    drawBat(ctx, PHOTO.x + PHOTO.w - 70, titleY - 30, 96, 0.3, batColor);
+  }
 
   return canvas;
 }

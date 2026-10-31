@@ -1,3 +1,4 @@
+import type { FrameId } from "./frames";
 import type { GhostMode } from "./ghost";
 import type { Rotation } from "./layout";
 
@@ -8,6 +9,8 @@ export interface Settings {
   ghost: GhostMode;
   /** Show the "Save HD" button on the review screen. */
   hd: "show" | "hide";
+  /** Border style around the photo. */
+  frame: FrameId;
 }
 
 const KEY = "ghost-booth-settings-v4";
@@ -18,6 +21,7 @@ export const DEFAULTS: Settings = {
   rotation: "none",
   ghost: "toggle",
   hd: "show",
+  frame: "classic",
 };
 
 export function loadSettings(): Settings {

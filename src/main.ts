@@ -5,6 +5,7 @@ import "./style.css";
 
 import { grabFrame, startCamera } from "./camera";
 import { canvasToJpeg, renderPrint } from "./frame";
+import { loadFrame } from "./frames";
 import { HD_SCALE } from "./layout";
 import { GHOST_CHOICES, GHOST_LABELS, loadGhost } from "./ghost";
 import { loadSettings, saveSettings, type Settings } from "./settings";
@@ -173,7 +174,7 @@ async function renderResult() {
     if (canvas) ghosts.push({ name, canvas });
   }
   const frame = lastFrame;
-  const text = { title: settings.title, ghosts };
+  const text = { title: settings.title, ghosts, frame: await loadFrame(settings.frame) };
   const print = renderPrint(frame, frame.width, frame.height, text);
   const blob = await canvasToJpeg(print);
   // Share only the file. Extra title/text fields arrive in the share sheet as
@@ -277,6 +278,7 @@ function openSettings() {
   (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
   (form.elements.namedItem("ghost") as HTMLSelectElement).value = settings.ghost;
   (form.elements.namedItem("hd") as HTMLSelectElement).value = settings.hd;
+  (form.elements.namedItem("frame") as HTMLSelectElement).value = settings.frame;
   const info = $<HTMLParagraphElement>("cam-info");
   info.textContent = video.videoWidth
     ? `Camera is sending ${video.videoWidth} x ${video.videoHeight}`
@@ -296,9 +298,11 @@ settingsDialog.addEventListener("close", () => {
     countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,    rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
     ghost: (form.elements.namedItem("ghost") as HTMLSelectElement).value as Settings["ghost"],
     hd: (form.elements.namedItem("hd") as HTMLSelectElement).value as Settings["hd"],
+    frame: (form.elements.namedItem("frame") as HTMLSelectElement).value as Settings["frame"],
   };
   saveSettings(settings);
   if (TIMER_CHOICES.includes(settings.countdown)) setTimer(settings.countdown);
+  loadFrame(settings.frame); // warm up so the next photo isn't delayed
   showTitle();
 });
 
@@ -353,6 +357,7 @@ $("retry").addEventListener("click", () => {
 });
 
 ensureCamera().catch((err) => showError(cameraErrorMessage(err)));
+loadFrame(settings.frame); // warm up
 for (const names of GHOST_CHOICES) for (const n of names) loadGhost(n); // warm up
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {

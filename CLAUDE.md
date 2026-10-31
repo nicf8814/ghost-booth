@@ -31,6 +31,16 @@ No cobweb on the frame (Nic asked to remove it). Settings
 modes: "toggle" (default), "random" (about half of photos get a random ghost
 choice; Nic plans to switch to this eventually), "off".
 
+## Photo borders
+Chosen in hidden settings ("Photo border"); the default is Classic. Styles live
+in src/frames.ts: classic (dark, orange outline, bats), parchment (texture plus
+black ink ornaments) and filigree (dark linework on cream). Pictures are in
+public/frames/ (parchment.jpg, parchment-ink.png, filigree.png), all 0.707 wide
+to tall and stretched slightly to the 2:3 print. The ornament pictures are drawn
+OVER the photo so corners can overlap it. To move the photo or caption inside a
+border, edit that style's `photo`, `captionTop` and `captionBottom` in frames.ts
+(1200x1800 print coordinates). The HD copy reuses the same border.
+
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot
 reach it directly (no Web Bluetooth, no AirPrint). Print opens the iOS share
