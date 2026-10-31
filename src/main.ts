@@ -5,7 +5,7 @@ import "./style.css";
 
 import { grabFrame, startCamera } from "./camera";
 import { canvasToJpeg, renderPrint } from "./frame";
-import { FRAME_IDS, loadFrame, type FrameId } from "./frames";
+import { loadFrame } from "./frames";
 import { HD_SCALE } from "./layout";
 import { GHOST_CHOICES, GHOST_LABELS, loadGhost } from "./ghost";
 import { loadSettings, saveSettings, type Settings } from "./settings";
@@ -36,9 +36,6 @@ const hdBtn = $<HTMLButtonElement>("hd");
 // tap can share it right away (iOS wants share() to follow the tap closely).
 let hdFile: Promise<File> | null = null;
 let hdToken = 0; // lets a newer render cancel an older HD render that hasn't started
-let frameId: FrameId = settings.frame; // border for the current photo
-const framePicker = $<HTMLDivElement>("frame-picker");
-const frameChips = Array.from(document.querySelectorAll<HTMLButtonElement>(".frame-chip"));
 
 // Timer choices on the landing page. The settings value is just the default.
 const TIMER_CHOICES = [3, 7, 10];
@@ -159,7 +156,6 @@ async function takePhoto() {
   flash.classList.add("go");
 
   lastFrame = frame;
-  frameId = settings.frame;
   ghostIndex =
     settings.ghost === "random" && Math.random() < 0.5
       ? 1 + Math.floor(Math.random() * (GHOST_CHOICES.length - 1))
@@ -179,7 +175,7 @@ async function renderResult() {
     if (canvas) ghosts.push({ name, canvas });
   }
   const frame = lastFrame;
-  const text = { title: settings.title, ghosts, frame: await loadFrame(frameId), edges: settings.edges };
+  const text = { title: settings.title, ghosts, frame: await loadFrame(), edges: settings.edges };
   const print = renderPrint(frame, frame.width, frame.height, text);
   const blob = await canvasToJpeg(print);
   // Share only the file. Extra title/text fields arrive in the share sheet as
@@ -207,8 +203,6 @@ async function renderResult() {
     mine.catch(() => undefined);
     hdFile = mine;
   }
-  framePicker.hidden = settings.framePicker !== "show";
-  for (const chip of frameChips) chip.setAttribute("aria-checked", String(chip.dataset.frame === frameId));
   ghostBtn.hidden = settings.ghost !== "toggle";
   ghostBtn.setAttribute("aria-pressed", String(ghostIndex > 0));
   ghostBtn.querySelector("span")!.textContent = GHOST_LABELS[ghostIndex];
@@ -287,9 +281,7 @@ function openSettings() {
   (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
   (form.elements.namedItem("ghost") as HTMLSelectElement).value = settings.ghost;
   (form.elements.namedItem("hd") as HTMLSelectElement).value = settings.hd;
-  (form.elements.namedItem("frame") as HTMLSelectElement).value = settings.frame;
   (form.elements.namedItem("edges") as HTMLSelectElement).value = settings.edges;
-  (form.elements.namedItem("framePicker") as HTMLSelectElement).value = settings.framePicker;
   const info = $<HTMLParagraphElement>("cam-info");
   info.textContent = video.videoWidth
     ? `Camera is sending ${video.videoWidth} x ${video.videoHeight}`
@@ -309,13 +301,10 @@ settingsDialog.addEventListener("close", () => {
     countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,    rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
     ghost: (form.elements.namedItem("ghost") as HTMLSelectElement).value as Settings["ghost"],
     hd: (form.elements.namedItem("hd") as HTMLSelectElement).value as Settings["hd"],
-    frame: (form.elements.namedItem("frame") as HTMLSelectElement).value as Settings["frame"],
     edges: (form.elements.namedItem("edges") as HTMLSelectElement).value as Settings["edges"],
-    framePicker: (form.elements.namedItem("framePicker") as HTMLSelectElement).value as Settings["framePicker"],
   };
   saveSettings(settings);
   if (TIMER_CHOICES.includes(settings.countdown)) setTimer(settings.countdown);
-  loadFrame(settings.frame); // warm up so the next photo isn't delayed
   showTitle();
 });
 
@@ -354,17 +343,6 @@ $("retake").addEventListener("click", () => {
 });
 $("print").addEventListener("click", printPhoto);
 hdBtn.addEventListener("click", saveHd);
-for (const chip of frameChips) {
-  chip.addEventListener("click", async () => {
-    const next = chip.dataset.frame as FrameId;
-    if (busy || next === frameId || !FRAME_IDS.includes(next)) return;
-    busy = true;
-    frameId = next;
-    await renderResult();
-    busy = false;
-    show("review"); // someone is still here, restart the idle timer
-  });
-}
 ghostBtn.addEventListener("click", async () => {
   if (busy) return;
   busy = true;
@@ -381,7 +359,7 @@ $("retry").addEventListener("click", () => {
 });
 
 ensureCamera().catch((err) => showError(cameraErrorMessage(err)));
-for (const id of FRAME_IDS) loadFrame(id); // warm up so switching borders is instant
+loadFrame(); // warm up
 for (const names of GHOST_CHOICES) for (const n of names) loadGhost(n); // warm up
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {

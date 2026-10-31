@@ -11,7 +11,7 @@ the `backup-before-simple-rebuild` branch. Don't bring features back unless aske
 ## Flow
 attract (live mirrored front camera, timer chips 3/7/10s, tap anywhere else to start) -> countdown -> review
 (framed photo; Print / Retake / Done, plus Save HD which shares a 2560x3840 copy of the same framed photo, pre-rendered in the background; can be hidden in settings) -> sent -> back to attract.
-After a photo, guests can pick the border (Classic / Parchment / Filigree) on the review screen; each new photo starts on the border chosen in settings, and the picker can be hidden in settings. Review auto-resets after 90s. Tap the small gear (top right of the landing screen) or hold the title for 2s to open settings
+Review auto-resets after 90s. Tap the small gear (top right of the landing screen) or hold the title for 2s to open settings
 (text on print and screen, default timer, photo rotation, ghost cameo mode).
 
 ## Ghost cameo
@@ -31,18 +31,17 @@ No cobweb on the frame (Nic asked to remove it). Settings
 modes: "toggle" (default), "random" (about half of photos get a random ghost
 choice; Nic plans to switch to this eventually), "off".
 
-## Photo borders
-Chosen in hidden settings ("Photo border"); the default is Classic. Styles live
-in src/frames.ts: classic (dark, orange outline, bats), parchment (texture plus
-black ink ornaments) and filigree (dark linework on cream). Pictures are in
-public/frames/ (parchment.jpg, parchment-ink.png, filigree.png), all 0.707 wide
-to tall and stretched slightly to the 2:3 print. The ornament pictures are drawn
-OVER the photo so corners can overlap it. To move the photo or caption inside a
-border, edit that style's `photo`, `captionTop` and `captionBottom` in frames.ts
-(1200x1800 print coordinates). The HD copy reuses the same border.
-"Photo edges" (soft is the default, sharp keeps the thin outline) only affects the
-Victorian styles: soft draws the photo and ghosts on their own layer, fades the
-layer's edges over `soft.feather` px, and uses `soft.photo` as the rectangle.
+## Photo border
+There is one border: dark filigree linework on cream (public/frames/filigree.png,
+0.707 wide to tall, stretched slightly to the 2:3 print). Nic compared three
+styles on Oct 31 (the original dark/orange frame with bats, a Victorian
+parchment, and this one), picked filigree, and asked for the others to be removed.
+They are still in git history (commit dcae121 and earlier) if ever wanted back.
+The ornament picture is drawn OVER the photo so its corners overlap it. Photo and
+caption positions are in src/frames.ts (1200x1800 print coordinates). The
+"Photo edges" setting: soft (default) fades the photo's edges into the paper
+(`soft.photo`, `soft.feather`); sharp keeps a thin outline (`photo`). The HD copy
+uses the same border. Old saved settings with `frame` or `framePicker` are ignored.
 
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot
@@ -52,8 +51,9 @@ Sheet) saves it and opens the Kodak app. Never add title/text to
 navigator.share: they become junk items in the Shortcut.
 
 ## Print layout
-1200x1800 JPEG (2:3 portrait). Keep everything inside the 70px safe margin;
-the Kodak app may trim edges. See src/layout.ts.
+1200x1800 JPEG (2:3 portrait). The Kodak app may trim a little off the edges;
+the filigree corner ornaments reach close to the edge, so check a real print for
+clipped corners. See src/layout.ts and src/frames.ts.
 
 ## iPad quirks handled
 - getUserMedia asks for a portrait-shaped stream (tries strict 3:4 sizes 2160x2880, then 1920x2560, then 1440x1920; a loose request once returned a near-square 2160x2316 frame that cropped 18% off the sides; settings shows what it actually sent), capped at

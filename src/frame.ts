@@ -1,14 +1,12 @@
 import { drawGhost, type GhostName } from "./ghost";
-import { FRAMES, drawFullPrint, type LoadedFrame } from "./frames";
+import { FRAME, drawFullPrint, type LoadedFrame } from "./frames";
 import { PRINT_H, PRINT_W, coverCrop } from "./layout";
-
-export const ORANGE = "#ff7a1a";
 
 export interface FrameText {
   title: string;
   /** Pre-processed ghost cameos to drop into the photo. */
   ghosts?: { name: GhostName; canvas: HTMLCanvasElement }[];
-  /** Border style; the classic dark frame when left out. */
+  /** The border pictures; the plain cream frame without ornaments when left out. */
   frame?: LoadedFrame;
   /** "soft" fades the photo into the border (Victorian styles); default soft. */
   edges?: "soft" | "sharp";
@@ -28,36 +26,6 @@ export function splitBalanced(text: string): string[] {
     }
   }
   return [words.slice(0, best).join(" "), words.slice(best).join(" ")];
-}
-
-/** Draws a little bat silhouette centered at (x, y). */
-function drawBat(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, tilt: number, color: string) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(tilt);
-  ctx.scale(size / 100, size / 100);
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  // Body and ears
-  ctx.moveTo(0, -14);
-  ctx.lineTo(-6, -24);
-  ctx.lineTo(-8, -12);
-  // Left wing with scalloped edge
-  ctx.quadraticCurveTo(-30, -26, -50, -8);
-  ctx.quadraticCurveTo(-42, -4, -38, 6);
-  ctx.quadraticCurveTo(-30, -2, -24, 8);
-  ctx.quadraticCurveTo(-16, 0, -10, 12);
-  ctx.quadraticCurveTo(-4, 8, 0, 18);
-  // Right wing (mirror)
-  ctx.quadraticCurveTo(4, 8, 10, 12);
-  ctx.quadraticCurveTo(16, 0, 24, 8);
-  ctx.quadraticCurveTo(30, -2, 38, 6);
-  ctx.quadraticCurveTo(42, -4, 50, -8);
-  ctx.quadraticCurveTo(30, -26, 8, -12);
-  ctx.lineTo(6, -24);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
 }
 
 function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -101,8 +69,8 @@ function fadeEdges(ctx: CanvasRenderingContext2D, r: { x: number; y: number; w: 
 }
 
 /**
- * Renders the finished print: the photo in a dark frame with a light
- * Halloween touch (a few bats, spooky title).
+ * Renders the finished print: the photo in the filigree border with the
+ * spooky title below it.
  */
 export function renderPrint(
   source: CanvasImageSource,
@@ -121,22 +89,14 @@ export function renderPrint(
   // The camera frame is now larger than the print, so downscale it carefully.
   ctx.imageSmoothingQuality = "high";
 
-  const frame = text.frame ?? { id: "classic" as const, spec: FRAMES.classic };
+  const frame = text.frame ?? { spec: FRAME };
   const spec = frame.spec;
-  const soft = !!spec.soft && text.edges !== "sharp";
-  const PHOTO = soft ? spec.soft!.photo : spec.photo;
+  const soft = text.edges !== "sharp";
+  const PHOTO = soft ? spec.soft.photo : spec.photo;
 
-  // Background (classic: dark with a soft purple glow behind the caption)
+  // Background: cream paper
   ctx.fillStyle = spec.bg;
   ctx.fillRect(0, 0, PRINT_W, PRINT_H);
-  if (frame.bgImage) drawFullPrint(ctx, frame.bgImage);
-  if (spec.glow) {
-    const glow = ctx.createRadialGradient(PRINT_W / 2, PRINT_H, 50, PRINT_W / 2, PRINT_H, 700);
-    glow.addColorStop(0, "rgba(120,60,170,0.35)");
-    glow.addColorStop(1, "rgba(120,60,170,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, PRINT_W, PRINT_H);
-  }
 
   // Photo
   const radius = spec.outline.radius;
@@ -166,7 +126,7 @@ export function renderPrint(
     lctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
     drawGhosts(lctx); // ghosts fade with the photo, so edge peekers melt in too
     lctx.restore();
-    fadeEdges(lctx, PHOTO, spec.soft!.feather);
+    fadeEdges(lctx, PHOTO, spec.soft.feather);
     ctx.drawImage(layer, 0, 0, PRINT_W, PRINT_H);
   } else {
     ctx.save();
@@ -216,23 +176,9 @@ export function renderPrint(
   }
 
   ctx.fillStyle = spec.textColor;
-  if (spec.glow) {
-    ctx.shadowColor = "rgba(255,122,26,0.55)";
-    ctx.shadowBlur = 24 * scale;
-  }
   const lineH = size * 1.05;
   const firstY = centerY - ((lines.length - 1) * lineH) / 2;
   lines.forEach((line, i) => ctx.fillText(line, PRINT_W / 2, firstY + i * lineH));
-  ctx.shadowBlur = 0;
-  const titleY = centerY;
-
-  // Bats flanking the title
-  if (spec.bats) {
-    const batColor = "#e9e3f2";
-    drawBat(ctx, PHOTO.x + 70, titleY - 40, 110, -0.25, batColor);
-    drawBat(ctx, PHOTO.x + 150, titleY - 95, 62, 0.15, batColor);
-    drawBat(ctx, PHOTO.x + PHOTO.w - 70, titleY - 30, 96, 0.3, batColor);
-  }
 
   return canvas;
 }

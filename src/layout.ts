@@ -8,27 +8,6 @@ export const PRINT_H = 1800;
 /** Hi-res export: same framed photo, scaled so it is 3840 pixels tall (4K). */
 export const HD_SCALE = 3840 / PRINT_H;
 
-/**
- * Margin kept clear of anything important on every side. The Kodak app may
- * trim a little off the edges when it fits the image to the paper, so the
- * photo and caption stay well inside this.
- */
-export const SAFE = 70;
-
-/** Where the photo sits on the print. */
-export const PHOTO = {
-  x: SAFE,
-  y: SAFE,
-  w: PRINT_W - SAFE * 2,
-  h: 1380,
-};
-
-/** Caption band below the photo. */
-export const CAPTION = {
-  top: PHOTO.y + PHOTO.h,
-  bottom: PRINT_H - SAFE,
-};
-
 export interface Rect {
   x: number;
   y: number;

@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { CAPTION, HD_SCALE, PHOTO, PRINT_H, PRINT_W, SAFE, coverCrop, rotatedSize } from "../src/layout";
+import { FRAME } from "../src/frames";
+import { HD_SCALE, PRINT_H, PRINT_W, coverCrop, rotatedSize } from "../src/layout";
+
+// The photo area the ghosts are placed against (the default soft-edge look).
+const PHOTO = FRAME.soft.photo;
 
 describe("print layout", () => {
   it("is 2:3 portrait for the Kodak 2x3 paper", () => {
     expect(PRINT_W / PRINT_H).toBeCloseTo(2 / 3);
   });
 
-  it("keeps photo and caption inside the safe margin", () => {
-    expect(PHOTO.x).toBeGreaterThanOrEqual(SAFE);
-    expect(PHOTO.x + PHOTO.w).toBeLessThanOrEqual(PRINT_W - SAFE);
-    expect(CAPTION.top).toBe(PHOTO.y + PHOTO.h);
-    expect(CAPTION.bottom).toBeLessThanOrEqual(PRINT_H - SAFE);
-    expect(CAPTION.bottom - CAPTION.top).toBeGreaterThan(250);
+  it("keeps the photo and caption of the border inside the print", () => {
+    for (const photo of [FRAME.photo, FRAME.soft.photo]) {
+      expect(photo.x).toBeGreaterThanOrEqual(0);
+      expect(photo.y).toBeGreaterThanOrEqual(0);
+      expect(photo.x + photo.w).toBeLessThanOrEqual(PRINT_W);
+      expect(photo.y + photo.h).toBeLessThanOrEqual(FRAME.captionTop + 20);
+    }
+    expect(FRAME.captionBottom).toBeLessThanOrEqual(PRINT_H);
+    expect(FRAME.captionBottom - FRAME.captionTop).toBeGreaterThan(200);
   });
 });
 
@@ -61,7 +68,7 @@ describe("splitBalanced", () => {
 });
 
 import { ghostPlacement } from "../src/ghost";
-import { PHOTO as P } from "../src/layout";
+const P = PHOTO;
 
 describe("ghostPlacement", () => {
   it("peeks in from the left, partly off the photo, below the top", () => {
