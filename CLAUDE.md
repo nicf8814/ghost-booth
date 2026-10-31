@@ -26,6 +26,11 @@ src/ghost.ts:
   top-right corners so the middle stays clear for guests' faces (Nic asked
   for this after they covered too much). Dark clothing fades away so faces
   and collars glow. Nic and the bride move lower when the pair is on.
+Contrast: ghosts adapt to the wall behind them. On a bright wall (a pale ghost
+has nothing to stand out against) each ghost gets a soft dark-indigo halo and an
+indigo glow; on a dark wall it keeps the pale icy glow. The backdrop brightness is
+measured in src/frame.ts and the halo is built in src/ghost.ts. The couple's dark
+clothing is kept at about half strength so the figures read as bodies, not just faces.
 The review button cycles: none -> Nic -> the bride -> the couple -> everyone.
 No cobweb on the frame (Nic asked to remove it). Settings
 modes: "toggle" (default), "random" (about half of photos get a random ghost

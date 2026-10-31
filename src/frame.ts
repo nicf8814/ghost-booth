@@ -1,4 +1,4 @@
-import { drawGhost, type GhostName } from "./ghost";
+import { drawGhost, ghostPlacement, type GhostName } from "./ghost";
 import { FRAME, drawFullPrint, type LoadedFrame } from "./frames";
 import { PRINT_H, PRINT_W, coverCrop } from "./layout";
 
@@ -26,6 +26,32 @@ export function splitBalanced(text: string): string[] {
     }
   }
   return [words.slice(0, best).join(" "), words.slice(best).join(" ")];
+}
+
+/**
+ * How bright the picture is behind a spot, 0-255, weighting only drawn pixels.
+ * `k` converts print coordinates to this canvas's pixels.
+ */
+function backdropLuminance(src: HTMLCanvasElement, k: number, r: { x: number; y: number; w: number; h: number }): number {
+  const x0 = Math.max(0, Math.floor(r.x * k));
+  const y0 = Math.max(0, Math.floor(r.y * k));
+  const x1 = Math.min(src.width, Math.ceil((r.x + r.w) * k));
+  const y1 = Math.min(src.height, Math.ceil((r.y + r.h) * k));
+  if (x1 <= x0 || y1 <= y0) return 128;
+  const t = document.createElement("canvas");
+  t.width = 12;
+  t.height = 12;
+  const tc = t.getContext("2d")!;
+  tc.drawImage(src, x0, y0, x1 - x0, y1 - y0, 0, 0, 12, 12);
+  const d = tc.getImageData(0, 0, 12, 12).data;
+  let sum = 0;
+  let weight = 0;
+  for (let i = 0; i < 144; i++) {
+    const a = d[i * 4 + 3] / 255;
+    sum += (0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]) * a;
+    weight += a;
+  }
+  return weight > 1 ? sum / weight : 128;
 }
 
 function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -106,8 +132,16 @@ export function renderPrint(
   const withPair = ghosts.some((g) => g.name === "man");
   const peeks = (g: { name: GhostName }) => g.name === "nic" || g.name === "bride";
   const drawGhosts = (c: CanvasRenderingContext2D) => {
-    for (const g of ghosts.filter((g) => !peeks(g))) drawGhost(c, g.name, g.canvas, PHOTO, false, scale);
-    for (const g of ghosts.filter(peeks)) drawGhost(c, g.name, g.canvas, PHOTO, withPair, scale);
+    // Measure the backdrop behind every ghost before drawing any of them, so
+    // a ghost can stand out against a bright wall (see drawGhost).
+    const k = c.canvas.width / PRINT_W;
+    const lums = new Map<GhostName, number>();
+    for (const g of ghosts) {
+      const r = ghostPlacement(g.name, PHOTO, g.canvas.width, g.canvas.height, peeks(g) ? withPair : false);
+      lums.set(g.name, backdropLuminance(c.canvas, k, r));
+    }
+    for (const g of ghosts.filter((g) => !peeks(g))) drawGhost(c, g.name, g.canvas, PHOTO, false, scale, lums.get(g.name));
+    for (const g of ghosts.filter(peeks)) drawGhost(c, g.name, g.canvas, PHOTO, withPair, scale, lums.get(g.name));
   };
 
   if (soft) {

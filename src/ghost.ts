@@ -38,11 +38,45 @@ interface GhostStyle {
 const STYLES: Record<GhostName, GhostStyle> = {
   nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
   bride: { url: "./cameo/ghost-bride.png", opacity: 0.51, fadeStart: 0.85, darkFade: 0.1 },
-  man: { url: "./cameo/victorian-man.png", opacity: 0.83, fadeStart: 0.4, darkFade: 0.7 },
-  woman: { url: "./cameo/victorian-woman.png", opacity: 0.83, fadeStart: 0.4, darkFade: 0.7 },
+  man: { url: "./cameo/victorian-man.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
+  woman: { url: "./cameo/victorian-woman.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
 };
 
 const cache = new Map<GhostName, Promise<HTMLCanvasElement | null>>();
+
+// A soft dark-indigo shadow shape for each ghost. On a bright wall a pale ghost
+// has nothing to stand out against, so this darkens the wall right around it.
+const halos = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
+const HALO_PAD = 40;
+
+function makeHalo(ghost: HTMLCanvasElement): HTMLCanvasElement {
+  const w = ghost.width;
+  const h = ghost.height;
+  const W = w + HALO_PAD * 2;
+  const H = h + HALO_PAD * 2;
+  const src = ghost.getContext("2d")!.getImageData(0, 0, w, h).data;
+  let a: Float32Array = new Float32Array(W * H);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // boost faint (dark clothing) areas so the whole figure casts the shadow
+      a[(y + HALO_PAD) * W + x + HALO_PAD] = Math.min(255, src[(y * w + x) * 4 + 3] * 2.2);
+    }
+  }
+  for (let i = 0; i < 3; i++) a = boxBlur(a, W, H, 14);
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  const img = ctx.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) {
+    img.data[i * 4] = 25;
+    img.data[i * 4 + 1] = 35;
+    img.data[i * 4 + 2] = 85;
+    img.data[i * 4 + 3] = Math.min(255, a[i] * 1.1);
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
 
 /** Loads and pre-processes a ghost once; later calls reuse it. */
 export function loadGhost(name: GhostName): Promise<HTMLCanvasElement | null> {
@@ -55,7 +89,11 @@ export function loadGhost(name: GhostName): Promise<HTMLCanvasElement | null> {
       img.onerror = () => reject(new Error(`ghost ${name} failed to load`));
       img.src = style.url;
     })
-      .then((img) => ghostify(img, style))
+      .then((img) => {
+        const ghost = ghostify(img, style);
+        halos.set(ghost, makeHalo(ghost));
+        return ghost;
+      })
       .catch(() => null);
     cache.set(name, p);
   }
@@ -144,12 +182,12 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
   if (name === "man") {
     const w = photo.w * 0.3;
     const h = (w * ghostH) / ghostW;
-    return { x: photo.x - w * 0.1, y: photo.y + photo.h * 0.02, w, h, tilt: 0 };
+    return { x: photo.x + w * 0.1, y: photo.y + photo.h * 0.07, w, h, tilt: 0 };
   }
   if (name === "woman") {
     const w = photo.w * 0.3;
     const h = (w * ghostH) / ghostW;
-    return { x: photo.x + photo.w - w * 0.9, y: photo.y + photo.h * 0.08, w, h, tilt: 0 };
+    return { x: photo.x + photo.w - w * 0.97, y: photo.y + photo.h * 0.08, w, h, tilt: 0 };
   }
   if (name === "bride") {
     // peeking in from the right edge, upright, bouquet in view
@@ -163,7 +201,12 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
   return { x: photo.x - w * 0.28, y: photo.y + photo.h * (withPair ? 0.4 : 0.16), w, h, tilt: 0.24 };
 }
 
-/** Draws a ghost; caller should already be clipped to the photo area. */
+/**
+ * Draws a ghost; caller should already be clipped to the photo area.
+ * `backdropLum` (0-255) is how bright the picture is behind the ghost. On a
+ * bright backdrop the ghost gets a dark-indigo halo and an indigo glow so it
+ * stands out; on a dark backdrop it keeps the pale icy glow.
+ */
 export function drawGhost(
   ctx: CanvasRenderingContext2D,
   name: GhostName,
@@ -171,12 +214,26 @@ export function drawGhost(
   photo: Rect,
   withPair = false,
   scale = 1,
+  backdropLum?: number,
 ) {
   const p = ghostPlacement(name, photo, ghost.width, ghost.height, withPair);
+  // 0 on a dark backdrop, 1 on a bright one
+  const k = backdropLum === undefined ? 0 : Math.min(1, Math.max(0, (backdropLum - 100) / 110));
+  const bright = k * k * (3 - 2 * k);
   ctx.save();
   ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
   ctx.rotate(p.tilt);
-  ctx.shadowColor = "rgba(170, 215, 255, 0.85)";
+  const halo = halos.get(ghost);
+  if (halo && bright > 0.02) {
+    const sx = p.w / ghost.width;
+    const sy = p.h / ghost.height;
+    ctx.save();
+    ctx.globalAlpha = 0.85 * bright;
+    ctx.drawImage(halo, -p.w / 2 - HALO_PAD * sx, -p.h / 2 - HALO_PAD * sy, halo.width * sx, halo.height * sy);
+    ctx.restore();
+  }
+  const mix = (dark: number, light: number) => Math.round(dark + (light - dark) * bright);
+  ctx.shadowColor = `rgba(${mix(170, 70)}, ${mix(215, 100)}, ${mix(255, 200)}, 0.85)`;
   ctx.shadowBlur = (name === "nic" || name === "bride" ? 60 : 45) * scale;
   ctx.drawImage(ghost, -p.w / 2, -p.h / 2, p.w, p.h);
   ctx.restore();
