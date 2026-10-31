@@ -56,6 +56,12 @@
       <!-- Review the framed photo -->
       <section class="screen" data-for="review">
         <img id="result" alt="Your photo" />
+        <div id="frame-picker" class="frame-picker" role="radiogroup" aria-label="Border">
+          <span class="timer-label">Border</span>
+          <button type="button" class="frame-chip" role="radio" data-frame="classic" aria-checked="true">Classic</button>
+          <button type="button" class="frame-chip" role="radio" data-frame="parchment" aria-checked="false">Parchment</button>
+          <button type="button" class="frame-chip" role="radio" data-frame="filigree" aria-checked="false">Filigree</button>
+        </div>
         <div class="tools">
         <button id="ghost" class="pill ghost-toggle" type="button" aria-pressed="false" hidden>
           <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -123,7 +129,7 @@
           </select>
         </label>
         <label>
-          Photo border
+          Starting border (guests can change it after their photo)
           <select name="frame">
             <option value="classic">Classic (dark with orange line and bats)</option>
             <option value="parchment">Victorian parchment</option>
@@ -135,6 +141,13 @@
           <select name="edges">
             <option value="soft">Soft, fades into the border</option>
             <option value="sharp">Sharp, with a thin outline</option>
+          </select>
+        </label>
+        <label>
+          Let guests pick the border
+          <select name="framePicker">
+            <option value="show">Yes</option>
+            <option value="hide">No, use the starting border</option>
           </select>
         </label>
         <label>

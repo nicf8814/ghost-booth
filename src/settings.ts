@@ -13,6 +13,8 @@ export interface Settings {
   frame: FrameId;
   /** Victorian borders: fade the photo into the paper, or keep a hard edge. */
   edges: "soft" | "sharp";
+  /** Let guests pick the border on the review screen. */
+  framePicker: "show" | "hide";
 }
 
 const KEY = "ghost-booth-settings-v4";
@@ -25,6 +27,7 @@ export const DEFAULTS: Settings = {
   hd: "show",
   frame: "classic",
   edges: "soft",
+  framePicker: "show",
 };
 
 export function loadSettings(): Settings {
