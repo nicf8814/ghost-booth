@@ -174,7 +174,7 @@ async function renderResult() {
     if (canvas) ghosts.push({ name, canvas });
   }
   const frame = lastFrame;
-  const text = { title: settings.title, ghosts, frame: await loadFrame(settings.frame) };
+  const text = { title: settings.title, ghosts, frame: await loadFrame(settings.frame), edges: settings.edges };
   const print = renderPrint(frame, frame.width, frame.height, text);
   const blob = await canvasToJpeg(print);
   // Share only the file. Extra title/text fields arrive in the share sheet as
@@ -279,6 +279,7 @@ function openSettings() {
   (form.elements.namedItem("ghost") as HTMLSelectElement).value = settings.ghost;
   (form.elements.namedItem("hd") as HTMLSelectElement).value = settings.hd;
   (form.elements.namedItem("frame") as HTMLSelectElement).value = settings.frame;
+  (form.elements.namedItem("edges") as HTMLSelectElement).value = settings.edges;
   const info = $<HTMLParagraphElement>("cam-info");
   info.textContent = video.videoWidth
     ? `Camera is sending ${video.videoWidth} x ${video.videoHeight}`
@@ -299,6 +300,7 @@ settingsDialog.addEventListener("close", () => {
     ghost: (form.elements.namedItem("ghost") as HTMLSelectElement).value as Settings["ghost"],
     hd: (form.elements.namedItem("hd") as HTMLSelectElement).value as Settings["hd"],
     frame: (form.elements.namedItem("frame") as HTMLSelectElement).value as Settings["frame"],
+    edges: (form.elements.namedItem("edges") as HTMLSelectElement).value as Settings["edges"],
   };
   saveSettings(settings);
   if (TIMER_CHOICES.includes(settings.countdown)) setTimer(settings.countdown);

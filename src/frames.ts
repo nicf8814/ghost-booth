@@ -28,6 +28,11 @@ export interface FrameSpec {
   glow: boolean;
   bats: boolean;
   outline: { color: string; width: number; radius: number };
+  /**
+   * "Soft edges" layout: the photo has no outline and its edges fade into the
+   * background over `feather` pixels, so it can be a bit bigger.
+   */
+  soft?: { photo: Rect; feather: number };
 }
 
 export const FRAMES: Record<FrameId, FrameSpec> = {
@@ -54,6 +59,7 @@ export const FRAMES: Record<FrameId, FrameSpec> = {
     glow: false,
     bats: false,
     outline: { color: "#2a1c0e", width: 4, radius: 6 },
+    soft: { photo: { x: 70, y: 105, w: 1060, h: 1350 }, feather: 80 },
   },
   filigree: {
     photo: { x: 80, y: 130, w: 1040, h: 1320 },
@@ -65,6 +71,7 @@ export const FRAMES: Record<FrameId, FrameSpec> = {
     glow: false,
     bats: false,
     outline: { color: "#2a1c0e", width: 4, radius: 6 },
+    soft: { photo: { x: 60, y: 110, w: 1080, h: 1350 }, feather: 80 },
   },
 };
 

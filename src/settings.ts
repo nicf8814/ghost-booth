@@ -11,6 +11,8 @@ export interface Settings {
   hd: "show" | "hide";
   /** Border style around the photo. */
   frame: FrameId;
+  /** Victorian borders: fade the photo into the paper, or keep a hard edge. */
+  edges: "soft" | "sharp";
 }
 
 const KEY = "ghost-booth-settings-v4";
@@ -22,6 +24,7 @@ export const DEFAULTS: Settings = {
   ghost: "toggle",
   hd: "show",
   frame: "classic",
+  edges: "soft",
 };
 
 export function loadSettings(): Settings {

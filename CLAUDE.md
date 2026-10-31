@@ -40,6 +40,9 @@ to tall and stretched slightly to the 2:3 print. The ornament pictures are drawn
 OVER the photo so corners can overlap it. To move the photo or caption inside a
 border, edit that style's `photo`, `captionTop` and `captionBottom` in frames.ts
 (1200x1800 print coordinates). The HD copy reuses the same border.
+"Photo edges" (soft is the default, sharp keeps the thin outline) only affects the
+Victorian styles: soft draws the photo and ghosts on their own layer, fades the
+layer's edges over `soft.feather` px, and uses `soft.photo` as the rectangle.
 
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot

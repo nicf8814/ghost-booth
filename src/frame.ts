@@ -10,6 +10,8 @@ export interface FrameText {
   ghosts?: { name: GhostName; canvas: HTMLCanvasElement }[];
   /** Border style; the classic dark frame when left out. */
   frame?: LoadedFrame;
+  /** "soft" fades the photo into the border (Victorian styles); default soft. */
+  edges?: "soft" | "sharp";
 }
 
 /** Splits text into two lines of roughly equal length at a space. */
@@ -69,6 +71,36 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 /**
+ * Makes the edges of whatever is already drawn inside `r` fade to transparent
+ * over `feather` pixels. Each edge is a smooth ramp; the four ramps multiply,
+ * so the corners fade smoothly too.
+ */
+function fadeEdges(ctx: CanvasRenderingContext2D, r: { x: number; y: number; w: number; h: number }, feather: number) {
+  const f = Math.min(feather, r.w / 2, r.h / 2);
+  const ramp = (x0: number, y0: number, x1: number, y1: number) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    // smoothstep-ish stops so there is no visible band where the fade starts
+    for (const [t, a] of [[0, 0], [0.25, 0.1], [0.5, 0.5], [0.75, 0.9], [1, 1]] as const) {
+      g.addColorStop(t, `rgba(0,0,0,${a})`);
+    }
+    return g;
+  };
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-in";
+  const big = { x: -10_000, y: -10_000, w: 20_000, h: 20_000 };
+  for (const g of [
+    ramp(r.x, 0, r.x + f, 0), // left
+    ramp(r.x + r.w, 0, r.x + r.w - f, 0), // right
+    ramp(0, r.y, 0, r.y + f), // top
+    ramp(0, r.y + r.h, 0, r.y + r.h - f), // bottom
+  ]) {
+    ctx.fillStyle = g;
+    ctx.fillRect(big.x, big.y, big.w, big.h);
+  }
+  ctx.restore();
+}
+
+/**
  * Renders the finished print: the photo in a dark frame with a light
  * Halloween touch (a few bats, spooky title).
  */
@@ -91,7 +123,8 @@ export function renderPrint(
 
   const frame = text.frame ?? { id: "classic" as const, spec: FRAMES.classic };
   const spec = frame.spec;
-  const PHOTO = spec.photo;
+  const soft = !!spec.soft && text.edges !== "sharp";
+  const PHOTO = soft ? spec.soft!.photo : spec.photo;
 
   // Background (classic: dark with a soft purple glow behind the caption)
   ctx.fillStyle = spec.bg;
@@ -108,34 +141,58 @@ export function renderPrint(
   // Photo
   const radius = spec.outline.radius;
   const crop = coverCrop(srcW, srcH, PHOTO.w, PHOTO.h);
-  ctx.save();
-  roundRectPath(ctx, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h, radius);
-  ctx.clip();
-  ctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
-  // gentle vignette so it feels moody without darkening faces
-  const vig = ctx.createRadialGradient(
-    PRINT_W / 2, PHOTO.y + PHOTO.h / 2, PHOTO.h * 0.35,
-    PRINT_W / 2, PHOTO.y + PHOTO.h / 2, PHOTO.h * 0.75,
-  );
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(10,0,20,0.35)");
-  ctx.fillStyle = vig;
-  ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
   // the corner pair first so the edge peekers (Nic, the bride) sit on top
   const ghosts = text.ghosts ?? [];
   const withPair = ghosts.some((g) => g.name === "man");
   const peeks = (g: { name: GhostName }) => g.name === "nic" || g.name === "bride";
-  for (const g of ghosts.filter((g) => !peeks(g))) drawGhost(ctx, g.name, g.canvas, PHOTO, false, scale);
-  for (const g of ghosts.filter(peeks)) drawGhost(ctx, g.name, g.canvas, PHOTO, withPair, scale);
-  ctx.restore();
+  const drawGhosts = (c: CanvasRenderingContext2D) => {
+    for (const g of ghosts.filter((g) => !peeks(g))) drawGhost(c, g.name, g.canvas, PHOTO, false, scale);
+    for (const g of ghosts.filter(peeks)) drawGhost(c, g.name, g.canvas, PHOTO, withPair, scale);
+  };
 
-  // Thin outline around the photo
-  ctx.save();
-  ctx.strokeStyle = spec.outline.color;
-  ctx.lineWidth = spec.outline.width;
-  roundRectPath(ctx, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h, radius);
-  ctx.stroke();
-  ctx.restore();
+  if (soft) {
+    // Draw the photo and ghosts on their own layer, fade the layer's edges
+    // out, then lay it on the background so it melts into the paper.
+    const layer = document.createElement("canvas");
+    layer.width = canvas.width;
+    layer.height = canvas.height;
+    const lctx = layer.getContext("2d")!;
+    lctx.scale(canvas.width / PRINT_W, canvas.height / PRINT_H);
+    lctx.imageSmoothingQuality = "high";
+    lctx.save();
+    lctx.beginPath();
+    lctx.rect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
+    lctx.clip();
+    lctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
+    drawGhosts(lctx); // ghosts fade with the photo, so edge peekers melt in too
+    lctx.restore();
+    fadeEdges(lctx, PHOTO, spec.soft!.feather);
+    ctx.drawImage(layer, 0, 0, PRINT_W, PRINT_H);
+  } else {
+    ctx.save();
+    roundRectPath(ctx, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h, radius);
+    ctx.clip();
+    ctx.drawImage(source, crop.x, crop.y, crop.w, crop.h, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
+    // gentle vignette so it feels moody without darkening faces
+    const vig = ctx.createRadialGradient(
+      PRINT_W / 2, PHOTO.y + PHOTO.h / 2, PHOTO.h * 0.35,
+      PRINT_W / 2, PHOTO.y + PHOTO.h / 2, PHOTO.h * 0.75,
+    );
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(10,0,20,0.35)");
+    ctx.fillStyle = vig;
+    ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
+    drawGhosts(ctx);
+    ctx.restore();
+
+    // Thin outline around the photo
+    ctx.save();
+    ctx.strokeStyle = spec.outline.color;
+    ctx.lineWidth = spec.outline.width;
+    roundRectPath(ctx, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h, radius);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Ornaments go on top of the photo so the corners can overlap it.
   if (frame.overlay) drawFullPrint(ctx, frame.overlay);
