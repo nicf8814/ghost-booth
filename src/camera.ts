@@ -29,7 +29,9 @@ export async function startCamera(video: HTMLVideoElement): Promise<MediaStream>
       stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          facingMode: "user",
+          // Must be the front camera. A loose "user" let Safari pick the back
+          // camera whenever only it had the requested size.
+          facingMode: { exact: "user" },
           width: { exact: size.w },
           height: { exact: size.h },
           frameRate: FRAME_RATE,
