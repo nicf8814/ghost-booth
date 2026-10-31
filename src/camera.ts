@@ -39,10 +39,12 @@ export async function startCamera(video: HTMLVideoElement): Promise<MediaStream>
       });
       break;
     } catch (err) {
-      // "This size isn't available" means try the next one. Anything else
-      // (permission denied, camera busy) is a real problem to report.
-      const name = err instanceof DOMException ? err.name : "";
-      if (name !== "OverconstrainedError" && name !== "ConstraintNotSatisfiedError") throw err;
+      // Safari reports "that size isn't available" with an error that isn't a
+      // DOMException, so don't check the type. Only a blocked permission
+      // should stop the ladder; anything else just means try the next size,
+      // and the last-resort request below reports any real problem.
+      const name = (err as { name?: string } | null)?.name;
+      if (name === "NotAllowedError" || name === "SecurityError") throw err;
     }
   }
   // Last resort: let the camera pick whatever it can.
