@@ -225,6 +225,10 @@ function openSettings() {
   (form.elements.namedItem("countdown") as HTMLSelectElement).value = String(settings.countdown);
   (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
   (form.elements.namedItem("ghost") as HTMLSelectElement).value = settings.ghost;
+  const info = $<HTMLParagraphElement>("cam-info");
+  info.textContent = video.videoWidth
+    ? `Camera is sending ${video.videoWidth} x ${video.videoHeight}`
+    : "Camera not running";
   settingsDialog.showModal();
 }
 

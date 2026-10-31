@@ -409,6 +409,11 @@ dialog input[type="checkbox"] {
   height: 22px;
   accent-color: var(--orange);
 }
+dialog .note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
 dialog .row {
   display: flex;
   justify-content: space-between;

@@ -1,5 +1,9 @@
 import { rotatedSize, type Rotation } from "./layout";
 
+/** Portrait 3:4 capture size we ask the camera for (about 6 megapixels). */
+export const CAPTURE_W = 2160;
+export const CAPTURE_H = 2880;
+
 export async function startCamera(video: HTMLVideoElement): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("This browser can't use the camera. Open the booth in Safari.");
@@ -11,8 +15,10 @@ export async function startCamera(video: HTMLVideoElement): Promise<MediaStream>
     audio: false,
     video: {
       facingMode: "user",
-      width: { ideal: 1440 },
-      height: { ideal: 1920 },
+      // "ideal" is only a hint: Safari picks the closest mode the camera
+      // really has, so a lower-end device just gets what it can do.
+      width: { ideal: CAPTURE_W },
+      height: { ideal: CAPTURE_H },
       // 30fps is plenty for a preview and keeps the iPad cooler and the
       // battery lasting longer on a long party night.
       frameRate: { ideal: 30, max: 30 },

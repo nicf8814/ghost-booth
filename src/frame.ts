@@ -80,6 +80,8 @@ export function renderPrint(
   canvas.width = PRINT_W;
   canvas.height = PRINT_H;
   const ctx = canvas.getContext("2d")!;
+  // The camera frame is now larger than the print, so downscale it carefully.
+  ctx.imageSmoothingQuality = "high";
 
   // Background with a soft purple glow behind the caption
   ctx.fillStyle = BG;
