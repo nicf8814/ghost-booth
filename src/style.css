@@ -101,8 +101,10 @@ body {
 /* ---------- Attract ---------- */
 
 .screen[data-for="attract"] {
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 28px;
   padding-bottom: calc(env(safe-area-inset-bottom) + 6vh);
   cursor: pointer;
 }
@@ -128,6 +130,49 @@ body {
     0 18px 40px rgba(0, 0, 0, 0.5);
   animation: breathe 2.6s ease-in-out infinite;
   cursor: pointer;
+}
+
+/* ---------- Timer picker ---------- */
+
+.timer-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 22px;
+  border-radius: 999px;
+  background: rgba(11, 10, 15, 0.6);
+  border: 2px solid rgba(244, 240, 250, 0.25);
+  cursor: default;
+}
+
+.timer-label {
+  margin-right: 4px;
+  color: var(--muted);
+  font: 800 clamp(14px, 2.2vw, 20px) / 1 var(--ui);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.timer-chip {
+  min-width: clamp(64px, 11vw, 96px);
+  padding: 16px 18px;
+  border-radius: 999px;
+  border: 3px solid rgba(244, 240, 250, 0.7);
+  background: rgba(244, 240, 250, 0.1);
+  color: #fff;
+  font: 800 clamp(20px, 3.4vw, 32px) / 1 var(--ui);
+  cursor: pointer;
+}
+
+.timer-chip[aria-checked="true"] {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--orange), var(--orange-deep));
+  color: #1a0d02;
+  box-shadow: 0 0 22px rgba(255, 122, 26, 0.7);
+}
+
+.timer-chip:active {
+  transform: scale(0.94);
 }
 
 .ghost {

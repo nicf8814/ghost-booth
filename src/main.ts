@@ -30,6 +30,22 @@ let ghostIndex = 0; // index into GHOST_CHOICES
 const ghostBtn = $<HTMLButtonElement>("ghost");
 let busy = false;
 
+// Timer choices on the landing page. The settings value is just the default.
+const TIMER_CHOICES = [3, 7, 10];
+const timerChips = Array.from(document.querySelectorAll<HTMLButtonElement>(".timer-chip"));
+let timerSeconds = TIMER_CHOICES.includes(settings.countdown) ? settings.countdown : TIMER_CHOICES[0];
+
+function setTimer(seconds: number) {
+  timerSeconds = seconds;
+  for (const chip of timerChips) {
+    chip.setAttribute("aria-checked", String(Number(chip.dataset.seconds) === seconds));
+  }
+}
+setTimer(timerSeconds);
+for (const chip of timerChips) {
+  chip.addEventListener("click", () => setTimer(Number(chip.dataset.seconds)));
+}
+
 const REVIEW_IDLE_MS = 90_000;
 const SENT_SHOW_MS = 2500;
 
@@ -110,7 +126,7 @@ async function takePhoto() {
   }
 
   show("countdown");
-  for (let n = settings.countdown; n > 0; n--) {
+  for (let n = timerSeconds; n > 0; n--) {
     countEl.textContent = String(n);
     countEl.classList.remove("tick");
     void countEl.offsetWidth; // restart the animation
@@ -221,11 +237,11 @@ settingsDialog.addEventListener("close", () => {
   if (settingsDialog.returnValue !== "save") return;
   settings = {
     title: (form.elements.namedItem("title") as HTMLInputElement).value.trim() || settings.title,
-    countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,
-    rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
+    countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,    rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
     ghost: (form.elements.namedItem("ghost") as HTMLSelectElement).value as Settings["ghost"],
   };
   saveSettings(settings);
+  if (TIMER_CHOICES.includes(settings.countdown)) setTimer(settings.countdown);
   showTitle();
 });
 
