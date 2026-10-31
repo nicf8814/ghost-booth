@@ -303,6 +303,7 @@ settingsDialog.addEventListener("close", () => {
 });
 
 let holdTimer: number | undefined;
+$("settings-btn").addEventListener("click", openSettings);
 const title = $<HTMLHeadingElement>("title");
 function showTitle() {
   title.textContent = settings.title;

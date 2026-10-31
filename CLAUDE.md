@@ -11,7 +11,7 @@ the `backup-before-simple-rebuild` branch. Don't bring features back unless aske
 ## Flow
 attract (live mirrored front camera, timer chips 3/7/10s, tap anywhere else to start) -> countdown -> review
 (framed photo; Print / Retake / Done, plus Save HD which shares a 2560x3840 copy of the same framed photo, pre-rendered in the background; can be hidden in settings) -> sent -> back to attract.
-Review auto-resets after 90s. Hold the title for 2s to open hidden settings
+Review auto-resets after 90s. Tap the small gear (top right of the landing screen) or hold the title for 2s to open settings
 (text on print and screen, default timer, photo rotation, ghost cameo mode).
 
 ## Ghost cameo

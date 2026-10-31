@@ -132,6 +132,28 @@ body {
   cursor: pointer;
 }
 
+/* ---------- Settings gear (landing screen, top right) ---------- */
+
+.gear {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 14px);
+  right: 14px;
+  width: 52px;
+  height: 52px;
+  padding: 11px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(11, 10, 15, 0.45);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.gear svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: #f4f0fa;
+}
+
 /* ---------- Timer picker ---------- */
 
 .timer-picker {
