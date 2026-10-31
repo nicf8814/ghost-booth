@@ -105,16 +105,8 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: 28px;
-  /* Let touches fall through to the title (hold it for settings) and the
-     camera; the button and timer chips opt back in below. Taps anywhere still
-     start a photo because the app listens for clicks. */
-  pointer-events: none;
   padding-bottom: calc(env(safe-area-inset-bottom) + 6vh);
   cursor: pointer;
-}
-
-.screen[data-for="attract"] > * {
-  pointer-events: auto;
 }
 
 .big-button {
