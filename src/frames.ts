@@ -35,6 +35,8 @@ export const FRAME: FrameSpec = {
 export interface LoadedFrame {
   spec: FrameSpec;
   overlay?: HTMLImageElement;
+  /** Hand-lettered "Heisterkamp Halloween" picture (public/frames/title.svg). */
+  lettering?: HTMLImageElement;
 }
 
 let overlayPromise: Promise<HTMLImageElement> | null = null;
@@ -53,10 +55,29 @@ function loadOverlay(): Promise<HTMLImageElement> {
   return overlayPromise;
 }
 
+export const LETTERING_SRC = "./frames/title.svg";
+let letteringPromise: Promise<HTMLImageElement> | null = null;
+
+function loadLettering(): Promise<HTMLImageElement> {
+  if (!letteringPromise) {
+    letteringPromise = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Couldn't load the lettering"));
+      img.src = LETTERING_SRC;
+    });
+    letteringPromise.catch(() => (letteringPromise = null));
+  }
+  return letteringPromise;
+}
+
 /** Loads (and caches) the border picture. If it can't load, the print still works without it. */
 export async function loadFrame(): Promise<LoadedFrame> {
-  const overlay = await loadOverlay().catch(() => undefined);
-  return { spec: FRAME, overlay };
+  const [overlay, lettering] = await Promise.all([
+    loadOverlay().catch(() => undefined),
+    loadLettering().catch(() => undefined),
+  ]);
+  return { spec: FRAME, overlay, lettering };
 }
 
 /** Draws a picture stretched over the whole print. */

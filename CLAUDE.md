@@ -48,6 +48,9 @@ caption positions are in src/frames.ts (1200x1800 print coordinates). The
 (`soft.photo`, `soft.feather`); sharp keeps a thin outline (`photo`). The HD copy
 uses the same border. Old saved settings with `frame` or `framePicker` are ignored.
 
+## Caption lettering
+Nic's hand lettering (public/frames/title.svg, from his HEISTERKAMP_HALLOWEN.svg) is drawn for the default title "Heisterkamp Halloween...". His original spelled the second line "HALLOWEN" (one E); I duplicated an E glyph and re-centered it. Any other title text falls back to the Creepster font.
+
 ## Printing
 Printer is a Kodak Mini 2 Retro (Bluetooth, Kodak app only). Safari cannot
 reach it directly (no Web Bluetooth, no AirPrint). Print opens the iOS share

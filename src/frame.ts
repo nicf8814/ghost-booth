@@ -195,6 +195,16 @@ export function renderPrint(
   const bandH = spec.captionBottom - spec.captionTop;
   const centerY = spec.captionTop + bandH * 0.5;
   const maxW = PHOTO.w - 320;
+
+  // The booth's own hand lettering stands in for the default title.
+  if (frame.lettering && /^heisterkamp halloween/i.test(text.title.trim())) {
+    const img = frame.lettering;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    const h = Math.min(bandH - 10, maxW / ratio);
+    const w = h * ratio;
+    ctx.drawImage(img, (PRINT_W - w) / 2, centerY - h / 2, w, h);
+    return canvas;
+  }
   const fontAt = (px: number) => `${px}px Creepster, Impact, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
