@@ -1,27 +1,56 @@
 import { rotatedSize, type Rotation } from "./layout";
 
-/** Portrait 3:4 capture size we ask the camera for (about 6 megapixels). */
-export const CAPTURE_W = 2160;
-export const CAPTURE_H = 2880;
+/**
+ * Portrait 3:4 sizes to try, biggest first. 3:4 matches the print window, so
+ * only about 2% gets trimmed. Each is requested strictly ("exact"), because a
+ * loose request let Safari answer with a near-square 2160x2316 frame that cut
+ * about 18% off the sides of every print. The first size the camera really has
+ * wins; the last one is the size that worked before.
+ */
+export const CAPTURE_SIZES = [
+  { w: 2160, h: 2880 },
+  { w: 1920, h: 2560 },
+  { w: 1440, h: 1920 },
+];
+
+// 30fps is plenty for a preview and keeps the iPad cooler and the battery
+// lasting longer on a long party night.
+const FRAME_RATE = { ideal: 30, max: 30 };
 
 export async function startCamera(video: HTMLVideoElement): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("This browser can't use the camera. Open the booth in Safari.");
   }
-  // Ask for a portrait-shaped stream. Width/height are a literal pixel hint,
-  // so asking for landscape here makes Safari hand back a landscape stream
-  // even when the iPad is held upright.
-  const stream = await navigator.mediaDevices.getUserMedia({
+  // Width/height are a literal pixel hint, so portrait-shaped sizes are what
+  // make Safari hand back a portrait stream even when the iPad is held upright.
+  let stream: MediaStream | null = null;
+  for (const size of CAPTURE_SIZES) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: "user",
+          width: { exact: size.w },
+          height: { exact: size.h },
+          frameRate: FRAME_RATE,
+        },
+      });
+      break;
+    } catch (err) {
+      // "This size isn't available" means try the next one. Anything else
+      // (permission denied, camera busy) is a real problem to report.
+      const name = err instanceof DOMException ? err.name : "";
+      if (name !== "OverconstrainedError" && name !== "ConstraintNotSatisfiedError") throw err;
+    }
+  }
+  // Last resort: let the camera pick whatever it can.
+  stream ??= await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
       facingMode: "user",
-      // "ideal" is only a hint: Safari picks the closest mode the camera
-      // really has, so a lower-end device just gets what it can do.
-      width: { ideal: CAPTURE_W },
-      height: { ideal: CAPTURE_H },
-      // 30fps is plenty for a preview and keeps the iPad cooler and the
-      // battery lasting longer on a long party night.
-      frameRate: { ideal: 30, max: 30 },
+      width: { ideal: 1440 },
+      height: { ideal: 1920 },
+      frameRate: FRAME_RATE,
     },
   });
   video.srcObject = stream;
