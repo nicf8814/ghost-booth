@@ -14,8 +14,8 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Heisterkamp Halloween 2026</title>
-    <script type="module" crossorigin src="./assets/index-DACO-I9S.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Cnv-IM81.css">
+    <script type="module" crossorigin src="./assets/index-BrIxBRwE.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DvaWLfLw.css">
   </head>
   <body>
     <main id="app" data-screen="attract">
@@ -28,6 +28,12 @@
 
       <!-- Waiting for a guest -->
       <section class="screen" data-for="attract">
+        <div class="timer-picker" role="radiogroup" aria-label="Timer">
+          <span class="timer-label">Timer</span>
+          <button type="button" class="timer-chip" role="radio" data-seconds="3" aria-checked="true">3s</button>
+          <button type="button" class="timer-chip" role="radio" data-seconds="7" aria-checked="false">7s</button>
+          <button type="button" class="timer-chip" role="radio" data-seconds="10" aria-checked="false">10s</button>
+        </div>
         <button id="start" class="big-button" type="button">
           <svg viewBox="0 0 64 64" aria-hidden="true" class="ghost">
             <path d="M32 6c-12 0-20 9-20 21v27l6-5 6 5 6-5 4 0 6 5 6-5 6 5V27C52 15 44 6 32 6z" />
@@ -87,10 +93,10 @@
         <h2>Booth settings</h2>
         <label>Text on print and screen <input name="title" maxlength="40" /></label>
         <label>
-          Countdown
+          Default timer (guests can change it on the main screen)
           <select name="countdown">
             <option value="3">3 seconds</option>
-            <option value="5">5 seconds</option>
+            <option value="7">7 seconds</option>
             <option value="10">10 seconds</option>
           </select>
         </label>
