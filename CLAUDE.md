@@ -21,8 +21,8 @@ src/ghost.ts:
   a mute-icon overlay that was baked into the bottom corner, shrunk to 700px wide. Peeks in
   from the left edge (the spot Nic's own ghost used to have; Nic's ghost was removed Nov 2).
 - kristen-ryan-cutout.png: Kristen and Ryan together in red circus costumes (Nov 2, already cut
-  out), cropped to the two figures, 520px wide. Stands at the right edge, heads high, bodies fade
-  out below the waist.
+  out), cropped to the two figures, 520px wide. Stands near the right border (about 30% of the
+  figure past the photo edge), heads high, bodies fade out below the waist.
 - ghost-bride.png: a bride photo Nic supplied (Oct 24), cut out with rembg
   and cropped head through the full bouquet. Stands upright (no tilt) along the
   right edge with about a quarter of her off the edge (Nic asked for both).
@@ -40,7 +40,7 @@ clothing is kept at about half strength so the figures read as bodies, not just 
   through chest. Peeks in from the right edge, tilted the other way from Kristen.
 - clinton-cutout.png: a full-body Clinton pose Nic supplied (Nov 2, already cut out), arms spread,
   cropped to the figure with 90px of empty margin left and right so the side feather fades air
-  instead of his hands. Hovers across the top of the photo, legs fade away.
+  instead of his hands. Floats along the bottom of the photo, legs fade away.
 The review button cycles: none -> the bride -> the Victorian couple -> Ryan -> Clinton -> Kristen
 -> Kristen and Ryan -> "everyone" (now just the bride and the Victorian couple).
 No cobweb on the frame (Nic asked to remove it). Settings

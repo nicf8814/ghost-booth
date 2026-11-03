@@ -223,8 +223,9 @@ type Rect = { x: number; y: number; w: number; h: number };
  * top corners so the middle stays clear for guests' faces. Kristen peeks in
  * from the left edge and the bride from the right edge, both lower down when
  * the pair is already up in the corners. Ryan peeks in from the right edge,
- * tilted the other way from Kristen. Clinton hovers across the top with his
- * arms spread. Kristen and Ryan together stand at the right edge.
+ * tilted the other way from Kristen. Clinton floats along the bottom with his
+ * arms spread. Kristen and Ryan together stand at the right edge, mostly
+ * toward the border.
  */
 export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number, withPair = false) {
   if (name === "man") {
@@ -244,11 +245,12 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     return { x: photo.x + photo.w - w * 0.75, y: photo.y + photo.h * (withPair ? 0.36 : 0.3), w, h, tilt: 0 };
   }
   if (name === "clinton") {
-    // wide pose: nearly the full width, high up so guests' faces stay clear
+    // wide pose: nearly the full width, along the bottom (his legs fade away, so
+    // the lower part of the image sits near the bottom edge)
     // (the cutout has empty margins left and right, so the figure is narrower)
     const w = photo.w * 1.0;
     const h = (w * ghostH) / ghostW;
-    return { x: photo.x + (photo.w - w) / 2, y: photo.y + photo.h * 0.02, w, h, tilt: -0.05 };
+    return { x: photo.x + (photo.w - w) / 2, y: photo.y + photo.h - h * 0.8, w, h, tilt: -0.05 };
   }
   if (name === "ryan") {
     const w = photo.w * 0.4;
@@ -259,12 +261,12 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     // two standing figures, heads high on the right; the bodies fade out below
     const w = photo.w * 0.42;
     const h = (w * ghostH) / ghostW;
-    return { x: photo.x + photo.w - w * 0.9, y: photo.y + photo.h * 0.06, w, h, tilt: 0 };
+    return { x: photo.x + photo.w - w * 0.7, y: photo.y + photo.h * 0.06, w, h, tilt: 0 };
   }
-  // Kristen: head peeking in from the left edge, just far enough in that her whole face shows
+  // Kristen: head peeking in from the left edge
   const w = photo.w * 0.4;
   const h = (w * ghostH) / ghostW;
-  return { x: photo.x - w * 0.06, y: photo.y + photo.h * (withPair ? 0.4 : 0.16), w, h, tilt: 0.24 };
+  return { x: photo.x - w * 0.21, y: photo.y + photo.h * (withPair ? 0.4 : 0.16), w, h, tilt: 0.24 };
 }
 
 /**
