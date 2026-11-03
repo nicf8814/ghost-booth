@@ -296,11 +296,11 @@ body {
   display: none;
 }
 #pop.go {
-  animation: spook-glow 0.9s ease-out;
+  animation: spook-glow var(--swoop-ms, 1400ms) ease-out;
 }
 #pop.go svg,
 #pop.go img {
-  animation: swoop 0.9s ease-in-out forwards;
+  animation: swoop var(--swoop-ms, 1400ms) ease-in-out forwards;
 }
 @keyframes swoop {
   0% { transform: translate(0, 22vh) rotate(-14deg) scale(0.8); opacity: 0; }

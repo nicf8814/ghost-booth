@@ -152,8 +152,13 @@ async function requestWakeLock() {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// The ghost that swoops by in the last second of the countdown is one of our
-// created ghosts, chosen at random (never the same one twice in a row).
+// The ghost that swoops by at the end of the countdown is one of our created
+// ghosts, chosen at random (never the same one twice in a row).
+// It takes SWOOP_MS to cross the screen and is gone SWOOP_END_BEFORE_PHOTO_MS
+// before the photo is taken, so it starts a little before the last second.
+const SWOOP_MS = 1400;
+const SWOOP_END_BEFORE_PHOTO_MS = 100;
+pop.style.setProperty("--swoop-ms", `${SWOOP_MS}ms`);
 const SWOOP_GHOSTS: GhostName[] = ["bride", "man", "woman", "ryan", "clinton", "kristen", "kristenryan"];
 const swoopUrls = new Map<GhostName, string>();
 let lastSwoop: GhostName | null = null;
@@ -170,6 +175,13 @@ function pickSwoopGhost() {
   lastSwoop = name;
   popImg.src = swoopUrls.get(name)!;
   pop.classList.add("has-img");
+}
+
+function startSwoop() {
+  pickSwoopGhost();
+  pop.classList.remove("go");
+  void pop.offsetWidth; // restart the animation
+  pop.classList.add("go");
 }
 
 async function takePhoto() {
@@ -190,12 +202,9 @@ async function takePhoto() {
     countEl.classList.remove("tick");
     void countEl.offsetWidth; // restart the animation
     countEl.classList.add("tick");
-    if (n === 1) {
-      // a ghost swoops by in the last second, for a real reaction in the shot
-      pickSwoopGhost();
-      pop.classList.remove("go");
-      void pop.offsetWidth;
-      pop.classList.add("go");
+    if (n === 2) {
+      // a ghost swoops by just before the photo, for a real reaction in the shot
+      window.setTimeout(startSwoop, Math.max(0, 2000 - (SWOOP_MS + SWOOP_END_BEFORE_PHOTO_MS)));
     }
     await sleep(1000);
   }

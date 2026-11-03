@@ -52,8 +52,9 @@ Ryan and Kristen 10% each; the bride, the Victorian couple and Kristen and Ryan 
 In random mode the plain photo shows first with Print disabled; about 0.45s
 later (REVEAL_DELAY_MS in src/main.ts) a quick preview with the ghost fades in on top
 over 1.8s (`#result-ghost`) while the full-size print file is built, then Print unlocks. The "Add a ghost" button only shows in "toggle" mode.
-In the last second of every countdown one of our created ghosts swoops across the screen
-with a pale-blue glow (`#pop`). It is picked at random from the bride, Victorian man,
+At the end of every countdown one of our created ghosts swoops across the screen in 1.4s
+(SWOOP_MS in src/main.ts, starting half a second before the last second and gone 0.1s before
+the photo) with a pale-blue glow (`#pop`). It is picked at random from the bride, Victorian man,
 Victorian woman, Ryan, Clinton, Kristen and Kristen and Ryan (`SWOOP_GHOSTS` in src/main.ts),
 never the same one twice in a row; the plain white ghost is the fallback if the pictures
 are not ready yet. It is only on screen, never in the photo.
