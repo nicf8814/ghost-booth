@@ -31,7 +31,11 @@ has nothing to stand out against) each ghost gets a soft dark-indigo halo and an
 indigo glow; on a dark wall it keeps the pale icy glow. The backdrop brightness is
 measured in src/frame.ts and the halo is built in src/ghost.ts. The couple's dark
 clothing is kept at about half strength so the figures read as bodies, not just faces.
-The review button cycles: none -> Nic -> the bride -> the couple -> everyone.
+- ryan-cutout.png: a photo of Ryan Nic supplied (Nov 2), cut out with rembg
+  (u2net_human_seg), boutonniere painted back in, cropped head through chest. Peeks in from the
+  right edge, tilted the other way from Nic. Only on the button cycle, not in random mode
+  or "everyone".
+The review button cycles: none -> Nic -> the bride -> the couple -> Ryan -> everyone.
 No cobweb on the frame (Nic asked to remove it). Settings
 modes: "toggle" (default), "random" (about half of photos get a random ghost
 choice; Nic plans to switch to this eventually), "off".

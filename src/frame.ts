@@ -130,7 +130,7 @@ export function renderPrint(
   // the corner pair first so the edge peekers (Nic, the bride) sit on top
   const ghosts = text.ghosts ?? [];
   const withPair = ghosts.some((g) => g.name === "man");
-  const peeks = (g: { name: GhostName }) => g.name === "nic" || g.name === "bride";
+  const peeks = (g: { name: GhostName }) => g.name === "nic" || g.name === "bride" || g.name === "ryan";
   const drawGhosts = (c: CanvasRenderingContext2D) => {
     // Measure the backdrop behind every ghost before drawing any of them, so
     // a ghost can stand out against a bright wall (see drawGhost).

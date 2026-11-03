@@ -20,6 +20,8 @@ describe("random ghost odds", () => {
     expect(GHOST_CHOICES[1]).toEqual(["nic"]);
     expect(GHOST_CHOICES[2]).toEqual(["bride"]);
     expect(GHOST_CHOICES[3]).toEqual(["man", "woman"]);
+    // Ryan is only on the button cycle for now, never in random mode
+    expect(GHOST_CHOICES[4]).toEqual(["ryan"]);
   });
 
   it("adds a ghost to about 60% of photos, split couple 40 / bride 40 / Nic 20", () => {

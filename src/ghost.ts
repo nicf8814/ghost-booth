@@ -2,7 +2,7 @@
 // photo. Each ghost has its own look and spot in the frame.
 
 export type GhostMode = "off" | "toggle" | "random";
-export type GhostName = "nic" | "bride" | "man" | "woman";
+export type GhostName = "nic" | "bride" | "man" | "woman" | "ryan";
 
 /** What the review button cycles through, in order. */
 export const GHOST_CHOICES: GhostName[][] = [
@@ -10,6 +10,7 @@ export const GHOST_CHOICES: GhostName[][] = [
   ["nic"],
   ["bride"],
   ["man", "woman"],
+  ["ryan"],
   ["nic", "bride", "man", "woman"],
 ];
 
@@ -43,6 +44,7 @@ export const GHOST_LABELS = [
   "Ghost: Nic",
   "Ghost: the bride",
   "Ghost: the couple",
+  "Ghost: Ryan",
   "Ghosts: everyone",
 ];
 
@@ -63,6 +65,7 @@ interface GhostStyle {
 const STYLES: Record<GhostName, GhostStyle> = {
   nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
   bride: { url: "./cameo/ghost-bride.png", opacity: 0.51, fadeStart: 0.85, darkFade: 0.1 },
+  ryan: { url: "./cameo/ryan-cutout.png", opacity: 0.55, fadeStart: 0.6, darkFade: 0 },
   man: { url: "./cameo/victorian-man.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
   woman: { url: "./cameo/victorian-woman.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
 };
@@ -201,7 +204,8 @@ type Rect = { x: number; y: number; w: number; h: number };
  * Where each ghost goes inside the photo area. The Victorian pair haunt the
  * top corners so the middle stays clear for guests' faces. Nic peeks in from
  * the left edge and the bride from the right edge, both lower down when the
- * pair is already up in the corners.
+ * pair is already up in the corners. Ryan peeks in from the right edge, tilted
+ * the other way from Nic.
  */
 export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number, withPair = false) {
   if (name === "man") {
@@ -219,6 +223,11 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     const w = photo.w * 0.357; // 15% smaller than the original 0.42
     const h = (w * ghostH) / ghostW;
     return { x: photo.x + photo.w - w * 0.75, y: photo.y + photo.h * (withPair ? 0.36 : 0.3), w, h, tilt: 0 };
+  }
+  if (name === "ryan") {
+    const w = photo.w * 0.4;
+    const h = (w * ghostH) / ghostW;
+    return { x: photo.x + photo.w - w * 0.72, y: photo.y + photo.h * 0.2, w, h, tilt: -0.24 };
   }
   // Nic: small head peeking in from the left edge
   const w = photo.w * 0.4;
@@ -259,7 +268,7 @@ export function drawGhost(
   }
   const mix = (dark: number, light: number) => Math.round(dark + (light - dark) * bright);
   ctx.shadowColor = `rgba(${mix(170, 70)}, ${mix(215, 100)}, ${mix(255, 200)}, 0.85)`;
-  ctx.shadowBlur = (name === "nic" || name === "bride" ? 60 : 45) * scale;
+  ctx.shadowBlur = (name === "nic" || name === "bride" || name === "ryan" ? 60 : 45) * scale;
   ctx.drawImage(ghost, -p.w / 2, -p.h / 2, p.w, p.h);
   ctx.restore();
 }
