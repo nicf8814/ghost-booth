@@ -64,6 +64,8 @@ const REVIEW_IDLE_MS = 90_000;
 /** Random ghost: how long after the review screen appears before the ghost starts to fade in. */
 const REVEAL_DELAY_MS = 450;
 const SENT_SHOW_MS = 2500;
+/** Wait this long before building the 4K copy, so tapping through ghosts quickly builds only the last one. */
+const HD_DELAY_MS = 1500;
 
 function show(screen: Screen) {
   app.dataset.screen = screen;
@@ -101,13 +103,25 @@ function cameraIsLive() {
   return !!stream && stream.getVideoTracks().some((t) => t.readyState === "live");
 }
 
-async function ensureCamera() {
-  if (cameraIsLive()) {
-    if (video.paused) await video.play().catch(() => undefined);
-    return;
-  }
-  stream?.getTracks().forEach((t) => t.stop());
-  stream = await startCamera(video);
+// One camera start at a time. A tap right after coming back from the Kodak app
+// used to start a second stream while the first was still opening.
+let cameraStart: Promise<void> | null = null;
+
+function ensureCamera(): Promise<void> {
+  cameraStart ??= (async () => {
+    try {
+      if (cameraIsLive()) {
+        if (video.paused) await video.play().catch(() => undefined);
+        return;
+      }
+      stream?.getTracks().forEach((t) => t.stop());
+      stream = null;
+      stream = await startCamera(video);
+    } finally {
+      cameraStart = null;
+    }
+  })();
+  return cameraStart;
 }
 
 // iOS often stops the camera when you switch to another app (like the Kodak
@@ -204,6 +218,20 @@ async function takePhoto() {
   const shot = ++shotId;
   ghostIndex = settings.ghost === "random" ? pickRandomGhost() : 0;
 
+  try {
+    await developPhoto(frame, shot);
+  } catch (err) {
+    console.error(err);
+    // Without this the booth sat on a blank countdown screen until someone reloaded it.
+    if (shot === shotId) {
+      busy = false;
+      showError("Couldn't make your photo. Please try again.");
+    }
+  }
+}
+
+/** Everything after the shutter: build the previews and the print file. */
+async function developPhoto(frame: HTMLCanvasElement, shot: number) {
   if (ghostIndex > 0) {
     // Surprise ghost: show the plain photo right away, then fade the ghost
     // version in on top after a short beat. Both are quick small previews;
@@ -214,7 +242,10 @@ async function takePhoto() {
     ghostImg.classList.remove("revealed");
     ghostImg.removeAttribute("src");
     const plain = await renderPreview(frame, []);
-    if (shot !== shotId) return;
+    if (shot !== shotId) {
+      URL.revokeObjectURL(plain);
+      return;
+    }
     if (plainUrl) URL.revokeObjectURL(plainUrl);
     plainUrl = plain;
     result.src = plain;
@@ -242,6 +273,7 @@ async function takePhoto() {
   }
 
   await renderResult();
+  if (shot !== shotId) return;
   busy = false;
   show("review");
 }
@@ -262,7 +294,8 @@ async function renderPreview(frame: HTMLCanvasElement, names: GhostName[]): Prom
 
 /** Builds the framed print from the last frame (with or without the ghost). */
 async function renderResult(reveal = false) {
-  if (!lastFrame) return;
+  const frame = lastFrame; // grab it now: reset() clears lastFrame while we wait below
+  if (!frame) return;
   const shot = shotId;
   await document.fonts.ready;
   const ghosts = [];
@@ -270,7 +303,6 @@ async function renderResult(reveal = false) {
     const canvas = await loadGhost(name);
     if (canvas) ghosts.push({ name, canvas });
   }
-  const frame = lastFrame;
   const text = { title: settings.title, ghosts, frame: await loadFrame(), edges: settings.edges };
   const print = renderPrint(frame, frame.width, frame.height, text);
   const blob = await canvasToJpeg(print);
@@ -284,7 +316,8 @@ async function renderResult(reveal = false) {
   if (!reveal) result.src = photoUrl;
   // Build the 4K copy while the guest looks at the preview.
   hdBtn.hidden = settings.hd !== "show";
-  hdBtn.disabled = false;
+  // Only tappable once the 4K file exists, so share() runs right after the tap (iOS needs that).
+  hdBtn.disabled = true;
   hdFile = null;
   const token = ++hdToken;
   if (settings.hd === "show") {
@@ -296,9 +329,14 @@ async function renderResult(reveal = false) {
           (b) => resolve(new File([b], `booth-hd-${Date.now()}.jpg`, { type: "image/jpeg" })),
           reject,
         );
-      }, 50);
+      }, HD_DELAY_MS);
     });
-    mine.catch(() => undefined);
+    mine.then(
+      () => {
+        if (token === hdToken) hdBtn.disabled = false;
+      },
+      () => undefined,
+    );
     hdFile = mine;
   }
   ghostBtn.hidden = settings.ghost !== "toggle";
@@ -347,9 +385,11 @@ async function printPhoto() {
 async function saveHd() {
   const pending = hdFile;
   if (!pending) return;
+  const shot = shotId;
   hdBtn.disabled = true;
   try {
     const file = await pending;
+    if (shot !== shotId) return; // the guest already tapped Done
     if (navigator.canShare?.({ files: [file] })) {
       await navigator.share({ files: [file] });
     } else {
@@ -361,11 +401,13 @@ async function saveHd() {
       window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
     }
   } catch (err) {
+    if (shot !== shotId) return;
     if (!(err instanceof DOMException && err.name === "AbortError")) {
       showError("Couldn't save the HD photo. Try again.");
       return;
     }
   }
+  if (shot !== shotId) return;
   hdBtn.disabled = false;
   show("review"); // someone is still here, restart the idle timer
 }
@@ -436,19 +478,41 @@ app.addEventListener("click", (e) => {
   takePhoto();
 });
 $("retake").addEventListener("click", () => {
+  if (app.dataset.screen !== "review") return; // a second tap must not start a second countdown
   reset();
   takePhoto();
 });
-$("print").addEventListener("click", printPhoto);
+let printing = false;
+$("print").addEventListener("click", async () => {
+  if (printing) return; // a second share() while the sheet is opening throws InvalidStateError
+  printing = true;
+  printBtn.disabled = true;
+  try {
+    await printPhoto();
+  } finally {
+    printing = false;
+    // reset() may have taken over; only unlock if this photo is still on screen
+    if (app.dataset.screen === "review" && photoFile) printBtn.disabled = false;
+  }
+});
 hdBtn.addEventListener("click", saveHd);
 ghostBtn.addEventListener("click", async () => {
   if (busy) return;
   busy = true;
+  const shot = shotId;
   ghostIndex = (ghostIndex + 1) % GHOST_CHOICES.length;
-  await renderResult();
-  busy = false;
-  // reset the idle timer since someone is still here
-  show("review");
+  try {
+    await renderResult();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    // If the guest hit Retake or Done meanwhile, reset() already moved on; don't drag them back.
+    if (shot === shotId) {
+      busy = false;
+      // reset the idle timer since someone is still here
+      show("review");
+    }
+  }
 });
 $("done").addEventListener("click", reset);
 $("retry").addEventListener("click", () => {
@@ -457,6 +521,9 @@ $("retry").addEventListener("click", () => {
 });
 
 ensureCamera().catch((err) => showError(cameraErrorMessage(err)));
+// Keep the iPad awake while it waits for the first guest, not only after the first tap.
+requestWakeLock();
+addEventListener("pointerdown", () => requestWakeLock(), { once: true }); // in case the browser wants a tap first
 loadFrame(); // warm up
 for (const names of GHOST_CHOICES) for (const n of names) loadGhost(n); // warm up
 // make a small picture of each ghost for the countdown swoop

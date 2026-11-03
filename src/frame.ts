@@ -1,6 +1,7 @@
 import { drawGhost, ghostPlacement, type GhostName } from "./ghost";
 import { FRAME, drawFullPrint, type LoadedFrame } from "./frames";
 import { PRINT_H, PRINT_W, coverCrop } from "./layout";
+import { DEFAULTS } from "./settings";
 
 export interface FrameText {
   title: string;
@@ -162,6 +163,7 @@ export function renderPrint(
     lctx.restore();
     fadeEdges(lctx, PHOTO, spec.soft.feather);
     ctx.drawImage(layer, 0, 0, PRINT_W, PRINT_H);
+    layer.width = layer.height = 0; // give the pixel memory back now (iOS caps total canvas memory)
   } else {
     ctx.save();
     roundRectPath(ctx, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h, radius);
@@ -197,7 +199,7 @@ export function renderPrint(
   const maxW = PHOTO.w - 320;
 
   // The booth's own hand lettering stands in for the default title.
-  if (frame.lettering && /^heisterkamp halloween/i.test(text.title.trim())) {
+  if (frame.lettering && text.title.trim().toLowerCase() === DEFAULTS.title.toLowerCase()) {
     const img = frame.lettering;
     const ratio = img.naturalWidth / img.naturalHeight;
     const h = Math.min(bandH - 10, maxW / ratio);
@@ -230,7 +232,13 @@ export function renderPrint(
 export function canvasToJpeg(canvas: HTMLCanvasElement, quality = 0.92): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("Could not encode photo"))),
+      (b) => {
+        // The canvas is done: release its pixels now. Safari frees dropped canvases lazily
+        // and caps the total, so a long party can otherwise run it out of canvas memory.
+        canvas.width = canvas.height = 0;
+        if (b) resolve(b);
+        else reject(new Error("Could not encode photo"));
+      },
       "image/jpeg",
       quality,
     );

@@ -60,7 +60,12 @@ export async function startCamera(video: HTMLVideoElement): Promise<MediaStream>
   video.srcObject = stream;
   video.muted = true;
   video.playsInline = true;
-  await video.play();
+  try {
+    await video.play();
+  } catch (err) {
+    stream.getTracks().forEach((t) => t.stop()); // don't leave a live camera nobody owns
+    throw err;
+  }
   return stream;
 }
 
