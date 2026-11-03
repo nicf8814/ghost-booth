@@ -32,7 +32,7 @@ describe("random ghost odds", () => {
     for (let i = 0; i < 5000; i++) expect(pickRandomGhost(rng)).not.toBe(everyone);
   });
 
-  it("adds a ghost to about 75% of photos, split equally across all six ghosts", () => {
+  it("gives no ghost 25% of the time; Clinton, Ryan and Kristen 10% each; the other three 15% each", () => {
     const rng = seeded(2026);
     const N = 120_000;
     const counts = new Map<number, number>();
@@ -46,9 +46,14 @@ describe("random ghost odds", () => {
     expect(Math.abs(ghosted / N - 0.75)).toBeLessThan(0.01);
     expect(Math.abs(none / N - 0.25)).toBeLessThan(0.01);
     expect(RANDOM_GHOSTS).toHaveLength(6);
-    for (const w of RANDOM_GHOST_WEIGHTS) {
-      // each of the six gets 1/6 of the ghosted photos (12.5% of all photos)
-      expect(Math.abs((counts.get(w.index) ?? 0) / ghosted - 1 / 6)).toBeLessThan(0.01);
+    // each weight is that ghost's share of ALL photos, in percent
+    expect(RANDOM_GHOST_WEIGHTS.reduce((sum, w) => sum + w.weight, 0)).toBe(75);
+    for (const g of RANDOM_GHOSTS) {
+      const index = GHOST_CHOICES.findIndex((c) => c.join() === g.names.join());
+      expect(Math.abs((counts.get(index) ?? 0) / N - g.weight / 100), g.label).toBeLessThan(0.01);
     }
+    const share = (label: string) => RANDOM_GHOSTS.find((g) => g.label === label)!.weight;
+    for (const label of ["Clinton", "Ryan", "Kristen"]) expect(share(label)).toBe(10);
+    for (const label of ["the bride", "the Victorian couple", "Kristen and Ryan"]) expect(share(label)).toBe(15);
   });
 });

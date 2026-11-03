@@ -20,17 +20,20 @@ export const GHOST_CHOICES: GhostName[][] = [
 export const RANDOM_GHOST_CHANCE = 0.75;
 
 /**
- * Random mode: which ghost, once a photo gets one. Every ghost has the same
- * weight right now; change a weight here to make one more or less likely.
+ * Random mode: which ghost, once a photo gets one. The weights add up to 100
+ * and, with a 75% chance of any ghost, each weight is that ghost's share of ALL
+ * photos in percent (Clinton, Ryan and Kristen 10% each; the bride, the
+ * Victorian couple and Kristen and Ryan 15% each; 25% get none). Change a
+ * weight to make one more or less likely, and keep them adding up to 75.
  * (The "everyone" group is never picked at random.)
  */
 export const RANDOM_GHOSTS: { names: GhostName[]; label: string; weight: number }[] = [
-  { names: ["bride"], label: "the bride", weight: 1 },
-  { names: ["man", "woman"], label: "the Victorian couple", weight: 1 },
-  { names: ["ryan"], label: "Ryan", weight: 1 },
-  { names: ["clinton"], label: "Clinton", weight: 1 },
-  { names: ["kristen"], label: "Kristen", weight: 1 },
-  { names: ["kristenryan"], label: "Kristen and Ryan", weight: 1 },
+  { names: ["bride"], label: "the bride", weight: 15 },
+  { names: ["man", "woman"], label: "the Victorian couple", weight: 15 },
+  { names: ["ryan"], label: "Ryan", weight: 10 },
+  { names: ["clinton"], label: "Clinton", weight: 10 },
+  { names: ["kristen"], label: "Kristen", weight: 10 },
+  { names: ["kristenryan"], label: "Kristen and Ryan", weight: 15 },
 ];
 
 /** The same list, as indexes into GHOST_CHOICES (looked up by name so reordering the button cycle can't break the odds). */

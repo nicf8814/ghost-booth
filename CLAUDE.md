@@ -46,10 +46,9 @@ The review button cycles: none -> the bride -> the Victorian couple -> Ryan -> C
 No cobweb on the frame (Nic asked to remove it). Settings
 modes: "toggle" (default), "random", "off".
 Random mode odds (src/ghost.ts, `RANDOM_GHOST_CHANCE` and `RANDOM_GHOSTS`, tested in
-tests/ghost.test.ts): 75% of photos get a ghost (25% get none), and each of the six ghosts
-(bride, Victorian couple, Ryan, Clinton, Kristen, Kristen and Ryan) is equally likely, so each is
-12.5% of all photos. Change
-a `weight` in RANDOM_GHOSTS to make one more or less likely. "Everyone" is never picked at random.
+tests/ghost.test.ts): 75% of photos get a ghost (25% get none). Shares of ALL photos: Clinton,
+Ryan and Kristen 10% each; the bride, the Victorian couple and Kristen and Ryan 15% each. Each
+`weight` in RANDOM_GHOSTS is that ghost's percent of all photos (keep them adding up to 75). "Everyone" is never picked at random.
 In random mode the plain photo shows first with Print disabled; about 0.45s
 later (REVEAL_DELAY_MS in src/main.ts) a quick preview with the ghost fades in on top
 over 1.8s (`#result-ghost`) while the full-size print file is built, then Print unlocks. The "Add a ghost" button only shows in "toggle" mode.
