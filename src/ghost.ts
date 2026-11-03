@@ -17,7 +17,7 @@ export const GHOST_CHOICES: GhostName[][] = [
 ];
 
 /** Random mode: the share of photos that get a ghost at all. */
-export const RANDOM_GHOST_CHANCE = 0.6;
+export const RANDOM_GHOST_CHANCE = 0.75;
 
 /**
  * Random mode: which ghost, once a photo gets one. Every ghost has the same

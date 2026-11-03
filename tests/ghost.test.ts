@@ -32,7 +32,7 @@ describe("random ghost odds", () => {
     for (let i = 0; i < 5000; i++) expect(pickRandomGhost(rng)).not.toBe(everyone);
   });
 
-  it("adds a ghost to about 60% of photos, split equally across all six ghosts", () => {
+  it("adds a ghost to about 75% of photos, split equally across all six ghosts", () => {
     const rng = seeded(2026);
     const N = 120_000;
     const counts = new Map<number, number>();
@@ -42,11 +42,12 @@ describe("random ghost odds", () => {
     }
     const none = counts.get(0) ?? 0;
     const ghosted = N - none;
-    expect(RANDOM_GHOST_CHANCE).toBe(0.6);
-    expect(Math.abs(ghosted / N - 0.6)).toBeLessThan(0.01);
+    expect(RANDOM_GHOST_CHANCE).toBe(0.75);
+    expect(Math.abs(ghosted / N - 0.75)).toBeLessThan(0.01);
+    expect(Math.abs(none / N - 0.25)).toBeLessThan(0.01);
     expect(RANDOM_GHOSTS).toHaveLength(6);
     for (const w of RANDOM_GHOST_WEIGHTS) {
-      // each of the six gets 1/6 of the ghosted photos (10% of all photos)
+      // each of the six gets 1/6 of the ghosted photos (12.5% of all photos)
       expect(Math.abs((counts.get(w.index) ?? 0) / ghosted - 1 / 6)).toBeLessThan(0.01);
     }
   });
