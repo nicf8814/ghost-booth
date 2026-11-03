@@ -359,7 +359,7 @@ body {
   border-radius: 14px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 1.8s ease-in;
+  transition: opacity 1.8s ease-in-out;
 }
 #result-ghost.revealed {
   opacity: 1;

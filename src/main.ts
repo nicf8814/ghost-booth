@@ -30,6 +30,7 @@ let stream: MediaStream | null = null;
 let photoFile: File | null = null;
 let photoUrl: string | null = null;
 let plainUrl: string | null = null; // ghost-less preview shown before a random ghost fades in
+let ghostPreviewUrl: string | null = null; // preview with the ghost, faded in over the plain one
 let shotId = 0; // bumps on every new photo and reset, so slow renders from an old photo can bail out
 let idleTimer: number | undefined;
 let lastFrame: HTMLCanvasElement | null = null;
@@ -59,6 +60,8 @@ for (const chip of timerChips) {
 }
 
 const REVIEW_IDLE_MS = 90_000;
+/** Random ghost: how long after the review screen appears before the ghost starts to fade in. */
+const REVEAL_DELAY_MS = 450;
 const SENT_SHOW_MS = 2500;
 
 function show(screen: Screen) {
@@ -76,8 +79,10 @@ function reset() {
   shotId++;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   if (plainUrl) URL.revokeObjectURL(plainUrl);
+  if (ghostPreviewUrl) URL.revokeObjectURL(ghostPreviewUrl);
   photoUrl = null;
   plainUrl = null;
+  ghostPreviewUrl = null;
   ghostImg.classList.remove("revealed");
   ghostImg.removeAttribute("src");
   printBtn.disabled = false;
@@ -178,8 +183,9 @@ async function takePhoto() {
   ghostIndex = settings.ghost === "random" ? pickRandomGhost() : 0;
 
   if (ghostIndex > 0) {
-    // Surprise ghost: show the plain photo right away, build the print with
-    // the ghost behind the scenes, then fade the ghost in on top.
+    // Surprise ghost: show the plain photo right away, then fade the ghost
+    // version in on top after a short beat. Both are quick small previews;
+    // the full-size print file is built while the ghost fades in.
     printBtn.disabled = true;
     hdBtn.hidden = true;
     ghostBtn.hidden = true;
@@ -192,12 +198,24 @@ async function takePhoto() {
     result.src = plain;
     busy = false;
     show("review");
-    await renderResult(true);
-    if (shot !== shotId) return;
-    await sleep(900);
+    const shownAt = performance.now();
+    const withGhost = await renderPreview(frame, GHOST_CHOICES[ghostIndex]);
+    if (shot !== shotId) {
+      URL.revokeObjectURL(withGhost);
+      return;
+    }
+    if (ghostPreviewUrl) URL.revokeObjectURL(ghostPreviewUrl);
+    ghostPreviewUrl = withGhost;
+    ghostImg.src = withGhost;
+    await ghostImg.decode().catch(() => undefined);
+    await sleep(Math.max(0, REVEAL_DELAY_MS - (performance.now() - shownAt)));
     if (shot !== shotId) return;
     ghostImg.classList.add("revealed");
-    printBtn.disabled = false;
+    try {
+      await renderResult(true); // the real print file, ready before the fade finishes
+    } finally {
+      if (shot === shotId) printBtn.disabled = false;
+    }
     return;
   }
 
@@ -215,7 +233,8 @@ async function renderPreview(frame: HTMLCanvasElement, names: GhostName[]): Prom
     if (canvas) ghosts.push({ name, canvas });
   }
   const text = { title: settings.title, ghosts, frame: await loadFrame(), edges: settings.edges };
-  const blob = await canvasToJpeg(renderPrint(frame, frame.width, frame.height, text), 0.85);
+  // Smaller than the print: it is only the preview shown while the real one is built.
+  const blob = await canvasToJpeg(renderPrint(frame, frame.width, frame.height, text, 0.75), 0.85);
   return URL.createObjectURL(blob);
 }
 
@@ -239,15 +258,8 @@ async function renderResult(reveal = false) {
   photoFile = new File([blob], `booth-${Date.now()}.jpg`, { type: "image/jpeg" });
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(blob);
-  if (reveal) {
-    // The plain photo is already showing; load the ghost version on top
-    // (still invisible) so the fade-in has nothing to wait for.
-    ghostImg.src = photoUrl;
-    await ghostImg.decode().catch(() => undefined);
-    if (shot !== shotId) return;
-  } else {
-    result.src = photoUrl;
-  }
+  // In reveal mode the previews are already on screen; this is just the print file.
+  if (!reveal) result.src = photoUrl;
   // Build the 4K copy while the guest looks at the preview.
   hdBtn.hidden = settings.hd !== "show";
   hdBtn.disabled = false;
