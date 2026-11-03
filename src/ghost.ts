@@ -2,7 +2,7 @@
 // photo. Each ghost has its own look and spot in the frame.
 
 export type GhostMode = "off" | "toggle" | "random";
-export type GhostName = "nic" | "bride" | "man" | "woman" | "ryan";
+export type GhostName = "nic" | "bride" | "man" | "woman" | "ryan" | "clinton";
 
 /** What the review button cycles through, in order. */
 export const GHOST_CHOICES: GhostName[][] = [
@@ -11,6 +11,7 @@ export const GHOST_CHOICES: GhostName[][] = [
   ["bride"],
   ["man", "woman"],
   ["ryan"],
+  ["clinton"],
   ["nic", "bride", "man", "woman"],
 ];
 
@@ -45,6 +46,7 @@ export const GHOST_LABELS = [
   "Ghost: the bride",
   "Ghost: the couple",
   "Ghost: Ryan",
+  "Ghost: Clinton",
   "Ghosts: everyone",
 ];
 
@@ -66,6 +68,8 @@ const STYLES: Record<GhostName, GhostStyle> = {
   nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
   bride: { url: "./cameo/ghost-bride.png", opacity: 0.51, fadeStart: 0.85, darkFade: 0.1 },
   ryan: { url: "./cameo/ryan-cutout.png", opacity: 0.55, fadeStart: 0.6, darkFade: 0 },
+  // dark suit fades a little so the face, shirt and hands glow; legs vanish
+  clinton: { url: "./cameo/clinton-cutout.png", opacity: 0.88, fadeStart: 0.5, darkFade: 0.35 },
   man: { url: "./cameo/victorian-man.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
   woman: { url: "./cameo/victorian-woman.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
 };
@@ -205,7 +209,7 @@ type Rect = { x: number; y: number; w: number; h: number };
  * top corners so the middle stays clear for guests' faces. Nic peeks in from
  * the left edge and the bride from the right edge, both lower down when the
  * pair is already up in the corners. Ryan peeks in from the right edge, tilted
- * the other way from Nic.
+ * the other way from Nic. Clinton hovers across the top with his arms spread.
  */
 export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number, withPair = false) {
   if (name === "man") {
@@ -223,6 +227,13 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     const w = photo.w * 0.357; // 15% smaller than the original 0.42
     const h = (w * ghostH) / ghostW;
     return { x: photo.x + photo.w - w * 0.75, y: photo.y + photo.h * (withPair ? 0.36 : 0.3), w, h, tilt: 0 };
+  }
+  if (name === "clinton") {
+    // wide pose: nearly the full width, high up so guests' faces stay clear
+    // (the cutout has empty margins left and right, so the figure is narrower)
+    const w = photo.w * 1.0;
+    const h = (w * ghostH) / ghostW;
+    return { x: photo.x + (photo.w - w) / 2, y: photo.y + photo.h * 0.02, w, h, tilt: -0.05 };
   }
   if (name === "ryan") {
     const w = photo.w * 0.4;
