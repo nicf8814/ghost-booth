@@ -261,7 +261,7 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     // two standing figures, heads high on the right; the bodies fade out below
     const w = photo.w * 0.42;
     const h = (w * ghostH) / ghostW;
-    return { x: photo.x + photo.w - w * 0.75, y: photo.y + photo.h * 0.06, w, h, tilt: 0 };
+    return { x: photo.x + photo.w - w * 0.75, y: photo.y + photo.h * 0.06 + h * 0.15, w, h, tilt: 0 };
   }
   // Kristen: head peeking in from the left edge
   const w = photo.w * 0.4;
