@@ -21,7 +21,7 @@ src/ghost.ts:
   a mute-icon overlay that was baked into the bottom corner, shrunk to 700px wide. Peeks in
   from the left edge (the spot Nic's own ghost used to have; Nic's ghost was removed Nov 2).
 - kristen-ryan-cutout.png: Kristen and Ryan together in red circus costumes (Nov 2, already cut
-  out), cropped to the two figures, 520px wide. Stands near the right border (about 30% of the
+  out), cropped to the two figures, 520px wide. Stands near the right border (about 25% of the
   figure past the photo edge), heads high, bodies fade out below the waist.
 - ghost-bride.png: a bride photo Nic supplied (Oct 24), cut out with rembg
   and cropped head through the full bouquet. Stands upright (no tilt) along the
