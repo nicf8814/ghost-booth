@@ -127,10 +127,10 @@ export function renderPrint(
   // Photo
   const radius = spec.outline.radius;
   const crop = coverCrop(srcW, srcH, PHOTO.w, PHOTO.h);
-  // the corner pair first so the edge peekers (Nic, the bride) sit on top
+  // the corner pair first so the edge peekers (Kristen, the bride, Ryan) sit on top
   const ghosts = text.ghosts ?? [];
   const withPair = ghosts.some((g) => g.name === "man");
-  const peeks = (g: { name: GhostName }) => g.name === "nic" || g.name === "bride" || g.name === "ryan";
+  const peeks = (g: { name: GhostName }) => g.name === "kristen" || g.name === "bride" || g.name === "ryan";
   const drawGhosts = (c: CanvasRenderingContext2D) => {
     // Measure the backdrop behind every ghost before drawing any of them, so
     // a ghost can stand out against a bright wall (see drawGhost).

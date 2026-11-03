@@ -17,7 +17,12 @@ Review auto-resets after 90s. Tap the small gear (top right of the landing scree
 ## Ghost cameo
 Cutouts in public/cameo/, turned into see-through icy-blue ghosts by
 src/ghost.ts:
-- nic-cutout.png: Nic's face, small, peeking in from the left edge.
+- kristen-cutout.png: a close-up of Kristen Nic supplied (Nov 2, already cut out), cropped above
+  a mute-icon overlay that was baked into the bottom corner, shrunk to 700px wide. Peeks in
+  from the left edge (the spot Nic's own ghost used to have; Nic's ghost was removed Nov 2).
+- kristen-ryan-cutout.png: Kristen and Ryan together in red circus costumes (Nov 2, already cut
+  out), cropped to the two figures, 520px wide. Stands at the right edge, heads high, bodies fade
+  out below the waist.
 - ghost-bride.png: a bride photo Nic supplied (Oct 24), cut out with rembg
   and cropped head through the full bouquet. Stands upright (no tilt) along the
   right edge with about a quarter of her off the edge (Nic asked for both).
@@ -25,25 +30,26 @@ src/ghost.ts:
   created, cut out with rembg and split in two. They haunt the top-left and
   top-right corners so the middle stays clear for guests' faces (Nic asked
   for this after they covered too much). Dark clothing fades away so faces
-  and collars glow. Nic and the bride move lower when the pair is on.
+  and collars glow. Kristen and the bride move lower when the pair is on.
 Contrast: ghosts adapt to the wall behind them. On a bright wall (a pale ghost
 has nothing to stand out against) each ghost gets a soft dark-indigo halo and an
 indigo glow; on a dark wall it keeps the pale icy glow. The backdrop brightness is
 measured in src/frame.ts and the halo is built in src/ghost.ts. The couple's dark
 clothing is kept at about half strength so the figures read as bodies, not just faces.
 - ryan-cutout.png: a photo of Ryan Nic supplied (Nov 2, already cut out by Nic), cropped head
-  through chest. Peeks in from the right edge, tilted the other way from Nic.
+  through chest. Peeks in from the right edge, tilted the other way from Kristen.
 - clinton-cutout.png: a full-body Clinton pose Nic supplied (Nov 2, already cut out), arms spread,
   cropped to the figure with 90px of empty margin left and right so the side feather fades air
   instead of his hands. Hovers across the top of the photo, legs fade away.
-  Ryan and Clinton are only on the button cycle, not in random mode or "everyone".
-The review button cycles: none -> Nic -> the bride -> the couple -> Ryan -> Clinton -> everyone.
+The review button cycles: none -> the bride -> the Victorian couple -> Ryan -> Clinton -> Kristen
+-> Kristen and Ryan -> "everyone" (now just the bride and the Victorian couple).
 No cobweb on the frame (Nic asked to remove it). Settings
-modes: "toggle" (default), "random" (about half of photos get a random ghost
-choice; Nic plans to switch to this eventually), "off".
-Random mode odds (src/ghost.ts, `pickRandomGhost`, tested in tests/ghost.test.ts): 60% of
-photos get a ghost; of those, the Victorian couple 40%, the bride 40%, Nic 20% (never
-"everyone"). In random mode the plain photo shows first with Print disabled; about 0.45s
+modes: "toggle" (default), "random", "off".
+Random mode odds (src/ghost.ts, `RANDOM_GHOSTS`, tested in tests/ghost.test.ts): 60% of
+photos get a ghost, and each of the six ghosts (bride, Victorian couple, Ryan, Clinton, Kristen,
+Kristen and Ryan) is equally likely, so each is about 10% of all photos and 40% get none. Change
+a `weight` in RANDOM_GHOSTS to make one more or less likely. "Everyone" is never picked at random.
+In random mode the plain photo shows first with Print disabled; about 0.45s
 later (REVEAL_DELAY_MS in src/main.ts) a quick preview with the ghost fades in on top
 over 1.8s (`#result-ghost`) while the full-size print file is built, then Print unlocks. The "Add a ghost" button only shows in "toggle" mode.
 In the last second of every countdown a ghost swoops across the screen with a pale-blue

@@ -2,31 +2,42 @@
 // photo. Each ghost has its own look and spot in the frame.
 
 export type GhostMode = "off" | "toggle" | "random";
-export type GhostName = "nic" | "bride" | "man" | "woman" | "ryan" | "clinton";
+export type GhostName = "bride" | "man" | "woman" | "ryan" | "clinton" | "kristen" | "kristenryan";
 
 /** What the review button cycles through, in order. */
 export const GHOST_CHOICES: GhostName[][] = [
   [],
-  ["nic"],
   ["bride"],
   ["man", "woman"],
   ["ryan"],
   ["clinton"],
-  ["nic", "bride", "man", "woman"],
+  ["kristen"],
+  ["kristenryan"],
+  ["bride", "man", "woman"],
 ];
 
 /** Random mode: the share of photos that get a ghost at all. */
 export const RANDOM_GHOST_CHANCE = 0.6;
 
 /**
- * Random mode: which ghost, once a photo gets one. `index` points into
- * GHOST_CHOICES (couple 40%, bride 40%, Nic 20%).
+ * Random mode: which ghost, once a photo gets one. Every ghost has the same
+ * weight right now; change a weight here to make one more or less likely.
+ * (The "everyone" group is never picked at random.)
  */
-export const RANDOM_GHOST_WEIGHTS: { index: number; weight: number }[] = [
-  { index: 3, weight: 40 }, // the couple
-  { index: 2, weight: 40 }, // the bride
-  { index: 1, weight: 20 }, // Nic
+export const RANDOM_GHOSTS: { names: GhostName[]; label: string; weight: number }[] = [
+  { names: ["bride"], label: "the bride", weight: 1 },
+  { names: ["man", "woman"], label: "the Victorian couple", weight: 1 },
+  { names: ["ryan"], label: "Ryan", weight: 1 },
+  { names: ["clinton"], label: "Clinton", weight: 1 },
+  { names: ["kristen"], label: "Kristen", weight: 1 },
+  { names: ["kristenryan"], label: "Kristen and Ryan", weight: 1 },
 ];
+
+/** The same list, as indexes into GHOST_CHOICES (looked up by name so reordering the button cycle can't break the odds). */
+export const RANDOM_GHOST_WEIGHTS: { index: number; weight: number }[] = RANDOM_GHOSTS.map((g) => ({
+  index: GHOST_CHOICES.findIndex((c) => c.join() === g.names.join()),
+  weight: g.weight,
+}));
 
 /** Picks a GHOST_CHOICES index for one photo in random mode; 0 means no ghost. */
 export function pickRandomGhost(rng: () => number = Math.random): number {
@@ -42,11 +53,12 @@ export function pickRandomGhost(rng: () => number = Math.random): number {
 
 export const GHOST_LABELS = [
   "Add a ghost",
-  "Ghost: Nic",
   "Ghost: the bride",
   "Ghost: the couple",
   "Ghost: Ryan",
   "Ghost: Clinton",
+  "Ghost: Kristen",
+  "Ghosts: Kristen and Ryan",
   "Ghosts: everyone",
 ];
 
@@ -65,11 +77,13 @@ interface GhostStyle {
 }
 
 const STYLES: Record<GhostName, GhostStyle> = {
-  nic: { url: "./cameo/nic-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
   bride: { url: "./cameo/ghost-bride.png", opacity: 0.51, fadeStart: 0.85, darkFade: 0.1 },
   ryan: { url: "./cameo/ryan-cutout.png", opacity: 0.55, fadeStart: 0.6, darkFade: 0 },
   // dark suit fades a little so the face, shirt and hands glow; legs vanish
   clinton: { url: "./cameo/clinton-cutout.png", opacity: 0.88, fadeStart: 0.5, darkFade: 0.35 },
+  kristen: { url: "./cameo/kristen-cutout.png", opacity: 0.55, fadeStart: 0.55, darkFade: 0 },
+  // bright red costumes glow; the dark hat, pants and cane fade a bit; legs vanish
+  kristenryan: { url: "./cameo/kristen-ryan-cutout.png", opacity: 0.85, fadeStart: 0.5, darkFade: 0.3 },
   man: { url: "./cameo/victorian-man.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
   woman: { url: "./cameo/victorian-woman.png", opacity: 0.9, fadeStart: 0.45, darkFade: 0.5 },
 };
@@ -206,10 +220,11 @@ type Rect = { x: number; y: number; w: number; h: number };
 
 /**
  * Where each ghost goes inside the photo area. The Victorian pair haunt the
- * top corners so the middle stays clear for guests' faces. Nic peeks in from
- * the left edge and the bride from the right edge, both lower down when the
- * pair is already up in the corners. Ryan peeks in from the right edge, tilted
- * the other way from Nic. Clinton hovers across the top with his arms spread.
+ * top corners so the middle stays clear for guests' faces. Kristen peeks in
+ * from the left edge and the bride from the right edge, both lower down when
+ * the pair is already up in the corners. Ryan peeks in from the right edge,
+ * tilted the other way from Kristen. Clinton hovers across the top with his
+ * arms spread. Kristen and Ryan together stand at the right edge.
  */
 export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, ghostH: number, withPair = false) {
   if (name === "man") {
@@ -240,10 +255,16 @@ export function ghostPlacement(name: GhostName, photo: Rect, ghostW: number, gho
     const h = (w * ghostH) / ghostW;
     return { x: photo.x + photo.w - w * 0.72, y: photo.y + photo.h * 0.2, w, h, tilt: -0.24 };
   }
-  // Nic: small head peeking in from the left edge
+  if (name === "kristenryan") {
+    // two standing figures, heads high on the right; the bodies fade out below
+    const w = photo.w * 0.42;
+    const h = (w * ghostH) / ghostW;
+    return { x: photo.x + photo.w - w * 0.9, y: photo.y + photo.h * 0.06, w, h, tilt: 0 };
+  }
+  // Kristen: head peeking in from the left edge, just far enough in that her whole face shows
   const w = photo.w * 0.4;
   const h = (w * ghostH) / ghostW;
-  return { x: photo.x - w * 0.28, y: photo.y + photo.h * (withPair ? 0.4 : 0.16), w, h, tilt: 0.24 };
+  return { x: photo.x - w * 0.06, y: photo.y + photo.h * (withPair ? 0.4 : 0.16), w, h, tilt: 0.24 };
 }
 
 /**
@@ -279,7 +300,7 @@ export function drawGhost(
   }
   const mix = (dark: number, light: number) => Math.round(dark + (light - dark) * bright);
   ctx.shadowColor = `rgba(${mix(170, 70)}, ${mix(215, 100)}, ${mix(255, 200)}, 0.85)`;
-  ctx.shadowBlur = (name === "nic" || name === "bride" || name === "ryan" ? 60 : 45) * scale;
+  ctx.shadowBlur = (name === "kristen" || name === "bride" || name === "ryan" ? 60 : 45) * scale;
   ctx.drawImage(ghost, -p.w / 2, -p.h / 2, p.w, p.h);
   ctx.restore();
 }

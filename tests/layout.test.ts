@@ -72,7 +72,7 @@ const P = PHOTO;
 
 describe("ghostPlacement", () => {
   it("peeks in from the left, partly off the photo, below the top", () => {
-    const g = ghostPlacement("nic", P, 700, 785);
+    const g = ghostPlacement("kristen", P, 700, 895);
     expect(g.x).toBeLessThan(P.x);
     expect(g.x + g.w).toBeGreaterThan(P.x);
     expect(g.w).toBeLessThan(P.w * 0.5);
@@ -89,7 +89,7 @@ describe("Victorian pair placement", () => {
     expect(man.x + man.w).toBeLessThan(center - P.w * 0.1);
     expect(woman.x).toBeGreaterThan(center + P.w * 0.1);
   });
-  it("moves Nic down when the gentleman is in the left corner", () => {
-    expect(ghostPlacement("nic", P, 700, 785, true).y).toBeGreaterThan(ghostPlacement("nic", P, 700, 785).y);
+  it("moves the bride down when the gentleman is in the left corner", () => {
+    expect(ghostPlacement("bride", P, 700, 1243, true).y).toBeGreaterThan(ghostPlacement("bride", P, 700, 1243).y);
   });
 });
