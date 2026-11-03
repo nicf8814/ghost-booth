@@ -255,6 +255,47 @@ body {
   100% { transform: scale(0.85); opacity: 0; }
 }
 
+/* A ghost swoops across the screen in the last second of the countdown,
+   with a quick pale-blue glow. It's over before the photo is taken. */
+#pop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+#pop svg {
+  position: absolute;
+  top: 28%;
+  left: -40vw;
+  width: clamp(180px, 36vw, 340px);
+  height: auto;
+  fill: #dff0ff;
+  opacity: 0;
+  filter: drop-shadow(0 0 28px rgba(170, 215, 255, 0.95));
+}
+#pop .eye {
+  fill: #0b0a0f;
+}
+#pop.go {
+  animation: spook-glow 0.9s ease-out;
+}
+#pop.go svg {
+  animation: swoop 0.9s ease-in-out forwards;
+}
+@keyframes swoop {
+  0% { transform: translate(0, 22vh) rotate(-14deg) scale(0.8); opacity: 0; }
+  15% { opacity: 0.95; }
+  50% { transform: translate(85vw, -4vh) rotate(8deg) scale(1.15); }
+  85% { opacity: 0.95; }
+  100% { transform: translate(175vw, 14vh) rotate(-8deg) scale(1); opacity: 0; }
+}
+@keyframes spook-glow {
+  0% { background: rgba(190, 225, 255, 0); }
+  35% { background: rgba(190, 225, 255, 0.55); }
+  65% { background: rgba(190, 225, 255, 0); }
+  100% { background: rgba(190, 225, 255, 0); }
+}
+
 #flash {
   position: absolute;
   inset: 0;
@@ -302,6 +343,26 @@ body {
     0 0 0 2px rgba(255, 122, 26, 0.35),
     0 24px 60px rgba(0, 0, 0, 0.6);
   animation: drop-in 0.45s ease-out;
+}
+
+.photo-stack {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+}
+
+#result-ghost {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.8s ease-in;
+}
+#result-ghost.revealed {
+  opacity: 1;
 }
 
 @keyframes drop-in {

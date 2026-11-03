@@ -51,11 +51,24 @@
       <!-- Countdown -->
       <section class="screen" data-for="countdown">
         <div id="count" aria-live="assertive"></div>
+        <!-- A ghost swoops across during the last second -->
+        <div id="pop" aria-hidden="true">
+          <svg viewBox="0 0 64 64">
+            <path d="M32 6c-12 0-20 9-20 21v27l6-5 6 5 6-5 4 0 6 5 6-5 6 5V27C52 15 44 6 32 6z" />
+            <circle cx="25" cy="28" r="4" class="eye" />
+            <circle cx="39" cy="28" r="4" class="eye" />
+            <ellipse cx="32" cy="40" rx="4" ry="5" class="eye" />
+          </svg>
+        </div>
       </section>
 
       <!-- Review the framed photo -->
       <section class="screen" data-for="review">
-        <img id="result" alt="Your photo" />
+        <div class="photo-stack">
+          <img id="result" alt="Your photo" />
+          <!-- Random mode: the version with the ghost fades in over the plain photo -->
+          <img id="result-ghost" alt="" aria-hidden="true" />
+        </div>
         <div class="tools">
         <button id="ghost" class="pill ghost-toggle" type="button" aria-pressed="false" hidden>
           <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -118,7 +131,7 @@
           Ghost cameo
           <select name="ghost">
             <option value="toggle">Guests tap to add it</option>
-            <option value="random">Random surprise (about half)</option>
+            <option value="random">Random surprise (about 60% of photos)</option>
             <option value="off">Off</option>
           </select>
         </label>

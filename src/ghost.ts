@@ -13,6 +13,31 @@ export const GHOST_CHOICES: GhostName[][] = [
   ["nic", "bride", "man", "woman"],
 ];
 
+/** Random mode: the share of photos that get a ghost at all. */
+export const RANDOM_GHOST_CHANCE = 0.6;
+
+/**
+ * Random mode: which ghost, once a photo gets one. `index` points into
+ * GHOST_CHOICES (couple 40%, bride 40%, Nic 20%).
+ */
+export const RANDOM_GHOST_WEIGHTS: { index: number; weight: number }[] = [
+  { index: 3, weight: 40 }, // the couple
+  { index: 2, weight: 40 }, // the bride
+  { index: 1, weight: 20 }, // Nic
+];
+
+/** Picks a GHOST_CHOICES index for one photo in random mode; 0 means no ghost. */
+export function pickRandomGhost(rng: () => number = Math.random): number {
+  if (rng() >= RANDOM_GHOST_CHANCE) return 0;
+  const total = RANDOM_GHOST_WEIGHTS.reduce((sum, w) => sum + w.weight, 0);
+  let roll = rng() * total;
+  for (const w of RANDOM_GHOST_WEIGHTS) {
+    roll -= w.weight;
+    if (roll < 0) return w.index;
+  }
+  return RANDOM_GHOST_WEIGHTS[RANDOM_GHOST_WEIGHTS.length - 1].index;
+}
+
 export const GHOST_LABELS = [
   "Add a ghost",
   "Ghost: Nic",

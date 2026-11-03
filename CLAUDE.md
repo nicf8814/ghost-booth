@@ -35,6 +35,13 @@ The review button cycles: none -> Nic -> the bride -> the couple -> everyone.
 No cobweb on the frame (Nic asked to remove it). Settings
 modes: "toggle" (default), "random" (about half of photos get a random ghost
 choice; Nic plans to switch to this eventually), "off".
+Random mode odds (src/ghost.ts, `pickRandomGhost`, tested in tests/ghost.test.ts): 60% of
+photos get a ghost; of those, the Victorian couple 40%, the bride 40%, Nic 20% (never
+"everyone"). In random mode the plain photo shows first with Print disabled; the print is
+built with the ghost in the background, then the ghost version fades in on top
+(`#result-ghost`) and Print unlocks. The "Add a ghost" button only shows in "toggle" mode.
+In the last second of every countdown a ghost swoops across the screen with a pale-blue
+glow (`#pop`); it is only on screen, never in the photo.
 
 ## Photo border
 There is one border: dark filigree linework on cream (public/frames/filigree.png,

@@ -7,7 +7,7 @@ import { grabFrame, startCamera } from "./camera";
 import { canvasToJpeg, renderPrint } from "./frame";
 import { loadFrame } from "./frames";
 import { HD_SCALE } from "./layout";
-import { GHOST_CHOICES, GHOST_LABELS, loadGhost } from "./ghost";
+import { GHOST_CHOICES, GHOST_LABELS, loadGhost, pickRandomGhost, type GhostName } from "./ghost";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 
 type Screen = "attract" | "countdown" | "review" | "sent" | "error";
@@ -21,11 +21,16 @@ const flash = $<HTMLDivElement>("flash");
 const result = $<HTMLImageElement>("result");
 const errorText = $<HTMLParagraphElement>("error-text");
 const settingsDialog = $<HTMLDialogElement>("settings");
+const ghostImg = $<HTMLImageElement>("result-ghost");
+const printBtn = $<HTMLButtonElement>("print");
+const pop = $<HTMLDivElement>("pop");
 
 let settings: Settings = loadSettings();
 let stream: MediaStream | null = null;
 let photoFile: File | null = null;
 let photoUrl: string | null = null;
+let plainUrl: string | null = null; // ghost-less preview shown before a random ghost fades in
+let shotId = 0; // bumps on every new photo and reset, so slow renders from an old photo can bail out
 let idleTimer: number | undefined;
 let lastFrame: HTMLCanvasElement | null = null;
 let ghostIndex = 0; // index into GHOST_CHOICES
@@ -68,8 +73,14 @@ function showError(message: string) {
 }
 
 function reset() {
+  shotId++;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
+  if (plainUrl) URL.revokeObjectURL(plainUrl);
   photoUrl = null;
+  plainUrl = null;
+  ghostImg.classList.remove("revealed");
+  ghostImg.removeAttribute("src");
+  printBtn.disabled = false;
   photoFile = null;
   hdFile = null;
   lastFrame = null;
@@ -139,9 +150,16 @@ async function takePhoto() {
     countEl.classList.remove("tick");
     void countEl.offsetWidth; // restart the animation
     countEl.classList.add("tick");
+    if (n === 1) {
+      // a ghost swoops by in the last second, for a real reaction in the shot
+      pop.classList.remove("go");
+      void pop.offsetWidth;
+      pop.classList.add("go");
+    }
     await sleep(1000);
   }
   countEl.textContent = "";
+  pop.classList.remove("go");
 
   let frame: HTMLCanvasElement;
   try {
@@ -156,18 +174,55 @@ async function takePhoto() {
   flash.classList.add("go");
 
   lastFrame = frame;
-  ghostIndex =
-    settings.ghost === "random" && Math.random() < 0.5
-      ? 1 + Math.floor(Math.random() * (GHOST_CHOICES.length - 1))
-      : 0;
+  const shot = ++shotId;
+  ghostIndex = settings.ghost === "random" ? pickRandomGhost() : 0;
+
+  if (ghostIndex > 0) {
+    // Surprise ghost: show the plain photo right away, build the print with
+    // the ghost behind the scenes, then fade the ghost in on top.
+    printBtn.disabled = true;
+    hdBtn.hidden = true;
+    ghostBtn.hidden = true;
+    ghostImg.classList.remove("revealed");
+    ghostImg.removeAttribute("src");
+    const plain = await renderPreview(frame, []);
+    if (shot !== shotId) return;
+    if (plainUrl) URL.revokeObjectURL(plainUrl);
+    plainUrl = plain;
+    result.src = plain;
+    busy = false;
+    show("review");
+    await renderResult(true);
+    if (shot !== shotId) return;
+    await sleep(900);
+    if (shot !== shotId) return;
+    ghostImg.classList.add("revealed");
+    printBtn.disabled = false;
+    return;
+  }
+
   await renderResult();
   busy = false;
   show("review");
 }
 
+/** A quick preview JPEG of the framed photo with the given ghosts (not the print file). */
+async function renderPreview(frame: HTMLCanvasElement, names: GhostName[]): Promise<string> {
+  await document.fonts.ready;
+  const ghosts = [];
+  for (const name of names) {
+    const canvas = await loadGhost(name);
+    if (canvas) ghosts.push({ name, canvas });
+  }
+  const text = { title: settings.title, ghosts, frame: await loadFrame(), edges: settings.edges };
+  const blob = await canvasToJpeg(renderPrint(frame, frame.width, frame.height, text), 0.85);
+  return URL.createObjectURL(blob);
+}
+
 /** Builds the framed print from the last frame (with or without the ghost). */
-async function renderResult() {
+async function renderResult(reveal = false) {
   if (!lastFrame) return;
+  const shot = shotId;
   await document.fonts.ready;
   const ghosts = [];
   for (const name of GHOST_CHOICES[ghostIndex]) {
@@ -178,12 +233,21 @@ async function renderResult() {
   const text = { title: settings.title, ghosts, frame: await loadFrame(), edges: settings.edges };
   const print = renderPrint(frame, frame.width, frame.height, text);
   const blob = await canvasToJpeg(print);
+  if (shot !== shotId) return;
   // Share only the file. Extra title/text fields arrive in the share sheet as
   // separate items and the "Print to Kodak" shortcut would save them as junk.
   photoFile = new File([blob], `booth-${Date.now()}.jpg`, { type: "image/jpeg" });
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(blob);
-  result.src = photoUrl;
+  if (reveal) {
+    // The plain photo is already showing; load the ghost version on top
+    // (still invisible) so the fade-in has nothing to wait for.
+    ghostImg.src = photoUrl;
+    await ghostImg.decode().catch(() => undefined);
+    if (shot !== shotId) return;
+  } else {
+    result.src = photoUrl;
+  }
   // Build the 4K copy while the guest looks at the preview.
   hdBtn.hidden = settings.hd !== "show";
   hdBtn.disabled = false;
