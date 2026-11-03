@@ -24,6 +24,7 @@ const settingsDialog = $<HTMLDialogElement>("settings");
 const ghostImg = $<HTMLImageElement>("result-ghost");
 const printBtn = $<HTMLButtonElement>("print");
 const pop = $<HTMLDivElement>("pop");
+const popImg = $<HTMLImageElement>("pop-img");
 
 let settings: Settings = loadSettings();
 let stream: MediaStream | null = null;
@@ -137,6 +138,26 @@ async function requestWakeLock() {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// The ghost that swoops by in the last second of the countdown is one of our
+// created ghosts, chosen at random (never the same one twice in a row).
+const SWOOP_GHOSTS: GhostName[] = ["bride", "man", "woman", "ryan", "clinton", "kristen", "kristenryan"];
+const swoopUrls = new Map<GhostName, string>();
+let lastSwoop: GhostName | null = null;
+
+function pickSwoopGhost() {
+  const ready = SWOOP_GHOSTS.filter((n) => swoopUrls.has(n));
+  const fresh = ready.filter((n) => n !== lastSwoop);
+  const pool = fresh.length ? fresh : ready;
+  if (!pool.length) {
+    pop.classList.remove("has-img"); // pictures not ready yet: the plain ghost swoops instead
+    return;
+  }
+  const name = pool[Math.floor(Math.random() * pool.length)];
+  lastSwoop = name;
+  popImg.src = swoopUrls.get(name)!;
+  pop.classList.add("has-img");
+}
+
 async function takePhoto() {
   if (busy) return;
   busy = true;
@@ -157,6 +178,7 @@ async function takePhoto() {
     countEl.classList.add("tick");
     if (n === 1) {
       // a ghost swoops by in the last second, for a real reaction in the shot
+      pickSwoopGhost();
       pop.classList.remove("go");
       void pop.offsetWidth;
       pop.classList.add("go");
@@ -437,6 +459,14 @@ $("retry").addEventListener("click", () => {
 ensureCamera().catch((err) => showError(cameraErrorMessage(err)));
 loadFrame(); // warm up
 for (const names of GHOST_CHOICES) for (const n of names) loadGhost(n); // warm up
+// make a small picture of each ghost for the countdown swoop
+for (const name of SWOOP_GHOSTS) {
+  loadGhost(name).then((canvas) =>
+    canvas?.toBlob((blob) => {
+      if (blob) swoopUrls.set(name, URL.createObjectURL(blob));
+    }, "image/png"),
+  );
+}
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register("./sw.js").catch(() => undefined);

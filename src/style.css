@@ -276,10 +276,30 @@ body {
 #pop .eye {
   fill: #0b0a0f;
 }
+/* One of our created ghosts instead of the plain one, when its picture is ready */
+#pop img {
+  display: none;
+  position: absolute;
+  top: 24%;
+  left: -45vw;
+  width: auto;
+  height: auto;
+  max-width: min(70vw, 560px);
+  max-height: 40vh;
+  opacity: 0;
+  filter: drop-shadow(0 0 26px rgba(170, 215, 255, 0.95)) drop-shadow(0 0 8px rgba(223, 240, 255, 0.8));
+}
+#pop.has-img img {
+  display: block;
+}
+#pop.has-img svg {
+  display: none;
+}
 #pop.go {
   animation: spook-glow 0.9s ease-out;
 }
-#pop.go svg {
+#pop.go svg,
+#pop.go img {
   animation: swoop 0.9s ease-in-out forwards;
 }
 @keyframes swoop {
