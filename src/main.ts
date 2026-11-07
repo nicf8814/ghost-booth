@@ -39,6 +39,11 @@ let ghostIndex = 0; // index into GHOST_CHOICES
 const ghostBtn = $<HTMLButtonElement>("ghost");
 let busy = false;
 const hdBtn = $<HTMLButtonElement>("hd");
+const hdLabel = hdBtn.querySelector("span")!;
+const airdropHint = $<HTMLParagraphElement>("airdrop-hint");
+const AIRDROP_HINT = airdropHint.innerHTML;
+const AIRDROP_READY = "AirDrop to your phone";
+const AIRDROP_WAIT = "Getting it ready…";
 // The 4K version is built in the background after each photo so the Save HD
 // tap can share it right away (iOS wants share() to follow the tap closely).
 let hdFile: Promise<File> | null = null;
@@ -325,8 +330,12 @@ async function renderResult(reveal = false) {
   if (!reveal) result.src = photoUrl;
   // Build the 4K copy while the guest looks at the preview.
   hdBtn.hidden = settings.hd !== "show";
+  airdropHint.hidden = hdBtn.hidden;
+  airdropHint.innerHTML = AIRDROP_HINT;
+  printBtn.hidden = settings.print !== "show";
   // Only tappable once the 4K file exists, so share() runs right after the tap (iOS needs that).
   hdBtn.disabled = true;
+  hdLabel.textContent = AIRDROP_WAIT;
   hdFile = null;
   const token = ++hdToken;
   if (settings.hd === "show") {
@@ -342,7 +351,10 @@ async function renderResult(reveal = false) {
     });
     mine.then(
       () => {
-        if (token === hdToken) hdBtn.disabled = false;
+        if (token === hdToken) {
+          hdBtn.disabled = false;
+          hdLabel.textContent = AIRDROP_READY;
+        }
       },
       () => undefined,
     );
@@ -400,7 +412,9 @@ async function saveHd() {
     const file = await pending;
     if (shot !== shotId) return; // the guest already tapped Done
     if (navigator.canShare?.({ files: [file] })) {
+      // Only the file: extra text would arrive on the guest's phone as a separate note.
       await navigator.share({ files: [file] });
+      if (shot === shotId) airdropHint.textContent = "Sent! Another phone? Tap AirDrop again.";
     } else {
       const url = URL.createObjectURL(file);
       const a = document.createElement("a");
@@ -412,7 +426,7 @@ async function saveHd() {
   } catch (err) {
     if (shot !== shotId) return;
     if (!(err instanceof DOMException && err.name === "AbortError")) {
-      showError("Couldn't save the HD photo. Try again.");
+      showError("Couldn't open AirDrop. Try again.");
       return;
     }
   }
@@ -430,6 +444,7 @@ function openSettings() {
   (form.elements.namedItem("rotation") as HTMLSelectElement).value = settings.rotation;
   (form.elements.namedItem("ghost") as HTMLSelectElement).value = settings.ghost;
   (form.elements.namedItem("hd") as HTMLSelectElement).value = settings.hd;
+  (form.elements.namedItem("print") as HTMLSelectElement).value = settings.print;
   (form.elements.namedItem("edges") as HTMLSelectElement).value = settings.edges;
   const info = $<HTMLParagraphElement>("cam-info");
   info.textContent = video.videoWidth
@@ -450,6 +465,7 @@ settingsDialog.addEventListener("close", () => {
     countdown: Number((form.elements.namedItem("countdown") as HTMLSelectElement).value) || 3,    rotation: (form.elements.namedItem("rotation") as HTMLSelectElement).value as Settings["rotation"],
     ghost: (form.elements.namedItem("ghost") as HTMLSelectElement).value as Settings["ghost"],
     hd: (form.elements.namedItem("hd") as HTMLSelectElement).value as Settings["hd"],
+    print: (form.elements.namedItem("print") as HTMLSelectElement).value as Settings["print"],
     edges: (form.elements.namedItem("edges") as HTMLSelectElement).value as Settings["edges"],
   };
   saveSettings(settings);

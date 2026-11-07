@@ -6,8 +6,10 @@ export interface Settings {
   countdown: number;
   rotation: Rotation;
   ghost: GhostMode;
-  /** Show the "Save HD" button on the review screen. */
+  /** Show the "AirDrop to your phone" button (shares the 4K copy) on the review screen. */
   hd: "show" | "hide";
+  /** Show the Print button. Hidden when the printer paper runs out; guests AirDrop instead. */
+  print: "show" | "hide";
   /** Fade the photo into the border paper, or keep a hard edge. */
   edges: "soft" | "sharp";
 }
@@ -20,6 +22,7 @@ export const DEFAULTS: Settings = {
   rotation: "none",
   ghost: "toggle",
   hd: "show",
+  print: "show",
   edges: "soft",
 };
 

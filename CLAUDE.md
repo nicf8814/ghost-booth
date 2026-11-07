@@ -10,7 +10,7 @@ the `backup-before-simple-rebuild` branch. Don't bring features back unless aske
 
 ## Flow
 attract (live mirrored front camera, timer chips 3/7/10s, tap anywhere else to start) -> countdown -> review
-(framed photo; Print / Retake / Done, plus Save HD which shares a 2560x3840 copy of the same framed photo, pre-rendered in the background; can be hidden in settings) -> sent -> back to attract.
+(framed photo; Print / Retake / Done, plus a light-blue "AirDrop to your phone" button that shares a 2560x3840 copy of the same framed photo, pre-rendered in the background, with a one-line hint under it on turning on AirDrop "Everyone for 10 Minutes"; it stays on the review screen so several phones can get it. Nic asked for this Nov 7 because he is short on printer paper. Settings can hide the AirDrop button, and can hide Print when the paper runs out) -> sent -> back to attract.
 Review auto-resets after 90s. Tap the small gear (top right of the landing screen) or hold the title for 2s to open settings
 (text on print and screen, default timer, photo rotation, ghost cameo mode).
 

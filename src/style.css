@@ -529,7 +529,7 @@ dialog .pill {
   font-size: 16px;
 }
 
-/* ---------- Review tools row (ghost toggle + Save HD) ---------- */
+/* ---------- Review tools row (ghost toggle + AirDrop) ---------- */
 
 .tools {
   display: flex;
@@ -540,9 +540,34 @@ dialog .pill {
 }
 
 .hd-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
-  padding: 12px 24px;
-  font-size: clamp(15px, 2.2vw, 20px);
+  padding: 16px 30px 16px 24px;
+  font-size: clamp(17px, 2.6vw, 24px);
+  border-color: transparent;
+  background: linear-gradient(180deg, #cfe8ff, #8fc4f5);
+  color: #0b0a0f;
+  box-shadow:
+    0 0 0 5px rgba(170, 215, 255, 0.3),
+    0 0 28px rgba(170, 215, 255, 0.65);
+}
+.hd-save svg {
+  width: 30px;
+  height: 30px;
+  fill: currentColor;
+}
+.airdrop-hint {
+  margin: 0;
+  max-width: 560px;
+  text-align: center;
+  color: rgba(244, 240, 250, 0.85);
+  font: 600 clamp(13px, 1.8vw, 17px) / 1.35 var(--ui);
+}
+.airdrop-hint[hidden],
+.actions .pill[hidden] {
+  display: none;
 }
 .hd-save[hidden] {
   display: none;

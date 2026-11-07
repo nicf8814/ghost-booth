@@ -79,8 +79,17 @@
           </svg>
           <span>Add a ghost</span>
         </button>
-        <button id="hd" class="pill hd-save" type="button" hidden>Save HD</button>
+        <button id="hd" class="pill hd-save" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3a9 9 0 0 0-6.4 15.4l1.4-1.4A7 7 0 1 1 17 17l1.4 1.4A9 9 0 0 0 12 3zm0 4a5 5 0 0 0-3.5 8.6l1.4-1.4a3 3 0 1 1 4.2 0l1.4 1.4A5 5 0 0 0 12 7zm0 4.5L8 21h8l-4-9.5z" />
+          </svg>
+          <span>AirDrop to your phone</span>
+        </button>
         </div>
+        <p id="airdrop-hint" class="airdrop-hint" hidden>
+          iPhone not showing up? Open Control Center, press and hold the Wi-Fi box, tap AirDrop, pick
+          <b>Everyone for 10 Minutes</b>.
+        </p>
         <div class="actions">
           <button id="retake" class="pill" type="button">Retake</button>
           <button id="print" class="pill primary" type="button">Print</button>
@@ -144,8 +153,15 @@
           </select>
         </label>
         <label>
-          Save HD button (4K copy for AirDrop or Photos)
+          AirDrop button (sends guests a 4K copy, no printing needed)
           <select name="hd">
+            <option value="show">Show it</option>
+            <option value="hide">Hide it</option>
+          </select>
+        </label>
+        <label>
+          Print button (hide it when the paper runs out)
+          <select name="print">
             <option value="show">Show it</option>
             <option value="hide">Hide it</option>
           </select>
